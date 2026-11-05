@@ -12,6 +12,7 @@ function YaHT:LoadDefaults()
 			font = "Myriad Condensed Web",
 			alpha = 1,
 			malpha = 0.2,
+			windupauto = true,
 			windup = 0.5,
 			castholds = false,
 			enablebackground = true,

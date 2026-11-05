@@ -129,14 +129,21 @@ function YaHT:CreateConfig()
 						type = "header",
 						order = 6.5,
 					},
+					windupauto = {
+						name = L["Automatic wind-up"],
+						desc = L["Wind-up = 0.5s scaled by your ranged haste (WoW Forever behaviour). Turn off to set it by hand."],
+						type = "toggle",
+						order = 6.55,
+					},
 					windup = {
 						name = L["Wind-up time"],
-						desc = L["How long you must stand still before each Auto Shot fires. WoW Forever: 0.5. Original Classic addon: 0.65."],
+						desc = L["How long you must stand still before each Auto Shot fires. WoW Forever base: 0.5. Original Classic addon: 0.65."],
 						type = "range",
 						order = 6.6,
-						min = 0.3,
+						min = 0.2,
 						max = 1.0,
 						step = 0.05,
+						disabled = function() return YaHT.db.profile.windupauto end,
 					},
 					castholds = {
 						name = L["Casts hold Auto Shot"],

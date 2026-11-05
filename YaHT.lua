@@ -14,6 +14,11 @@ YaHT.version = "2140-forever1"
 ---------------------------------------------------------------------------
 -- API compatibility helpers
 ---------------------------------------------------------------------------
+-- WoW Forever (12.x engine) can hand addons "secret values" in combat that
+-- cannot be compared or used in maths. Always check before using a stat.
+local function IsSecret(v)
+	return issecretvalue and issecretvalue(v) or false
+end
 local function GetSpellName(spellID)
 	if not spellID then return nil end
 	if C_Spell and C_Spell.GetSpellName then
@@ -99,13 +104,6 @@ end
 ---------------------------------------------------------------------------
 -- Timer logic
 ---------------------------------------------------------------------------
--- Auto Shot wind-up: the part of each shot where you must stand still.
--- WoW Forever: Blizzard states it is 0.5 s (same as 1.12). The original
--- Classic 1.13 addon used 0.65 s. Configurable under /yaht -> "Wind-up time".
-local DEFAULT_WINDUP = 0.5
-local function Windup()
-	return (YaHT.db and YaHT.db.profile.windup) or DEFAULT_WINDUP
-end
 local movementDelay = 0
 
 local AUTO_SHOT_ID = 75
@@ -116,12 +114,74 @@ local TranqShot = GetSpellName(19801)
 local backdrop = {insets = {}}
 local playerGUID
 
+local lastMoving = false
 local function IsMoving()
-	return (IsPlayerMoving and IsPlayerMoving()) or (GetUnitSpeed and GetUnitSpeed("player") > 0) or (IsFalling and IsFalling())
+	local falling = IsFalling and IsFalling()
+	if falling == true then return true end
+	local moving = IsPlayerMoving and IsPlayerMoving()
+	if moving ~= nil and not IsSecret(moving) then
+		lastMoving = moving and true or false
+		return lastMoving
+	end
+	local speed = GetUnitSpeed and GetUnitSpeed("player")
+	if type(speed) == "number" and not IsSecret(speed) then
+		lastMoving = speed > 0
+	end
+	return lastMoving -- stat hidden: keep last known state
 end
 
+local lastRangedSpeed = 2
 local function GetRangedSpeed()
-	return (UnitRangedDamage("player")) or 2
+	local speed = UnitRangedDamage("player")
+	if type(speed) == "number" and not IsSecret(speed) and speed > 0 then
+		lastRangedSpeed = speed
+	end
+	return lastRangedSpeed
+end
+
+-- Unhasted weapon speed, read from the ranged weapon's tooltip.
+local scanTip = CreateFrame("GameTooltip", "YaHTScanningTooltip", nil, "GameTooltipTemplate")
+local baseSpeedCache = {}
+local function GetBaseSpeed()
+	local slot = INVSLOT_RANGED or 18
+	local itemID = GetInventoryItemID and GetInventoryItemID("player", slot)
+	if not itemID then return nil end
+	if baseSpeedCache[itemID] then return baseSpeedCache[itemID] end
+	scanTip:SetOwner(WorldFrame or UIParent, "ANCHOR_NONE")
+	scanTip:ClearLines()
+	scanTip:SetInventoryItem("player", slot)
+	local pattern = (SPEED or "Speed") .. " (%d+[%.,]%d+)"
+	for i = 1, scanTip:NumLines() do
+		local fs = _G["YaHTScanningTooltipTextRight"..i]
+		local text = fs and fs:GetText()
+		if text and not IsSecret(text) then
+			local num = text:match(pattern)
+			if num then
+				num = tonumber((num:gsub(",", ".")))
+				if num and num > 0 then
+					baseSpeedCache[itemID] = num
+					return num
+				end
+			end
+		end
+	end
+end
+
+-- Auto Shot wind-up: the part of each shot where you must stand still.
+-- WoW Forever: 0.5 s at base weapon speed, shortened by ranged haste
+-- (0.5 * current speed / base speed), same model WeaponSwingTimer's
+-- Forever build uses. Can be set manually under /yaht -> Timing.
+local function Windup(speed)
+	local p = YaHT.db and YaHT.db.profile
+	if p and not p.windupauto then
+		return p.windup or 0.5
+	end
+	local base = GetBaseSpeed()
+	speed = speed or (YaHT.mainFrame and YaHT.mainFrame.speed) or GetRangedSpeed()
+	if base and base > 1 and speed and speed > 0 then
+		return math.min(0.5 * speed / base, 0.5 * 1.5)
+	end
+	return 0.5
 end
 
 local function GetAutoShotCooldown()
@@ -135,7 +195,7 @@ end
 
 local function OnUpdate(self, elapsed)
 	local config = YaHT.db.profile
-	local SWING_TIME = Windup()
+	local SWING_TIME = Windup(self.speed)
 	self.swingtime = math.max(self.speed - SWING_TIME, 0.1)
 	if not config.lock then
 		self.mockTime = self.mockTime + elapsed
@@ -343,6 +403,7 @@ end
 -- Events
 ---------------------------------------------------------------------------
 local function IsCastSpell(spellID)
+	if IsSecret(spellID) then return false end
 	local name = GetSpellName(spellID)
 	return name and (name == AimedShot or name == MultiShot)
 end
@@ -364,12 +425,13 @@ YaHT.UNIT_SPELLCAST_FAILED = YaHT.UNIT_SPELLCAST_STOP
 YaHT.UNIT_SPELLCAST_INTERRUPTED = YaHT.UNIT_SPELLCAST_STOP
 
 function YaHT:UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
-	if unit ~= "player" then return end
+	if unit ~= "player" or IsSecret(spellID) then return end
 	local config = YaHT.db.profile
 	local name = GetSpellName(spellID)
 
 	if name and name == TranqShot then
-		self.lastTranqTarget = UnitName("target")
+		local target = UnitName("target")
+		self.lastTranqTarget = (not IsSecret(target)) and target or nil
 		-- Without the combat log we cannot tell hit from miss, so announce on cast.
 		if config.tranqannounce and not self.hasCombatLog then
 			Announce(config.announcemsg, self.lastTranqTarget)
@@ -381,29 +443,61 @@ function YaHT:UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
 		return
 	end
 
-	if spellID == AUTO_SHOT_ID or (name and name == AutoShot) then
-		local f = self.mainFrame
-		if f.shooting then
-			local now = GetTime()
-			if self.debug then
-				local cdStart, cdDur = GetAutoShotCooldown()
-				self:Print(string.format("Auto Shot: %.3fs since last | ranged speed %.3f | cooldown start %s dur %s | windup %.2f | casting %s",
-					now - f.lastshot, GetRangedSpeed(), tostring(cdStart and cdStart - now), tostring(cdDur), Windup(), tostring(f.casting)))
-			end
-			f.lastshot = now
-			f.SwingStart = nil
-			if f.newspeed then
-				f.speed = f.newspeed
-				f.newspeed = nil
-			end
-			f.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
-			movementDelay = 0
+	-- When the client has PLAYER_SWING (WoW Forever) that event is the
+	-- authoritative shot signal; this is only the fallback.
+	if not self.hasNativeSwing and (spellID == AUTO_SHOT_ID or (name and name == AutoShot)) then
+		if self.mainFrame.shooting then
+			self:OnAutoShot(nil, "UNIT_SPELLCAST_SUCCEEDED")
 		end
 	end
 end
 
+-- A ranged shot just left the bow/gun. duration = full time until the next
+-- shot (already includes haste) when the game tells us, nil otherwise.
+function YaHT:OnAutoShot(duration, source)
+	local config = YaHT.db.profile
+	local f = self.mainFrame
+	local now = GetTime()
+	if duration then
+		f.speed = duration
+		f.newspeed = nil
+	elseif f.newspeed then
+		f.speed = f.newspeed
+		f.newspeed = nil
+	end
+	if self.debug then
+		local cdStart, cdDur = GetAutoShotCooldown()
+		local function v(x) if IsSecret(x) then return "secret" end return x and string.format("%.3f", x) or "nil" end
+		self:Print(string.format("%s: %.3fs since last | swing %s | ranged speed %s | base %s | windup %.3f | cd %s | casting %s",
+			source or "?", now - f.lastshot, v(duration), v(GetRangedSpeed()), v(GetBaseSpeed()), Windup(f.speed),
+			(cdDur and not IsSecret(cdDur)) and string.format("%.3f", cdDur) or tostring(cdDur), tostring(f.casting)))
+	end
+	f.lastshot = now
+	f.SwingStart = nil
+	f.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
+	movementDelay = 0
+end
+
+-- WoW Forever: native swing event, fires for every swing with its duration.
+function YaHT:PLAYER_SWING(duration, swingType)
+	if type(duration) ~= "number" or IsSecret(duration) or duration <= 0 then return end
+	if Enum and Enum.PlayerSwingType and swingType ~= Enum.PlayerSwingType.Ranged then return end
+	self:OnAutoShot(duration, "PLAYER_SWING")
+end
+
+-- Auto Shot tried to start but couldn't (e.g. moving); the game waits
+-- ~0.5 s before retrying. The movement logic in OnUpdate models this.
+function YaHT:UNIT_SPELLCAST_FAILED_QUIET(unit, castGUID, spellID)
+	if unit ~= "player" or not self.debug then return end
+	if spellID == AUTO_SHOT_ID then self:Print("Auto Shot attempt failed (retry delay)") end
+end
+
+function YaHT:PLAYER_EQUIPMENT_CHANGED()
+	self.mainFrame.newspeed = GetRangedSpeed()
+end
+
 -- Only used for Tranquilizing Shot hit/miss announcements, and only if the
--- client still lets addons read the combat log.
+-- client still lets addons read the combat log (WoW Forever does not).
 function YaHT:COMBAT_LOG_EVENT_UNFILTERED()
 	local _, event, _, casterID, _, _, _, _, targetName, _, _, _, name = GetCombatLogInfo()
 	if casterID ~= playerGUID or name ~= TranqShot then return end
@@ -488,6 +582,9 @@ SafeRegister("UNIT_SPELLCAST_SUCCEEDED", "player")
 SafeRegister("UNIT_RANGEDDAMAGE", "player")
 SafeRegister("START_AUTOREPEAT_SPELL")
 SafeRegister("STOP_AUTOREPEAT_SPELL")
+SafeRegister("UNIT_SPELLCAST_FAILED_QUIET", "player")
+SafeRegister("PLAYER_EQUIPMENT_CHANGED")
+YaHT.hasNativeSwing = SafeRegister("PLAYER_SWING")
 YaHT.hasCombatLog = (CombatLogGetCurrentEventInfo or (C_CombatLog and C_CombatLog.GetCurrentEventInfo)) and SafeRegister("COMBAT_LOG_EVENT_UNFILTERED") or false
 
 frame:SetScript("OnEvent", function(self, event, ...)

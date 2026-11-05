@@ -22,11 +22,16 @@ If the game says the addon is "out of date", check your interface number in-game
 - Every event is registered defensively so a missing/forbidden event can't break the addon.
 
 ## Auto Shot timing on WoW Forever
-- **Wind-up** (the stand-still part before each shot) defaults to **0.5 s**, which Blizzard says is
-  Forever's intended value. The original Classic addon used 0.65 s. Adjust under `/yaht` → Timing.
-- **Aimed Shot no longer pauses the timer.** On Forever, Auto Shot keeps firing during Aimed Shot casts.
+Based on research and on the Forever build of WeaponSwingTimer-SixxFix
+(github.com/watchyoursixx/WeaponSwingTimer-SixxFix, `forever` branch):
+- The game sends a native `PLAYER_SWING` event with the exact ranged swing time every shot.
+  YaHT uses it as the shot signal, falling back to spell-cast events if a client lacks it.
+- **Wind-up** (stand-still part) = 0.5 s × current ranged speed ÷ weapon base speed, so haste
+  shortens it. You can set a fixed value instead under `/yaht` → Timing.
+- **Aimed Shot no longer pauses the timer.** Auto Shot keeps firing during casts on Forever.
   Turn on "Casts hold Auto Shot" if that changes back.
-- `/yaht debug` prints the real time between Auto Shots, your ranged speed and the Auto Shot cooldown
-  after every shot, so the timing can be checked against the game.
+- Forever blocks addons from the combat log and can hide stats ("secret values") in combat.
+  YaHT checks for both, and keeps the last known value when a stat is hidden.
+- `/yaht debug` prints swing time, base speed, wind-up and cooldown after every shot.
 
 Original addon by Aviana: https://github.com/Aviana/YaHT
