@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.3.3-forever"
+YaHT.version = "1.0.0"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -646,6 +646,12 @@ function YaHT:OnInitialize()
 	self:Load()
 	if self.InitAmmo then self:InitAmmo() end
 	self:CreateConfig()
+
+	-- first install: the bar starts unlocked (preview mode) - say what to do
+	if not self.db.global.welcomed then
+		self.db.global.welcomed = true
+		self:Print(L["thanks for installing! Drag the bar where you want it, then type /yaht lock. /yaht opens the options."])
+	end
 end
 
 local resetTimer
@@ -1091,7 +1097,7 @@ function YaHT:ShowCopyWindow()
 		end
 		local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 		title:SetPoint("TOP", 0, -14)
-		title:SetText("YaHT debug log  -  "..L["press Ctrl+C to copy, Esc to close"])
+		title:SetText("YaHT Forever debug log  -  "..L["press Ctrl+C to copy, Esc to close"])
 
 		local ok, close = pcall(CreateFrame, "Button", nil, f, "UIPanelCloseButton")
 		if ok and close then close:SetPoint("TOPRIGHT", -4, -4) end

@@ -166,6 +166,7 @@ local L = {
 ["empty the debug log"] = "清空除錯日誌",
 ["Smooth out network jitter"] = "平滑網路抖動",
 ["Shots are evenly spaced, but the game's message about each one arrives a little early or late. Keeps the bar on a steady rhythm instead of jumping with every message."] = "射擊間隔是均勻的，但遊戲對每次射擊的通知會稍早或稍晚到達。讓計量條保持穩定節奏，而不是隨每條通知跳動。",
+["thanks for installing! Drag the bar where you want it, then type /yaht lock. /yaht opens the options."] = "感謝安裝！把計量條拖到想要的位置，然後輸入 /yaht lock。輸入 /yaht 開啟設定。",
 }
 
 YaHT.L = L

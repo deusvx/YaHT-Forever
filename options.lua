@@ -117,7 +117,7 @@ function YaHT:CreateConfig()
 	local tranq = YaHT.GetSpellName(19801) or "Tranquilizing Shot"
 
 	local aceoptions = {
-		name = "YaHT - Yet another Hunter Timer",
+		name = "YaHT Forever - Yet another Hunter Timer",
 		type = "group",
 		childGroups = "tab",
 		get = get,

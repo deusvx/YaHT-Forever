@@ -169,6 +169,7 @@ local L = {
 ["empty the debug log"] = "leert das Debug-Protokoll",
 ["Smooth out network jitter"] = "Netzwerk-Schwankungen glätten",
 ["Shots are evenly spaced, but the game's message about each one arrives a little early or late. Keeps the bar on a steady rhythm instead of jumping with every message."] = "Schüsse kommen gleichmäßig, aber die Meldung des Spiels zu jedem Schuss trifft etwas früher oder später ein. Hält den Balken in einem gleichmäßigen Rhythmus, statt bei jeder Meldung zu springen.",
+["thanks for installing! Drag the bar where you want it, then type /yaht lock. /yaht opens the options."] = "Danke für die Installation! Zieh den Balken an die gewünschte Stelle und gib dann /yaht lock ein. /yaht öffnet die Optionen.",
 }
 
 YaHT.L = L
