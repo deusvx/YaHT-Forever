@@ -364,6 +364,136 @@ function YaHT:ApplyTextSettings()
 	holder:EnableMouse(not config.lock and config.showtext)
 end
 
+---------------------------------------------------------------------------
+-- Glow: none while the bar is full, builds up as the reload runs out,
+-- full (optionally pulsing) while you need to stand still.
+---------------------------------------------------------------------------
+local GLOW_TEX = "Interface\\AddOns\\YaHT\\media\\Glow"
+-- 9-slice pieces of the 64x64 glow texture (corners are the outer 16px)
+local GLOW_PIECES = {
+	-- name, texcoords, anchor function
+	{"TL", 0, .25, 0, .25}, {"T", .25, .75, 0, .25}, {"TR", .75, 1, 0, .25},
+	{"L", 0, .25, .25, .75},                         {"R", .75, 1, .25, .75},
+	{"BL", 0, .25, .75, 1}, {"B", .25, .75, .75, 1}, {"BR", .75, 1, .75, 1},
+}
+
+local function CreateGlow(f)
+	local glow = CreateFrame("Frame", "YaHTMainFrameGlow", f)
+	glow:SetAllPoints(f)
+	glow:SetFrameLevel(math.max(f:GetFrameLevel() - 1, 0))
+	glow.pieces = {}
+	for _, piece in ipairs(GLOW_PIECES) do
+		local t = glow:CreateTexture(nil, "BACKGROUND")
+		t:SetTexture(GLOW_TEX)
+		t:SetTexCoord(piece[2], piece[3], piece[4], piece[5])
+		t:SetBlendMode("ADD")
+		glow.pieces[piece[1]] = t
+	end
+	glow:SetAlpha(0)
+	return glow
+end
+
+function YaHT:ApplyGlowSettings()
+	local config = self.db.profile
+	local f = self.mainFrame
+	local glow, P = f.glow, f.glow.pieces
+	local g = config.glowsize
+	for _, t in pairs(P) do
+		t:ClearAllPoints()
+		t:SetVertexColor(config.glowcolor.r, config.glowcolor.g, config.glowcolor.b)
+	end
+	P.TL:SetSize(g, g) P.TL:SetPoint("BOTTOMRIGHT", f, "TOPLEFT")
+	P.TR:SetSize(g, g) P.TR:SetPoint("BOTTOMLEFT", f, "TOPRIGHT")
+	P.BL:SetSize(g, g) P.BL:SetPoint("TOPRIGHT", f, "BOTTOMLEFT")
+	P.BR:SetSize(g, g) P.BR:SetPoint("TOPLEFT", f, "BOTTOMRIGHT")
+	P.T:SetHeight(g) P.T:SetPoint("BOTTOMLEFT", f, "TOPLEFT") P.T:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT")
+	P.B:SetHeight(g) P.B:SetPoint("TOPLEFT", f, "BOTTOMLEFT") P.B:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT")
+	P.L:SetWidth(g) P.L:SetPoint("TOPRIGHT", f, "TOPLEFT") P.L:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT")
+	P.R:SetWidth(g) P.R:SetPoint("TOPLEFT", f, "TOPRIGHT") P.R:SetPoint("BOTTOMLEFT", f, "BOTTOMRIGHT")
+	if config.glow then glow:Show() else glow:Hide() self:StopFancyGlow() end
+	-- restart the animated effect so color/style changes apply
+	if self.fancyGlow then self:StopFancyGlow() end
+end
+
+local function UpdateGlow(self)
+	local config = YaHT.db.profile
+	if not config.glow then return end
+	local now = GetTime()
+	local level -- 0..1
+	local standing = false
+	if not config.lock then
+		if self.mockTime > self.swingtime then
+			level, standing = 1, true
+		else
+			level = self.mockTime / self.swingtime
+		end
+	elseif self.SwingStart then
+		level, standing = 1, true
+	elseif self.shooting then
+		level = math.min(math.max((now - self.lastshot) / self.swingtime, 0), 1)
+	else
+		level = 0
+	end
+	if not standing then
+		if config.glowmode == "STAND" then
+			level = 0
+		else
+			-- ease in: barely visible early, ramps up near the end of the reload
+			level = (level ^ 2) * config.glowramp
+		end
+	elseif config.glowpulse then
+		level = 0.8 + 0.2 * math.sin(now * math.pi * 2 * 2) -- 2 pulses/sec, never dims much
+	end
+	-- Fancy animated effect from LibCustomGlow (shipped inside many glow
+	-- addons, WeakAuras, ElvUI...) for the stand-still part, if chosen.
+	local fancy = config.glowstyle ~= "BUILTIN" and standing
+	if fancy and not YaHT:StartFancyGlow() then fancy = false end
+	if not fancy then YaHT:StopFancyGlow() end
+	if fancy and not config.glowkeepbuiltin then level = 0 end
+	self.glow:SetAlpha(level * config.glowintensity)
+end
+
+local LCG_KEY = "YaHT"
+function YaHT:GetLCG()
+	return LibStub and LibStub("LibCustomGlow-1.0", true)
+end
+
+function YaHT:StartFancyGlow()
+	local config = self.db.profile
+	local LCG = self:GetLCG()
+	if not LCG then return false end
+	if self.fancyGlow == config.glowstyle then return true end
+	self:StopFancyGlow()
+	local f = self.mainFrame
+	local c = {config.glowcolor.r, config.glowcolor.g, config.glowcolor.b, 1}
+	local ok
+	if config.glowstyle == "PIXEL" and LCG.PixelGlow_Start then
+		ok = pcall(LCG.PixelGlow_Start, f, c, 12, 0.25, nil, 2, 2, 2, false, LCG_KEY)
+	elseif config.glowstyle == "AUTOCAST" and LCG.AutoCastGlow_Start then
+		ok = pcall(LCG.AutoCastGlow_Start, f, c, 8, 0.25, 1, 0, 0, LCG_KEY)
+	elseif config.glowstyle == "PROC" and LCG.ProcGlow_Start then
+		ok = pcall(LCG.ProcGlow_Start, f, {color = c, key = LCG_KEY, startAnim = true, xOffset = 4, yOffset = 4})
+	elseif config.glowstyle == "BUTTON" and LCG.ButtonGlow_Start then
+		ok = pcall(LCG.ButtonGlow_Start, f, c)
+	end
+	if ok then self.fancyGlow = config.glowstyle end
+	return ok and true or false
+end
+
+function YaHT:StopFancyGlow()
+	if not self.fancyGlow then return end
+	local LCG = self:GetLCG()
+	local f = self.mainFrame
+	if LCG then
+		if self.fancyGlow == "PIXEL" and LCG.PixelGlow_Stop then pcall(LCG.PixelGlow_Stop, f, LCG_KEY)
+		elseif self.fancyGlow == "AUTOCAST" and LCG.AutoCastGlow_Stop then pcall(LCG.AutoCastGlow_Stop, f, LCG_KEY)
+		elseif self.fancyGlow == "PROC" and LCG.ProcGlow_Stop then pcall(LCG.ProcGlow_Stop, f, LCG_KEY)
+		elseif self.fancyGlow == "BUTTON" and LCG.ButtonGlow_Stop then pcall(LCG.ButtonGlow_Stop, f)
+		end
+	end
+	self.fancyGlow = nil
+end
+
 function YaHT:OnInitialize()
 	playerGUID = UnitGUID("player")
 	self:LoadDefaults()
@@ -467,6 +597,7 @@ function YaHT:ApplySettings()
 	f.texture:SetTexture(self:GetMedia("statusbar", config.statusbar))
 	f.texture:SetHeight(config.height)
 	if f.textHolder then self:ApplyTextSettings() end
+	if f.glow then self:ApplyGlowSettings() end
 end
 
 function YaHT:Load()
@@ -491,6 +622,8 @@ function YaHT:Load()
 		if not ok then ReportError("OnUpdate", err) end
 		ok, err = pcall(UpdateText, frame)
 		if not ok then ReportError("UpdateText", err) end
+		ok, err = pcall(UpdateGlow, frame)
+		if not ok then ReportError("UpdateGlow", err) end
 	end)
 
 	f.background = f:CreateTexture("YaHTMainFrameBackground", "BACKGROUND")
@@ -501,6 +634,8 @@ function YaHT:Load()
 	end
 
 	f.texture = f:CreateTexture("YaHTMainFrameBar", "ARTWORK")
+
+	f.glow = CreateGlow(f)
 
 	-- countdown number, in its own small frame so it can be dragged
 	local holder = CreateFrame("Frame", "YaHTMainFrameTextHolder", f)

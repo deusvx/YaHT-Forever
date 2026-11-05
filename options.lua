@@ -268,6 +268,95 @@ function YaHT:CreateConfig()
 						set = setColor,
 						disabled = function() return not YaHT.db.profile.showtext end,
 					},
+					glowheader = {
+						name = L["Glow"],
+						type = "header",
+						order = 11.91,
+					},
+					glow = {
+						name = L["Glow"],
+						desc = L["Glow around the bar: none when the bar is full, building up as the reload runs out, full when you need to stand still."],
+						type = "toggle",
+						order = 11.92,
+					},
+					glowmode = {
+						name = L["Glow style"],
+						desc = L["Build up: glow grows during the reload. Stand still only: glow appears just for the stand-still part."],
+						type = "select",
+						order = 11.93,
+						values = {RAMP = L["Build up"], STAND = L["Stand still only"]},
+						disabled = function() return not YaHT.db.profile.glow end,
+					},
+					glowstyle = {
+						name = L["Stand-still effect"],
+						desc = L["Built-in soft glow, or an animated effect borrowed from LibCustomGlow (comes with many glow addons, WeakAuras, ElvUI). Animated effects need one of those addons installed."],
+						type = "select",
+						order = 11.935,
+						values = function()
+							local v = {BUILTIN = L["Built-in glow"]}
+							if YaHT:GetLCG() then
+								v.PIXEL = L["Pixel (animated lines)"]
+								v.AUTOCAST = L["Autocast (sparkles)"]
+								v.PROC = L["Proc (spell alert)"]
+								v.BUTTON = L["Button (action bar glow)"]
+							end
+							return v
+						end,
+						disabled = function() return not YaHT.db.profile.glow end,
+					},
+					glowkeepbuiltin = {
+						name = L["Keep soft glow too"],
+						desc = L["Show the built-in glow underneath the animated effect."],
+						type = "toggle",
+						order = 11.937,
+						hidden = function() return YaHT.db.profile.glowstyle == "BUILTIN" end,
+						disabled = function() return not YaHT.db.profile.glow end,
+					},
+					glowpulse = {
+						name = L["Pulse when standing"],
+						desc = L["Pulse the glow during the stand-still part."],
+						type = "toggle",
+						order = 11.94,
+						disabled = function() return not YaHT.db.profile.glow end,
+					},
+					glowramp = {
+						name = L["Build-up strength"],
+						desc = L["How bright the glow gets by the end of the reload, before you stand still."],
+						type = "range",
+						order = 11.95,
+						isPercent = true,
+						min = 0.1,
+						max = 1,
+						step = 0.05,
+						disabled = function() return not YaHT.db.profile.glow or YaHT.db.profile.glowmode == "STAND" end,
+					},
+					glowintensity = {
+						name = L["Glow brightness"],
+						type = "range",
+						order = 11.96,
+						isPercent = true,
+						min = 0.1,
+						max = 1,
+						step = 0.05,
+						disabled = function() return not YaHT.db.profile.glow end,
+					},
+					glowsize = {
+						name = L["Glow size"],
+						type = "range",
+						order = 11.97,
+						min = 2,
+						max = 40,
+						step = 1,
+						disabled = function() return not YaHT.db.profile.glow end,
+					},
+					glowcolor = {
+						name = L["Glow Color"],
+						type = "color",
+						order = 11.98,
+						get = getColor,
+						set = setColor,
+						disabled = function() return not YaHT.db.profile.glow end,
+					},
 					backgroundheader = {
 						name = L["Background options"],
 						type = "header",

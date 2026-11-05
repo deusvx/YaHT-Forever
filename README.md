@@ -40,4 +40,10 @@ or, optionally, to when you must stand still. Under `/yaht` → Countdown text: 
 bar (left/center/right), outside (left/right), above or below, fine-tune with X/Y offsets,
 or unlock the bar and drag the number where you want it. Font, size and color are adjustable.
 
+## Glow
+Optional glow around the bar: nothing while the bar is full, building up as the reload runs
+out, full (optionally pulsing) when you need to stand still. Under `/yaht` → Glow pick color,
+size, brightness and style. If WeakAuras (or another addon that includes LibCustomGlow) is
+installed, the stand-still part can use its animated effects: Pixel, Autocast, Proc or Button.
+
 Original addon by Aviana: https://github.com/Aviana/YaHT
