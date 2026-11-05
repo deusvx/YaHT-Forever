@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.2.4-forever"
+YaHT.version = "1.2.5-forever"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -958,7 +958,8 @@ function YaHT:OnAutoShot(duration, source)
 	end
 	if clean then
 		local sample = math.min(math.max(interval - expected, -0.15), 0.6)
-		self.calib = (self.calib or 0) + 0.3 * (sample - (self.calib or 0))
+		-- slow average: learn the steady delay, ignore the per-shot jitter
+		self.calib = (self.calib or 0) + 0.1 * (sample - (self.calib or 0))
 		self.calibSamples = (self.calibSamples or 0) + 1
 		self.db.char.calib = self.calib -- remembered for next login
 	end
@@ -999,8 +1000,12 @@ function YaHT:UNIT_SPELLCAST_FAILED_QUIET(unit, castGUID, spellID)
 	local f = self.mainFrame
 	f.castSynced = false
 	f.disturbed = true
-	if f.shooting and f.SwingStart and YaHT.db.profile.lock then
-		f.SwingStart = GetTime() + 0.5
+	-- The failure often arrives a few ms BEFORE the bar reaches the red
+	-- part, so also accept it near the end of the reload.
+	local now = GetTime()
+	local nearReady = f.SwingStart or (now >= f.lastshot + (f.swingtime or 0) - 0.25)
+	if f.shooting and nearReady and YaHT.db.profile.lock then
+		f.SwingStart = now + 0.5
 		movementDelay = 0
 	end
 	if self.debug then self:Print("Auto Shot attempt failed (retry delay)") end
