@@ -1,48 +1,119 @@
 -- YaHT - Yet another Hunter Timer by Aviana
+-- WoW Forever port: works without LibSharedMedia, uses only cast events that
+-- exist on both the old (Classic Era) and new (Midnight-based) client APIs,
+-- and no longer rewires Blizzard's cast bar internals.
 if select(2,UnitClass("player")) ~= "HUNTER" then return end
 
 YaHT = select(2, ...)
 
 local L = YaHT.L
-local ACR = LibStub("AceConfigRegistry-3.0", true)
-local SML = LibStub:GetLibrary("LibSharedMedia-3.0")
-YaHT.version = 2140
+YaHT.version = "2140-forever1"
 
-local SWING_TIME = 0.65
-local AimedDelay = 1
-local movementDelay = 0
+---------------------------------------------------------------------------
+-- API compatibility helpers
+---------------------------------------------------------------------------
+local function GetSpellName(spellID)
+	if not spellID then return nil end
+	if C_Spell and C_Spell.GetSpellName then
+		return C_Spell.GetSpellName(spellID)
+	elseif C_Spell and C_Spell.GetSpellInfo then
+		local info = C_Spell.GetSpellInfo(spellID)
+		return info and info.name
+	elseif GetSpellInfo then
+		return (GetSpellInfo(spellID))
+	end
+end
+YaHT.GetSpellName = GetSpellName
 
-local AimedShot = GetSpellInfo(19434)
-local MultiShot = GetSpellInfo(2643)
-local backdrop = {insets = {}}
-local mediaRequired
-local defaultMedia = {
-	[SML.MediaType.STATUSBAR] = "Interface\\AddOns\\YaHT\\media\\Bar",
-	[SML.MediaType.BACKGROUND] = "Interface\\ChatFrame\\ChatFrameBackground",
-	[SML.MediaType.BORDER] = "Interface\\None",
-}
+local function SendChat(msg, chatType, target)
+	local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
+	if not send then return end
+	-- pcall: SAY/YELL outside instances need a hardware event on modern clients
+	-- and must never break the timer if blocked.
+	local ok, err = pcall(send, msg, chatType, nil, target)
+	if not ok then YaHT:Print("Announce blocked: "..tostring(err)) end
+end
 
-local scanningTip = CreateFrame("GameTooltip", "YaHTScanningTooltip", nil, "GameTooltipTemplate")
-scanningTip:SetOwner(UIParent, "ANCHOR_NONE")
-
-local function GetRangedWeaponSpeed()
-	scanningTip:SetInventoryItem("player", 18)
-	for i=1, scanningTip:NumLines() do
-		local text = _G["YaHTScanningTooltipTextRight"..i]:GetText()
-		if (text ~= nil and text:sub(1, 6) == "Speed ") then
-			return tonumber(text:sub(7))
-		end
+local function GetCombatLogInfo()
+	if CombatLogGetCurrentEventInfo then
+		return CombatLogGetCurrentEventInfo()
+	elseif C_CombatLog and C_CombatLog.GetCurrentEventInfo then
+		return C_CombatLog.GetCurrentEventInfo()
 	end
 end
 
-local function GetSpeedModifier()
-	local weaponSpeed = GetRangedWeaponSpeed()
-	if weaponSpeed == nil then
-		return 1
-	end
+---------------------------------------------------------------------------
+-- Media (LibSharedMedia is optional)
+---------------------------------------------------------------------------
+local SML = LibStub:GetLibrary("LibSharedMedia-3.0", true)
+YaHT.SML = SML
 
-	local playerSpeed = UnitRangedDamage("player")
-	return playerSpeed / weaponSpeed
+local MEDIA = {
+	statusbar = {
+		["YaHT Bar"] = "Interface\\AddOns\\YaHT\\media\\Bar",
+		["Blizzard"] = "Interface\\TargetingFrame\\UI-StatusBar",
+		["Solid"] = "Interface\\Buttons\\WHITE8X8",
+	},
+	background = {
+		["Chat Frame"] = "Interface\\ChatFrame\\ChatFrameBackground",
+		["Blizzard Tooltip"] = "Interface\\Tooltips\\UI-Tooltip-Background",
+		["Solid"] = "Interface\\Buttons\\WHITE8X8",
+	},
+	border = {
+		["None"] = "Interface\\None",
+		["Blizzard Dialog"] = "Interface\\DialogFrame\\UI-DialogBox-Border",
+		["Blizzard Tooltip"] = "Interface\\Tooltips\\UI-Tooltip-Border",
+	},
+}
+local defaultMedia = {
+	statusbar = MEDIA.statusbar["YaHT Bar"],
+	background = MEDIA.background["Chat Frame"],
+	border = MEDIA.border["None"],
+}
+local mediaRequired
+
+function YaHT:ListMedia(mediaType)
+	local list = {}
+	for name in pairs(MEDIA[mediaType] or {}) do list[name] = name end
+	if SML then
+		for _, name in pairs(SML:List(mediaType) or {}) do list[name] = name end
+	end
+	return list
+end
+
+function YaHT:GetMedia(mediaType, mediaName)
+	local media = SML and SML:Fetch(mediaType, mediaName, true)
+	if not media then media = MEDIA[mediaType] and MEDIA[mediaType][mediaName] end
+	if not media then
+		if SML then
+			mediaRequired = mediaRequired or {}
+			mediaRequired[mediaType] = mediaName
+		end
+		return defaultMedia[mediaType]
+	end
+	return media
+end
+
+---------------------------------------------------------------------------
+-- Timer logic
+---------------------------------------------------------------------------
+local SWING_TIME = 0.65
+local movementDelay = 0
+
+local AUTO_SHOT_ID = 75
+local AutoShot = GetSpellName(AUTO_SHOT_ID)
+local AimedShot = GetSpellName(19434)
+local MultiShot = GetSpellName(2643)
+local TranqShot = GetSpellName(19801)
+local backdrop = {insets = {}}
+local playerGUID
+
+local function IsMoving()
+	return (IsPlayerMoving and IsPlayerMoving()) or (GetUnitSpeed and GetUnitSpeed("player") > 0) or (IsFalling and IsFalling())
+end
+
+local function GetRangedSpeed()
+	return (UnitRangedDamage("player")) or 2
 end
 
 local function OnUpdate(self, elapsed)
@@ -51,7 +122,7 @@ local function OnUpdate(self, elapsed)
 		self.mockTime = self.mockTime + elapsed
 		if self.mockTime > self.swingtime then
 			self.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
-			self.texture:SetWidth(self:GetWidth() * (1-(self.mockTime2/SWING_TIME)))
+			self.texture:SetWidth(math.max(self:GetWidth() * (1-(self.mockTime2/SWING_TIME)), 0.01))
 			self.mockTime2 = self.mockTime2 + elapsed
 			if self.mockTime2 > SWING_TIME then
 				self.mockTime = 0
@@ -59,7 +130,7 @@ local function OnUpdate(self, elapsed)
 		else
 			self.mockTime2 = 0
 			self.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
-			self.texture:SetWidth(self:GetWidth() * self.mockTime/self.swingtime)
+			self.texture:SetWidth(math.max(self:GetWidth() * self.mockTime/self.swingtime, 0.01))
 		end
 		return
 	end
@@ -67,7 +138,7 @@ local function OnUpdate(self, elapsed)
 	if not self.SwingStart and (curTime - self.lastshot) >= self.swingtime then
 		--Start Swing timer
 		if self.shooting and not self.casting then
-			YaHT.mainFrame.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
+			self.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
 			self:SetAlpha(config.alpha)
 			self.SwingStart = curTime
 		else
@@ -76,7 +147,7 @@ local function OnUpdate(self, elapsed)
 			end
 		end
 	elseif self.SwingStart then
-		if IsPlayerMoving() or IsFalling() then
+		if IsMoving() then
 			self.SwingStart = curTime
 			self.texture:SetWidth(0.01)
 			self:SetAlpha(config.malpha)
@@ -88,90 +159,73 @@ local function OnUpdate(self, elapsed)
 				movementDelay = 0.5 - timeSinceReadyToFire
 			end
 		else
-			self.texture:SetWidth(config.width * math.min(((curTime - self.SwingStart) / (SWING_TIME + movementDelay)),1))
+			self.texture:SetWidth(math.max(config.width * math.min(((curTime - self.SwingStart) / (SWING_TIME + movementDelay)),1), 0.01))
 			self:SetAlpha(config.alpha)
 		end
 	else
-		self.texture:SetWidth(config.width * (1 - math.min(((curTime - self.lastshot) / self.swingtime),1)))
+		self.texture:SetWidth(math.max(config.width * (1 - math.min(((curTime - self.lastshot) / self.swingtime),1)), 0.01))
 		self:SetAlpha(config.alpha)
 	end
 end
 
 function YaHT:OnInitialize()
-	
+	playerGUID = UnitGUID("player")
 	self:LoadDefaults()
-	
-	-- Initialize DB
+
 	self.db = LibStub:GetLibrary("AceDB-3.0"):New("YaHTdb", self.defaults, true)
 	self.db.RegisterCallback(self, "OnProfileChanged", "ProfilesChanged")
 	self.db.RegisterCallback(self, "OnProfileCopied", "ProfilesChanged")
 	self.db.RegisterCallback(self, "OnProfileReset", "ProfileReset")
-	SML.RegisterCallback(self, "LibSharedMedia_Registered", "MediaRegistered")
-	SML:Register(SML.MediaType.STATUSBAR, "YaHT Bar", "Interface\\AddOns\\YaHT\\media\\Bar")
+	if SML then
+		SML.RegisterCallback(self, "LibSharedMedia_Registered", "MediaRegistered")
+		SML:Register(SML.MediaType.STATUSBAR, "YaHT Bar", MEDIA.statusbar["YaHT Bar"])
+	end
 
 	self:Load()
 	self:CreateConfig()
 end
 
+local resetTimer
 function YaHT:ProfilesChanged()
-	if( resetTimer ) then resetTimer:Hide() end
-	
+	if resetTimer then resetTimer:Hide() end
 	self.db:RegisterDefaults(self.defaults)
-	
-	-- No active layout, register the default one
-	if( not self.db.profile.loadedLayout ) then
-		self:LoadDefaults()
-	end
 	self:ApplySettings()
 end
 
-local resetTimer
 function YaHT:ProfileReset()
-	if( not resetTimer ) then
+	if not resetTimer then
 		resetTimer = CreateFrame("Frame")
 		resetTimer:SetScript("OnUpdate", function(self)
 			YaHT:ProfilesChanged()
 			self:Hide()
 		end)
 	end
-	
 	resetTimer:Show()
 end
 
--- We might not have had a media we required at initial load, wait for it to load and then update everything when it does
 function YaHT:MediaRegistered(event, mediaType, key)
-	if( mediaRequired and mediaRequired[mediaType] and mediaRequired[mediaType] == key ) then
+	if mediaRequired and mediaRequired[mediaType] and mediaRequired[mediaType] == key then
 		mediaRequired[mediaType] = nil
-		
 		self:ApplySettings()
 	end
 end
 
-function YaHT:GetMedia(type, mediaName)
-	local media = SML:Fetch(type, mediaName, true)
-	if not media then
-		mediaRequired = mediaRequired or {}
-		mediaRequired[type] = mediaName
-		return defaultMedia[type]
-	end
-	return media
-end
-
 function YaHT:ApplySettings()
 	local config = YaHT.db.profile
-	self.mainFrame:SetWidth(config.width)
-	self.mainFrame:SetHeight(config.height)
-	self.mainFrame:SetScale(config.scale)
-	self.mainFrame:ClearAllPoints()
+	local f = self.mainFrame
+	f:SetWidth(config.width)
+	f:SetHeight(config.height)
+	f:SetScale(config.scale)
+	f:ClearAllPoints()
 	if config.point then
-		self.mainFrame:SetPoint(config.point, UIParent, config.relativePoint, config.x, config.y)
+		f:SetPoint(config.point, UIParent, config.relativePoint, config.x, config.y)
 	else
-		self.mainFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -350)
+		f:SetPoint("CENTER", UIParent, "CENTER", 0, -350)
 	end
-	self.mainFrame:EnableMouse(not config.lock)
-	self.mainFrame:SetMovable(not config.lock)
-	
-	backdrop.edgeFile = config.enableborder and self:GetMedia(SML.MediaType.BORDER, config.border)
+	f:EnableMouse(not config.lock)
+	f:SetMovable(not config.lock)
+
+	backdrop.edgeFile = config.enableborder and self:GetMedia("border", config.border) or nil
 	backdrop.tile = true
 	backdrop.edgeSize = 10
 	backdrop.tileSize = 1
@@ -179,228 +233,190 @@ function YaHT:ApplySettings()
 	backdrop.insets.right = 3
 	backdrop.insets.top = 3
 	backdrop.insets.bottom = 3
-	
-	self.mainFrame.border:SetBackdrop(backdrop)
-	self.mainFrame.border:SetHeight(config.height + 6)
-	self.mainFrame.border:SetWidth(config.width + 6)
-	self.mainFrame.border:SetBackdropBorderColor(config.bordercolor.r, config.bordercolor.g, config.bordercolor.b)
-	
+
+	if f.border.SetBackdrop then
+		f.border:SetBackdrop(backdrop)
+		f.border:SetBackdropBorderColor(config.bordercolor.r, config.bordercolor.g, config.bordercolor.b)
+	end
+	f.border:SetHeight(config.height + 6)
+	f.border:SetWidth(config.width + 6)
+
 	if config.enablebackground then
-		self.mainFrame.background:Show()
+		f.background:Show()
 	else
-		self.mainFrame.background:Hide()
+		f.background:Hide()
 	end
-	self.mainFrame.background:SetVertexColor(config.backgroundcolor.r, config.backgroundcolor.g, config.backgroundcolor.b, config.backgroundcolor.a)
-	self.mainFrame.background:SetTexture(self:GetMedia(SML.MediaType.BACKGROUND, config.background))
-	
-	self.mainFrame.texture:ClearAllPoints()
+	f.background:SetTexture(self:GetMedia("background", config.background))
+	f.background:SetVertexColor(config.backgroundcolor.r, config.backgroundcolor.g, config.backgroundcolor.b, config.backgroundcolor.a)
+
+	f.texture:ClearAllPoints()
 	if config.fill then
-		self.mainFrame.texture:SetPoint("CENTER", self.mainFrame, "CENTER")
+		f.texture:SetPoint("CENTER", f, "CENTER")
 	else
-		self.mainFrame.texture:SetPoint("LEFT", self.mainFrame, "LEFT")
+		f.texture:SetPoint("LEFT", f, "LEFT")
 	end
-	
-	if YaHT.db.profile.lock and not self.mainFrame.shooting then
-		self.mainFrame:Hide()
+
+	if config.lock and not f.shooting then
+		f:Hide()
 	else
-		self.mainFrame:Show()
-		self.mainFrame:SetAlpha(YaHT.db.profile.alpha)
-		if self.mainFrame.SwingStart then
-			self.mainFrame.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
+		f:Show()
+		f:SetAlpha(config.alpha)
+		if f.SwingStart then
+			f.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
 		else
-			self.mainFrame.texture:SetVertexColor(config.timercolor.r, config.timercolor.g,config.timercolor.b)
+			f.texture:SetVertexColor(config.timercolor.r, config.timercolor.g,config.timercolor.b)
 		end
 	end
-	
-	self.mainFrame.texture:SetTexture(self:GetMedia(SML.MediaType.STATUSBAR, config.statusbar))
-	self.mainFrame.texture:SetHeight(config.height)
+
+	f.texture:SetTexture(self:GetMedia("statusbar", config.statusbar))
+	f.texture:SetHeight(config.height)
 end
 
 function YaHT:Load()
-	self.mainFrame = CreateFrame("Frame", "YaHTMainFrame", UIParent)
-	self.mainFrame:SetFrameStrata("MEDIUM")
-	self.mainFrame:RegisterForDrag("LeftButton")
-	self.mainFrame:SetClampedToScreen(true)
-	self.mainFrame:SetScript("OnDragStart", function() YaHT.mainFrame:StartMoving() end)
-	self.mainFrame:SetScript("OnDragStop", function()
-		local config, meh = YaHT.db.profile
-		YaHT.mainFrame:StopMovingOrSizing()
-		config.point, meh , config.relativePoint, config.x, config.y = YaHT.mainFrame:GetPoint()
+	local f = CreateFrame("Frame", "YaHTMainFrame", UIParent)
+	self.mainFrame = f
+	f:SetFrameStrata("MEDIUM")
+	f:RegisterForDrag("LeftButton")
+	f:SetClampedToScreen(true)
+	f:SetScript("OnDragStart", function() f:StartMoving() end)
+	f:SetScript("OnDragStop", function()
+		local config, _ = YaHT.db.profile
+		f:StopMovingOrSizing()
+		config.point, _, config.relativePoint, config.x, config.y = f:GetPoint()
 	end)
-	self.mainFrame.mockTime = 0
-	self.mainFrame.time = 0
-	self.mainFrame.lastshot = GetTime()
-	self.mainFrame.swingtime = UnitRangedDamage("player") - SWING_TIME
-	self.mainFrame:SetScript("OnUpdate", OnUpdate)
-	
-	self.mainFrame.background = self.mainFrame:CreateTexture("YaHTMainFrameBackground", "BACKGROUND")
-	self.mainFrame.background:SetAllPoints(self.mainFrame)
-	self.mainFrame.background:SetHorizTile(true)
-	self.mainFrame.background:SetVertTile(true)
-	
-	self.mainFrame.texture = self.mainFrame:CreateTexture("YaHTMainFrameBar", "ARTWORK")
-	
-	self.mainFrame.border = CreateFrame("Frame", "YaHTMainFrameBorder", self.mainFrame, BackdropTemplateMixin and "BackdropTemplate")
-	self.mainFrame.border:SetPoint("CENTER", self.mainFrame, "CENTER")
-	
+	f.mockTime = 0
+	f.mockTime2 = 0
+	f.lastshot = GetTime()
+	f.swingtime = GetRangedSpeed() - SWING_TIME
+	f:SetScript("OnUpdate", OnUpdate)
+
+	f.background = f:CreateTexture("YaHTMainFrameBackground", "BACKGROUND")
+	f.background:SetAllPoints(f)
+	if f.background.SetHorizTile then
+		f.background:SetHorizTile(true)
+		f.background:SetVertTile(true)
+	end
+
+	f.texture = f:CreateTexture("YaHTMainFrameBar", "ARTWORK")
+
+	f.border = CreateFrame("Frame", "YaHTMainFrameBorder", f, BackdropTemplateMixin and "BackdropTemplate" or nil)
+	f.border:SetPoint("CENTER", f, "CENTER")
+
 	self:ApplySettings()
 end
 
-function YaHT:COMBAT_LOG_EVENT_UNFILTERED()
-	 local _, event, _, casterID, _, _, _, targetID, targetName, _, _, spellID, name, _, extra_spell_id, _, _, resisted, blocked, absorbed = CombatLogGetCurrentEventInfo()
-	local _, rank, icon, castTime = GetSpellInfo(spellID)
-	local icon, castTime = select(3, GetSpellInfo(spellID))
-	if event == "SWING_DAMAGE" or event == "ENVIRONMENTAL_DAMAGE" or event == "RANGE_DAMAGE" or event == "SPELL_DAMAGE" then
-		if resisted or blocked or absorbed then return end
-		if targetID == UnitGUID("player") then
-			local maxValue
-			maxValue = 0
-			if CastingBarFrame.maxValue ~= nil then
-				maxValue = CastingBarFrame.maxValue
-			end
-			CastingBarFrame.maxValue = maxValue + math.min(CastingBarFrame:GetValue(),AimedDelay)
-			CastingBarFrame:SetMinMaxValues(0, CastingBarFrame.maxValue)
-			if AimedDelay > 0.2 then
-				AimedDelay = AimedDelay - 0.2
-			end
-		end
-		return
-	elseif event == "SPELL_CAST_SUCCESS" and name == GetSpellInfo(19801) and casterID == UnitGUID("player") then
-		if YaHT.db.profile.tranqannounce then
-			local num
-			if YaHT.db.profile.announcetype == "CHANNEL" then
-				num = GetChannelName(YaHT.db.profile.targetchannel)
-			end
-			SendChatMessage(string.format(YaHT.db.profile.announcemsg,targetName), YaHT.db.profile.announcetype, nil, num or YaHT.db.profile.targetchannel)
-		end
-	elseif event == "SPELL_MISSED" and name == GetSpellInfo(19801) and casterID == UnitGUID("player") then
-		if YaHT.db.profile.tranqannouncefail then
-			local num
-			if YaHT.db.profile.announcetype == "CHANNEL" then
-				num = GetChannelName(YaHT.db.profile.targetchannel)
-			end
-			SendChatMessage(string.format(YaHT.db.profile.announcefailmsg,targetName), YaHT.db.profile.announcetype, nil, num or YaHT.db.profile.targetchannel)
-		end
-	end
-	if (name ~= AimedShot and name ~= MultiShot) or (not YaHT.db.profile.showaimed and name == AimedShot) or (not YaHT.db.profile.showmulti and name == MultiShot) then return end
-	if event == "SPELL_CAST_START" and casterID == UnitGUID("player") then
-		self.mainFrame.casting = true
-		
-		if name == AimedShot then
-			AimedDelay = 1
-			castTime = 3.5
-		else
-			castTime = 0.5
-		end
-		
-		CastingBarFrame.Spark:Show()
-		local startColor = CastingBarFrame_GetEffectiveStartColor(CastingBarFrame, false, false)
-		CastingBarFrame:SetStatusBarColor(startColor:GetRGB())
-		if CastingBarFrame.flashColorSameAsStart then
-			CastingBarFrame.Flash:SetVertexColor(startColor:GetRGB())
-		else
-			CastingBarFrame.Flash:SetVertexColor(1, 1, 1)
-		end
-		CastingBarFrame.value = 0
-		CastingBarFrame.baseMaxValue = castTime
-		CastingBarFrame.maxValue = CastingBarFrame.baseMaxValue * GetSpeedModifier()
-		CastingBarFrame:SetMinMaxValues(0, CastingBarFrame.maxValue)
-		CastingBarFrame:SetValue(CastingBarFrame.value)
-		if ( CastingBarFrame.Text ) then
-			CastingBarFrame.Text:SetText(name)
-		end
-		if ( CastingBarFrame.Icon ) then
-			CastingBarFrame.Icon:SetTexture(icon)
-			if ( CastingBarFrame.iconWhenNoninterruptible ) then
-				CastingBarFrame.Icon:SetShown(true)
-			end
-		end
-		CastingBarFrame_ApplyAlpha(CastingBarFrame, 1.0)
-		CastingBarFrame.holdTime = 0
-		CastingBarFrame.casting = true
-		CastingBarFrame.castID = nil
-		CastingBarFrame.channeling = nil
-		CastingBarFrame.fadeOut = nil
-		CastingBarFrame:Show()
-	end
-end
-
-function YaHT:UNIT_SPELLCAST_INTERRUPTED(unit, castID, spellID)
-	if unit ~= "player" then return end
-	self.mainFrame.casting = nil
-	
-	if GetSpellInfo(spellID) == AimedShot or GetSpellInfo(spellID) == MultiShot then
-		CastingBarFrame:SetValue(CastingBarFrame.maxValue)
-		CastingBarFrame:SetStatusBarColor(CastingBarFrame.failedCastColor:GetRGB())
-		if ( CastingBarFrame.Spark ) then
-			CastingBarFrame.Spark:Hide()
-		end
-		if ( CastingBarFrame.Text ) then
-			CastingBarFrame.Text:SetText(FAILED)
-		end
-		CastingBarFrame.casting = nil
-		CastingBarFrame.channeling = nil
-		CastingBarFrame.fadeOut = true
-		CastingBarFrame.holdTime = GetTime() + CASTING_BAR_HOLD_TIME
-	end
-end
-
-function YaHT:START_AUTOREPEAT_SPELL()
+---------------------------------------------------------------------------
+-- Announcements
+---------------------------------------------------------------------------
+local function Announce(msgTemplate, targetName)
 	local config = YaHT.db.profile
-	local curTime = GetTime()
-	self.mainFrame.shooting = true
---	self.mainFrame.ignoregcd = self:GCDcheck()
-	if curTime - self.mainFrame.lastshot < self.mainFrame.swingtime then
-		self.mainFrame.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
-	else
-		self.mainFrame.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
-		self.mainFrame.SwingStart = curTime
-		if IsPlayerMoving() then
-			self.mainFrame.lastshot = curTime - self.mainFrame.swingtime
-		end
+	local target = config.targetchannel
+	if config.announcetype == "CHANNEL" then
+		target = GetChannelName(config.targetchannel)
 	end
-	self.mainFrame:SetAlpha(YaHT.db.profile.alpha)
-	self.mainFrame:Show()
+	SendChat(string.format(msgTemplate, targetName or UNKNOWN or "?"), config.announcetype, target)
 end
 
-function YaHT:STOP_AUTOREPEAT_SPELL()
-	self.mainFrame.shooting = nil
-	if YaHT.db.profile.lock and (GetTime() - self.mainFrame.lastshot) >= self.mainFrame.swingtime then
-		self.mainFrame:SetAlpha(0)
-		self.mainFrame:Hide()
+---------------------------------------------------------------------------
+-- Events
+---------------------------------------------------------------------------
+local function IsCastSpell(spellID)
+	local name = GetSpellName(spellID)
+	return name and (name == AimedShot or name == MultiShot)
+end
+
+function YaHT:UNIT_SPELLCAST_START(unit, castGUID, spellID)
+	if unit ~= "player" then return end
+	if IsCastSpell(spellID) then
+		self.mainFrame.casting = true
 	end
 end
+
+function YaHT:UNIT_SPELLCAST_STOP(unit, castGUID, spellID)
+	if unit ~= "player" then return end
+	if IsCastSpell(spellID) then
+		self.mainFrame.casting = nil
+	end
+end
+YaHT.UNIT_SPELLCAST_FAILED = YaHT.UNIT_SPELLCAST_STOP
+YaHT.UNIT_SPELLCAST_INTERRUPTED = YaHT.UNIT_SPELLCAST_STOP
 
 function YaHT:UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
 	if unit ~= "player" then return end
 	local config = YaHT.db.profile
-	if self.mainFrame.casting then
+	local name = GetSpellName(spellID)
+
+	if name and name == TranqShot then
+		self.lastTranqTarget = UnitName("target")
+		-- Without the combat log we cannot tell hit from miss, so announce on cast.
+		if config.tranqannounce and not self.hasCombatLog then
+			Announce(config.announcemsg, self.lastTranqTarget)
+		end
+	end
+
+	if IsCastSpell(spellID) then
 		self.mainFrame.casting = nil
 		return
 	end
-	if spellID == 75 then
-		if self.mainFrame.shooting then
-			self.mainFrame.lastshot = GetTime()
-			self.mainFrame.multishooting = nil
-			self.mainFrame.SwingStart = nil
-			self.mainFrame.ignoregcd = nil
-			if self.mainFrame.newswingtime then
-				self.mainFrame.swingtime = self.mainFrame.newswingtime
-				self.mainFrame.newswingtime = nil
+
+	if spellID == AUTO_SHOT_ID or (name and name == AutoShot) then
+		local f = self.mainFrame
+		if f.shooting then
+			f.lastshot = GetTime()
+			f.SwingStart = nil
+			if f.newswingtime then
+				f.swingtime = f.newswingtime
+				f.newswingtime = nil
 			end
-			self.mainFrame.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
+			f.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
 			movementDelay = 0
 		end
 	end
 end
 
-function YaHT:UNIT_RANGEDDAMAGE()
-	local castingBarText = CastingBarFrame.Text:GetText()
-	if castingBarText and ( castingBarText == AimedShot or castingBarText == MultiShot ) then
-		CastingBarFrame.maxValue = min(CastingBarFrame.maxValue, CastingBarFrame.baseMaxValue * GetSpeedModifier())
-		CastingBarFrame:SetMinMaxValues(0, CastingBarFrame.maxValue)
+-- Only used for Tranquilizing Shot hit/miss announcements, and only if the
+-- client still lets addons read the combat log.
+function YaHT:COMBAT_LOG_EVENT_UNFILTERED()
+	local _, event, _, casterID, _, _, _, _, targetName, _, _, _, name = GetCombatLogInfo()
+	if casterID ~= playerGUID or name ~= TranqShot then return end
+	local config = YaHT.db.profile
+	if event == "SPELL_CAST_SUCCESS" and config.tranqannounce then
+		Announce(config.announcemsg, targetName)
+	elseif event == "SPELL_MISSED" and config.tranqannouncefail then
+		Announce(config.announcefailmsg, targetName)
 	end
-	self.mainFrame.newswingtime = UnitRangedDamage("player") - SWING_TIME
+end
+
+function YaHT:START_AUTOREPEAT_SPELL()
+	local config = YaHT.db.profile
+	local f = self.mainFrame
+	local curTime = GetTime()
+	f.shooting = true
+	if curTime - f.lastshot < f.swingtime then
+		f.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
+	else
+		f.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
+		f.SwingStart = curTime
+		if IsMoving() then
+			f.lastshot = curTime - f.swingtime
+		end
+	end
+	f:SetAlpha(config.alpha)
+	f:Show()
+end
+
+function YaHT:STOP_AUTOREPEAT_SPELL()
+	local f = self.mainFrame
+	f.shooting = nil
+	if YaHT.db.profile.lock and (GetTime() - f.lastshot) >= f.swingtime then
+		f:SetAlpha(0)
+		f:Hide()
+	end
+end
+
+function YaHT:UNIT_RANGEDDAMAGE(unit)
+	if unit and unit ~= "player" then return end
+	self.mainFrame.newswingtime = GetRangedSpeed() - SWING_TIME
 end
 
 function YaHT:Print(msg)
@@ -411,24 +427,39 @@ SLASH_YAHT1 = "/yaht"
 SLASH_YAHT2 = "/huntertimer"
 SLASH_YAHT3 = "/yetanotherhuntertimer"
 SlashCmdList["YAHT"] = function(msg)
-	local AceConfigDialog = LibStub("AceConfigDialog-3.0")
-	AceConfigDialog:Open("YaHT")
+	LibStub("AceConfigDialog-3.0"):Open("YaHT")
 end
 
 local frame = CreateFrame("Frame")
 
-frame:RegisterEvent("PLAYER_LOGIN")
-frame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
-frame:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
-frame:RegisterEvent("START_AUTOREPEAT_SPELL")
-frame:RegisterEvent("STOP_AUTOREPEAT_SPELL")
-frame:RegisterEvent("UNIT_RANGEDDAMAGE")
-frame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+-- Register safely: an event the client doesn't know (or forbids) is skipped
+-- instead of throwing an error and killing the whole addon.
+local function SafeRegister(event, unit)
+	local ok
+	if unit and frame.RegisterUnitEvent then
+		ok = pcall(frame.RegisterUnitEvent, frame, event, unit)
+	else
+		ok = pcall(frame.RegisterEvent, frame, event)
+	end
+	return ok
+end
+
+SafeRegister("PLAYER_LOGIN")
+SafeRegister("UNIT_SPELLCAST_START", "player")
+SafeRegister("UNIT_SPELLCAST_STOP", "player")
+SafeRegister("UNIT_SPELLCAST_FAILED", "player")
+SafeRegister("UNIT_SPELLCAST_INTERRUPTED", "player")
+SafeRegister("UNIT_SPELLCAST_SUCCEEDED", "player")
+SafeRegister("UNIT_RANGEDDAMAGE", "player")
+SafeRegister("START_AUTOREPEAT_SPELL")
+SafeRegister("STOP_AUTOREPEAT_SPELL")
+YaHT.hasCombatLog = (CombatLogGetCurrentEventInfo or (C_CombatLog and C_CombatLog.GetCurrentEventInfo)) and SafeRegister("COMBAT_LOG_EVENT_UNFILTERED") or false
+
 frame:SetScript("OnEvent", function(self, event, ...)
-	if( event == "PLAYER_LOGIN" ) then
+	if event == "PLAYER_LOGIN" then
 		YaHT:OnInitialize()
 		self:UnregisterEvent("PLAYER_LOGIN")
-	else
+	elseif YaHT.db and YaHT[event] then
 		YaHT[event](YaHT, ...)
 	end
 end)

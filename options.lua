@@ -4,7 +4,6 @@ local Addon = select(1, ...)
 local AceConfigRegistry = LibStub("AceConfigRegistry-3.0")
 local AceConfigDialog = LibStub("AceConfigDialog-3.0")
 
-local SML = SML or LibStub:GetLibrary("LibSharedMedia-3.0")
 
 local L = YaHT.L
 
@@ -33,18 +32,17 @@ function YaHT:CreateConfig()
 		YaHT:ApplySettings()
 	end
 
-	local MediaList = {}
 	local function getMediaData(info)
-		local mediaType = info[#(info)]
+		return YaHT:ListMedia(info[#info])
+	end
 
-		MediaList[mediaType] = MediaList[mediaType] or {}
-
-		for k in pairs(MediaList[mediaType]) do MediaList[mediaType][k] = nil end
-		for _, name in pairs(SML:List(mediaType) or {}) do
-			MediaList[mediaType][name] = name
+	-- Use the fancy texture-preview dropdowns only if a SharedMedia widget
+	-- addon is loaded; otherwise fall back to a plain dropdown.
+	local AceGUI = LibStub("AceGUI-3.0", true)
+	local function widget(name)
+		if AceGUI and AceGUI.WidgetRegistry and AceGUI.WidgetRegistry[name] then
+			return name
 		end
-		
-		return MediaList[mediaType]
 	end
 
 	local aceoptions = {
@@ -60,7 +58,7 @@ function YaHT:CreateConfig()
 				order = 1,
 				args = {
 					descriptiontext = {
-						name = "Yet another Hunter Timer by Aviana\nDonate: paypal.me/LunaUnitFrames\n".."Version: "..YaHT.version,
+						name = "Yet another Hunter Timer by Aviana\nDonate: paypal.me/LunaUnitFrames\n".."Version: "..YaHT.version.."\nWoW Forever port",
 						type = "description",
 						width = "full",
 						order = 1,
@@ -135,7 +133,7 @@ function YaHT:CreateConfig()
 						order = 8,
 						type = "select",
 						name = L["Bar texture"],
-						dialogControl = "LSM30_Statusbar",
+						dialogControl = widget("LSM30_Statusbar"),
 						values = getMediaData,
 					},
 					timercolor = {
@@ -173,7 +171,7 @@ function YaHT:CreateConfig()
 						order = 14,
 						type = "select",
 						name = L["Background texture"],
-						dialogControl = "LSM30_Background",
+						dialogControl = widget("LSM30_Background"),
 						values = getMediaData,
 					},
 					backgroundcolor = {
@@ -199,7 +197,7 @@ function YaHT:CreateConfig()
 						order = 18,
 						type = "select",
 						name = L["Border texture"],
-						dialogControl = "LSM30_Border",
+						dialogControl = widget("LSM30_Border"),
 						values = getMediaData,
 					},
 					bordercolor = {
@@ -209,37 +207,20 @@ function YaHT:CreateConfig()
 						get = getColor,
 						set = setColor,
 					},
-					castbarheader = {
-						name = L["Castbar options"],
-						type = "header",
-						order = 20,
-					},
-					showaimed = {
-						name = GetSpellInfo(19434),
-						desc = L["Show this on the default castbar."],
-						type = "toggle",
-						order = 21,
-					},
-					showmulti = {
-						name = GetSpellInfo(2643),
-						desc = L["Show this on the default castbar."],
-						type = "toggle",
-						order = 22,
-					},
 					announceheader = {
 						name = L["Announce options"],
 						type = "header",
 						order = 23,
 					},
 					tranqannounce = {
-						name = string.format(L["Announce %s"],GetSpellInfo(19801)),
+						name = string.format(L["Announce %s"],(YaHT.GetSpellName(19801) or "Tranquilizing Shot")),
 						desc = L["Enable / disable the announcement."],
 						type = "toggle",
 						order = 24,
 						width = "double",
 					},
 					tranqannouncefail = {
-						name = string.format(L["Announce failed %s"],GetSpellInfo(19801)),
+						name = string.format(L["Announce failed %s"],(YaHT.GetSpellName(19801) or "Tranquilizing Shot")),
 						desc = L["Enable / disable the announcement."],
 						type = "toggle",
 						order = 25,
