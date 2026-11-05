@@ -12,6 +12,7 @@ Yet another Hunter Timer (auto shot timer), ported to the **WoW Forever** client
 - `/yaht lock` / `/yaht unlock` – unlock to drag the bar and see a looping preview
 - `/yaht reset` – move the bar back to the middle of the screen
 - `/yaht debug` – print real shot timings after every Auto Shot
+- `/yaht copy` – open the debug log in a window you can copy from (Ctrl+C); `/yaht clear` empties it
 - `/yaht ammo` – show how much ammo YaHT counts
 - `/yaht help`
 

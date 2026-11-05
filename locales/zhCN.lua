@@ -185,6 +185,11 @@ local L = {
 ["Learns the small extra delay between shots (latency etc.) while you stand still and shoot, and syncs the red part to the moment the game starts the shot."] = "在你站立射击时学习两次射击之间的额外延迟（网络延迟等），并将红色部分与游戏开始射击的时刻同步。",
 ["Relearn timing"] = "重新学习计时",
 ["Forget the learned delay and measure it again from your next shots."] = "忘记已学习的延迟，并在接下来的射击中重新测量。",
+["press Ctrl+C to copy, Esc to close"] = "按 Ctrl+C 复制，Esc 关闭",
+["The log is empty. Turn on /yaht debug and shoot a few times first."] = "日志为空。请先开启 /yaht debug 并射击几次。",
+["debug log cleared."] = "调试日志已清空。",
+["open the debug log so you can copy it"] = "打开调试日志以便复制",
+["empty the debug log"] = "清空调试日志",
 }
 
 YaHT.L = L

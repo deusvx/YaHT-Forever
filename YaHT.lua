@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.2.1-forever"
+YaHT.version = "1.2.2-forever"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -1025,6 +1025,69 @@ end
 
 function YaHT:Print(msg)
 	DEFAULT_CHAT_FRAME:AddMessage("|cFF2150C2YaHT|cFFFFFFFF: ".. msg)
+	-- while debugging, keep a copyable log (also saved to SavedVariables)
+	if self.debug and self.db then
+		local log = self.db.global.debuglog or {}
+		self.db.global.debuglog = log
+		log[#log + 1] = string.format("%.3f  %s", GetTime(), msg)
+		if #log > 300 then table.remove(log, 1) end
+	end
+end
+
+-- WoW chat can't be copied, so show the debug log in a selectable box.
+function YaHT:ShowCopyWindow()
+	local log = self.db.global.debuglog or {}
+	local f = self.copyFrame
+	if not f then
+		f = CreateFrame("Frame", "YaHTCopyFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+		f:SetSize(620, 420)
+		f:SetPoint("CENTER")
+		f:SetFrameStrata("DIALOG")
+		f:SetClampedToScreen(true)
+		f:EnableMouse(true)
+		f:SetMovable(true)
+		f:RegisterForDrag("LeftButton")
+		f:SetScript("OnDragStart", f.StartMoving)
+		f:SetScript("OnDragStop", f.StopMovingOrSizing)
+		if f.SetBackdrop then
+			f:SetBackdrop({
+				bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+				edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+				tile = true, tileSize = 32, edgeSize = 32,
+				insets = {left = 8, right = 8, top = 8, bottom = 8},
+			})
+		end
+		local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		title:SetPoint("TOP", 0, -14)
+		title:SetText("YaHT debug log  -  "..L["press Ctrl+C to copy, Esc to close"])
+
+		local ok, close = pcall(CreateFrame, "Button", nil, f, "UIPanelCloseButton")
+		if ok and close then close:SetPoint("TOPRIGHT", -4, -4) end
+
+		local okScroll, scroll = pcall(CreateFrame, "ScrollFrame", "YaHTCopyScroll", f, "UIPanelScrollFrameTemplate")
+		if not okScroll then scroll = CreateFrame("ScrollFrame", "YaHTCopyScroll", f) end
+		scroll:SetPoint("TOPLEFT", 18, -38)
+		scroll:SetPoint("BOTTOMRIGHT", -36, 18)
+
+		local eb = CreateFrame("EditBox", nil, scroll)
+		eb:SetMultiLine(true)
+		eb:SetAutoFocus(false)
+		eb:SetFontObject(ChatFontNormal or GameFontHighlightSmall)
+		eb:SetWidth(560)
+		eb:SetScript("OnEscapePressed", function() f:Hide() end)
+		-- keep the text read-only: any typing just restores the log
+		eb:SetScript("OnTextChanged", function(box, user)
+			if user then box:SetText(f.logText or "") box:HighlightText() end
+		end)
+		scroll:SetScrollChild(eb)
+		f.editBox = eb
+		self.copyFrame = f
+	end
+	f.logText = #log > 0 and table.concat(log, "\n") or L["The log is empty. Turn on /yaht debug and shoot a few times first."]
+	f.editBox:SetText(f.logText)
+	f:Show()
+	f.editBox:SetFocus()
+	f.editBox:HighlightText()
 end
 
 SLASH_YAHT1 = "/yaht"
@@ -1036,7 +1099,7 @@ SlashCmdList["YAHT"] = function(msg)
 	local p = YaHT.db.profile
 	if cmd == "debug" then
 		YaHT.debug = not YaHT.debug
-		YaHT:Print("debug "..(YaHT.debug and "ON: shoot a target dummy standing still, then paste the lines" or "OFF"))
+		YaHT:Print("debug "..(YaHT.debug and "ON: shoot a target dummy standing still, then type /yaht copy" or "OFF"))
 	elseif cmd == "lock" or cmd == "unlock" then
 		p.lock = (cmd == "lock")
 		YaHT:ApplySettings()
@@ -1045,6 +1108,11 @@ SlashCmdList["YAHT"] = function(msg)
 		p.point, p.relativePoint, p.x, p.y = nil, nil, nil, nil
 		YaHT:ApplySettings()
 		YaHT:Print(L["bar moved back to the middle of the screen."])
+	elseif cmd == "copy" then
+		YaHT:ShowCopyWindow()
+	elseif cmd == "clear" then
+		YaHT.db.global.debuglog = {}
+		YaHT:Print(L["debug log cleared."])
 	elseif cmd == "ammo" then
 		local count, icon, method = YaHT:ReadAmmo()
 		YaHT:Print(string.format("ammo: %s (read from: %s)", tostring(count), tostring(method)))
@@ -1053,6 +1121,8 @@ SlashCmdList["YAHT"] = function(msg)
 		YaHT:Print("/yaht lock | unlock - "..L["lock or unlock (move + preview) the bar"])
 		YaHT:Print("/yaht reset - "..L["move the bar back to the middle"])
 		YaHT:Print("/yaht debug - "..L["print shot timings after every Auto Shot"])
+		YaHT:Print("/yaht copy - "..L["open the debug log so you can copy it"])
+		YaHT:Print("/yaht clear - "..L["empty the debug log"])
 		YaHT:Print("/yaht ammo - "..L["show how much ammo YaHT counts"])
 	else
 		local ACR = LibStub("AceConfigRegistry-3.0", true)

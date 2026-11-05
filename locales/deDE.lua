@@ -188,6 +188,11 @@ local L = {
 ["Learns the small extra delay between shots (latency etc.) while you stand still and shoot, and syncs the red part to the moment the game starts the shot."] = "Lernt die kleine zusätzliche Verzögerung zwischen Schüssen (Latenz usw.), während du stillstehst und schießt, und synchronisiert den roten Teil mit dem Moment, in dem das Spiel den Schuss beginnt.",
 ["Relearn timing"] = "Timing neu lernen",
 ["Forget the learned delay and measure it again from your next shots."] = "Vergisst die gelernte Verzögerung und misst sie bei den nächsten Schüssen neu.",
+["press Ctrl+C to copy, Esc to close"] = "Strg+C zum Kopieren, Esc zum Schließen",
+["The log is empty. Turn on /yaht debug and shoot a few times first."] = "Das Protokoll ist leer. Schalte zuerst /yaht debug ein und schieße ein paar Mal.",
+["debug log cleared."] = "Debug-Protokoll geleert.",
+["open the debug log so you can copy it"] = "öffnet das Debug-Protokoll zum Kopieren",
+["empty the debug log"] = "leert das Debug-Protokoll",
 }
 
 YaHT.L = L
