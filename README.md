@@ -12,6 +12,7 @@ Yet another Hunter Timer (auto shot timer), ported to the **WoW Forever** client
 - `/yaht lock` / `/yaht unlock` – unlock to drag the bar and see a looping preview
 - `/yaht reset` – move the bar back to the middle of the screen
 - `/yaht debug` – print real shot timings after every Auto Shot
+- `/yaht ammo` – show how much ammo YaHT counts
 - `/yaht help`
 
 The General tab has one-click looks (Minimal, Clean, Flashy) and every tab has a reset button.
@@ -62,5 +63,12 @@ middle, so two sparks start at the centre and race to the ends as the shot fires
 Stand-still part only, or Always; set height and color under `/yaht` → Spark.
 **Ready pulse:** if you're moving while the shot is ready, two lines pulse in the middle of the
 bar (bright even though the bar is faded) until you stop. Has its own toggle.
+
+## Ammo counter
+A movable icon with your arrow/bullet count (`/yaht` → Ammo). Invisible while you have plenty,
+fades in from 800, flashes yellow at 200 and red (faster) at 50, with a one-time warning sound per
+level. Thresholds, size, visibility, flashing and sound are adjustable; unlock the bar to drag it.
+Reads the ammo slot if the game has one, otherwise counts matching ammo in your bags.
+`/yaht ammo` prints what it counts. Hidden for thrown weapons and wands.
 
 Original addon by Aviana: https://github.com/Aviana/YaHT

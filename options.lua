@@ -59,6 +59,7 @@ local TAB_KEYS = {
 		"glowintensity", "glowsize", "glowcolor"},
 	spark = {"sparkmode", "readypulse", "sparksize", "sparkcolor"},
 	timing = {"windupauto", "windup", "castholds"},
+	ammo = {"ammo", "ammosize", "ammofadestart", "ammolow", "ammocrit", "ammofullalpha", "ammoflash", "ammosound"},
 	announce = {"tranqannounce", "tranqannouncefail", "announcetype", "targetchannel",
 		"announcemsg", "announcefailmsg"},
 }
@@ -564,6 +565,105 @@ function YaHT:CreateConfig()
 						disabled = sparkOff,
 					},
 					reset = resetButton("spark"),
+				},
+			},
+			------------------------------------------------------------------
+			ammo = {
+				name = L["Ammo"],
+				type = "group",
+				order = 5.5,
+				args = {
+					ammodesc = {
+						name = L["A movable ammo icon: invisible while you have plenty, fading in as it runs down, flashing yellow when low and red when almost out. Unlock the bar to drag it."],
+						type = "description",
+						order = 1,
+					},
+					ammo = {
+						name = L["Show ammo counter"],
+						type = "toggle",
+						order = 2,
+					},
+					ammosize = {
+						name = L["Icon size"],
+						type = "range",
+						order = 3,
+						min = 16,
+						max = 80,
+						step = 1,
+						disabled = function() return not YaHT.db.profile.ammo end,
+					},
+					levelsheader = {
+						name = L["Warning levels"],
+						type = "header",
+						order = 10,
+					},
+					ammofadestart = {
+						name = L["Start fading in at"],
+						desc = L["Above this many the icon stays at its 'plenty' visibility; below it, it fades in."],
+						type = "range",
+						order = 11,
+						min = 100,
+						max = 4000,
+						softMax = 2000,
+						step = 50,
+						disabled = function() return not YaHT.db.profile.ammo end,
+					},
+					ammolow = {
+						name = L["Low at"],
+						desc = L["Flashes yellow at or below this many."],
+						type = "range",
+						order = 12,
+						min = 10,
+						max = 1000,
+						step = 10,
+						disabled = function() return not YaHT.db.profile.ammo end,
+					},
+					ammocrit = {
+						name = L["Almost out at"],
+						desc = L["Flashes red, faster, at or below this many."],
+						type = "range",
+						order = 13,
+						min = 0,
+						max = 500,
+						step = 5,
+						disabled = function() return not YaHT.db.profile.ammo end,
+					},
+					ammofullalpha = {
+						name = L["Visibility when plenty"],
+						desc = L["0% = completely hidden while you have plenty of ammo."],
+						type = "range",
+						order = 14,
+						isPercent = true,
+						min = 0,
+						max = 1,
+						step = 0.05,
+						disabled = function() return not YaHT.db.profile.ammo end,
+					},
+					ammoflash = {
+						name = L["Flash when low"],
+						type = "toggle",
+						order = 15,
+						disabled = function() return not YaHT.db.profile.ammo end,
+					},
+					ammosound = {
+						name = L["Warning sound"],
+						desc = L["Play a sound once when you drop to low, and again at almost out."],
+						type = "toggle",
+						order = 16,
+						disabled = function() return not YaHT.db.profile.ammo end,
+					},
+					ammoresetpos = {
+						name = L["Reset position"],
+						desc = L["Put the ammo icon back above the bar."],
+						type = "execute",
+						order = 20,
+						func = function()
+							local p = YaHT.db.profile
+							p.ammopoint, p.ammorelpoint, p.ammox, p.ammoy = nil, nil, nil, nil
+							YaHT:ApplySettings()
+						end,
+					},
+					reset = resetButton("ammo"),
 				},
 			},
 			------------------------------------------------------------------

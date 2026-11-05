@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.1.0-forever"
+YaHT.version = "1.2.0-forever"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -652,6 +652,7 @@ function YaHT:OnInitialize()
 	end
 
 	self:Load()
+	if self.InitAmmo then self:InitAmmo() end
 	self:CreateConfig()
 end
 
@@ -742,6 +743,7 @@ function YaHT:ApplySettings()
 	f.texture:SetHeight(config.height)
 	if f.textHolder then self:ApplyTextSettings() end
 	if f.glow then self:ApplyGlowSettings() end
+	if self.ApplyAmmoSettings then self:ApplyAmmoSettings() end
 end
 
 function YaHT:Load()
@@ -1003,11 +1005,15 @@ SlashCmdList["YAHT"] = function(msg)
 		p.point, p.relativePoint, p.x, p.y = nil, nil, nil, nil
 		YaHT:ApplySettings()
 		YaHT:Print(L["bar moved back to the middle of the screen."])
+	elseif cmd == "ammo" then
+		local count, icon, method = YaHT:ReadAmmo()
+		YaHT:Print(string.format("ammo: %s (read from: %s)", tostring(count), tostring(method)))
 	elseif cmd == "help" or cmd == "?" then
 		YaHT:Print("/yaht - "..L["open options"])
 		YaHT:Print("/yaht lock | unlock - "..L["lock or unlock (move + preview) the bar"])
 		YaHT:Print("/yaht reset - "..L["move the bar back to the middle"])
 		YaHT:Print("/yaht debug - "..L["print shot timings after every Auto Shot"])
+		YaHT:Print("/yaht ammo - "..L["show how much ammo YaHT counts"])
 	else
 		local ACR = LibStub("AceConfigRegistry-3.0", true)
 		if ACR then ACR:NotifyChange("YaHT") end
