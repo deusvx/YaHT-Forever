@@ -240,6 +240,7 @@ local function OnUpdate(self, elapsed)
 	local config = YaHT.db.profile
 	local SWING_TIME = Windup(self.speed)
 	self.swingtime = math.max(self.speed - SWING_TIME, 0.1)
+	self.readyMoving = false
 	if not config.lock then
 		self.mockTime = self.mockTime + elapsed
 		if self.mockTime > self.swingtime then
@@ -272,6 +273,7 @@ local function OnUpdate(self, elapsed)
 		end
 	elseif self.SwingStart then
 		if IsMoving() then
+			self.readyMoving = true -- shot is ready, you just need to stop
 			self.SwingStart = curTime
 			self.texture:SetWidth(0.01)
 			self:SetAlpha(config.malpha)
@@ -414,6 +416,7 @@ local function CreateGlow(f)
 	local sparkFrame = CreateFrame("Frame", nil, f)
 	sparkFrame:SetAllPoints(f)
 	sparkFrame:SetFrameLevel(f:GetFrameLevel() + 3)
+	f.sparkFrame = sparkFrame
 	f.sparks = {}
 	for _, edge in ipairs({"LEFT", "RIGHT"}) do
 		local sp = sparkFrame:CreateTexture(nil, "OVERLAY")
@@ -459,6 +462,7 @@ function YaHT:ApplyGlowSettings()
 	for edge, sp in pairs(f.sparks) do
 		sp:ClearAllPoints()
 		sp:SetPoint("CENTER", f.texture, edge)
+		f.sparksCentered = false
 		sp:SetSize(math.max(config.height * 1.2, 8), config.height * config.sparksize)
 		sp:SetVertexColor(sc.r, sc.g, sc.b, sc.a or 1)
 	end
@@ -470,8 +474,46 @@ function YaHT:ApplyGlowSettings()
 	if self.fancyGlow then self:StopFancyGlow() end
 end
 
+local function AnchorSparks(self, centered)
+	if self.sparksCentered == centered then return end
+	self.sparksCentered = centered
+	for edge, sp in pairs(self.sparks) do
+		sp:ClearAllPoints()
+		if centered then
+			sp:SetPoint("CENTER", self, "CENTER", edge == "LEFT" and -3 or 3, 0)
+		else
+			sp:SetPoint("CENTER", self.texture, edge)
+		end
+	end
+end
+
+local function SetSparkFrameAlpha(self, alpha, ignoreBarFade)
+	local sf = self.sparkFrame
+	if sf.SetIgnoreParentAlpha then
+		sf:SetIgnoreParentAlpha(ignoreBarFade)
+		sf:SetAlpha(alpha)
+	elseif ignoreBarFade then
+		-- older clients: undo the bar's fade by hand
+		sf:SetAlpha(math.min(alpha / math.max(self:GetAlpha(), 0.05), 1))
+	else
+		sf:SetAlpha(alpha)
+	end
+end
+
 local function UpdateSpark(self, standing)
 	local config = YaHT.db.profile
+	-- Moving while the shot is ready: two lines pulse in the middle of the
+	-- bar, bright even though the bar itself is faded, until you stop.
+	if config.readypulse and config.lock and self.readyMoving then
+		AnchorSparks(self, true)
+		local pulse = 0.5 + 0.5 * math.sin(GetTime() * math.pi * 2 * 2.5) -- 2.5 pulses/sec
+		SetSparkFrameAlpha(self, 0.35 + 0.65 * pulse, true)
+		self.sparks.LEFT:Show()
+		self.sparks.RIGHT:Show()
+		return
+	end
+	AnchorSparks(self, false)
+	SetSparkFrameAlpha(self, 1, false)
 	local mode = config.sparkmode
 	local active = mode == "ALWAYS" or (mode == "STAND" and standing)
 	if active and not config.lock then active = true end

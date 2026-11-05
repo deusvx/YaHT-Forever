@@ -378,6 +378,13 @@ function YaHT:CreateConfig()
 						values = {OFF = L["Off"], STAND = L["Stand-still part only"], ALWAYS = L["Always"]},
 						sorting = {"OFF", "STAND", "ALWAYS"},
 					},
+					readypulse = {
+						name = L["Ready pulse while moving"],
+						desc = L["When the shot is ready but you're moving, two lines pulse in the middle of the bar until you stop. Works even with the spark set to Off."],
+						type = "toggle",
+						width = "double",
+						order = 11.9925,
+					},
 					sparksize = {
 						name = L["Spark height"],
 						desc = L["Spark height compared to the bar height."],
@@ -386,7 +393,7 @@ function YaHT:CreateConfig()
 						min = 1,
 						max = 8,
 						step = 0.5,
-						disabled = function() return YaHT.db.profile.sparkmode == "OFF" end,
+						disabled = function() local p = YaHT.db.profile return p.sparkmode == "OFF" and not p.readypulse end,
 					},
 					sparkcolor = {
 						name = L["Spark Color"],
@@ -395,7 +402,7 @@ function YaHT:CreateConfig()
 						order = 11.994,
 						get = getColor,
 						set = setColor,
-						disabled = function() return YaHT.db.profile.sparkmode == "OFF" end,
+						disabled = function() local p = YaHT.db.profile return p.sparkmode == "OFF" and not p.readypulse end,
 					},
 					backgroundheader = {
 						name = L["Background options"],

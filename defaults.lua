@@ -16,6 +16,7 @@ function YaHT:LoadDefaults()
 			glowstyle = "BUILTIN",
 			glowlook = "SOFT",
 			sparkmode = "STAND",
+			readypulse = true,
 			sparksize = 3,
 			sparkcolor = {
 				r = 1,
