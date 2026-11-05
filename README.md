@@ -3,9 +3,18 @@ Yet another Hunter Timer (auto shot timer), ported to the **WoW Forever** client
 
 ## Install
 1. Unzip so you end up with `World of Warcraft/_forever_/Interface/AddOns/YaHT/YaHT.toc`
-   (the folder must be named exactly `YaHT`, not `YaHT-main` / `YaHT-wow-forever`).
+   (the folder must be named exactly `YaHT`).
 2. Restart the game, enable YaHT in the AddOns list on the character screen.
-3. `/yaht` opens the options. Unlock the bar to drag it, lock it to use it.
+3. `/yaht` opens the options (also under Settings → AddOns, and the addon button by the minimap).
+
+## Commands
+- `/yaht` – options (tabs: General, Bar, Countdown, Glow, Spark, Timing, Announce, Profiles)
+- `/yaht lock` / `/yaht unlock` – unlock to drag the bar and see a looping preview
+- `/yaht reset` – move the bar back to the middle of the screen
+- `/yaht debug` – print real shot timings after every Auto Shot
+- `/yaht help`
+
+The General tab has one-click looks (Minimal, Clean, Flashy) and every tab has a reset button.
 
 If the game says the addon is "out of date", check your interface number in-game with
 `/dump select(4, GetBuildInfo())` and put that number on the `## Interface:` line of `YaHT.toc`.

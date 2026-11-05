@@ -1,7 +1,16 @@
--- YaHT - Yet another Hunter Timer by Aviana
--- WoW Forever port: works without LibSharedMedia, uses only cast events that
--- exist on both the old (Classic Era) and new (Midnight-based) client APIs,
--- and no longer rewires Blizzard's cast bar internals.
+-- YaHT - Yet another Hunter Timer, originally by Aviana.
+-- WoW Forever port: native PLAYER_SWING timing, haste-scaled wind-up,
+-- secret-value safe, plus countdown text, glow and spark effects.
+
+-- Addon Compartment (the addon button by the minimap) must exist for every class.
+function YaHT_OnAddonCompartmentClick()
+	if SlashCmdList and SlashCmdList["YAHT"] then
+		SlashCmdList["YAHT"]("")
+	else
+		DEFAULT_CHAT_FRAME:AddMessage("|cFF2150C2YaHT|r: only active on hunters.")
+	end
+end
+
 if select(2,UnitClass("player")) ~= "HUNTER" then return end
 
 YaHT = select(2, ...)
@@ -9,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "2140-forever1"
+YaHT.version = "1.1.0-forever"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -143,6 +152,7 @@ local AutoShot = GetSpellName(AUTO_SHOT_ID)
 local AimedShot = GetSpellName(19434)
 local MultiShot = GetSpellName(2643)
 local TranqShot = GetSpellName(19801)
+local FeignDeath = GetSpellName(5384)
 local backdrop = {insets = {}}
 local playerGUID
 
@@ -174,11 +184,17 @@ end
 -- Unhasted weapon speed, read from the ranged weapon's tooltip.
 local scanTip = CreateFrame("GameTooltip", "YaHTScanningTooltip", nil, "GameTooltipTemplate")
 local baseSpeedCache = {}
+local currentBase, baseDirty = nil, true
 local function GetBaseSpeed()
+	-- cheap path: weapon unchanged since the last successful lookup
+	if not baseDirty then return currentBase end
 	local slot = INVSLOT_RANGED or 18
 	local itemID = GetInventoryItemID and GetInventoryItemID("player", slot)
 	if IsSecret(itemID) or not itemID then return nil end
-	if baseSpeedCache[itemID] then return baseSpeedCache[itemID] end
+	if baseSpeedCache[itemID] then
+		currentBase, baseDirty = baseSpeedCache[itemID], false
+		return currentBase
+	end
 	scanTip:SetOwner(WorldFrame or UIParent, "ANCHOR_NONE")
 	scanTip:ClearLines()
 	scanTip:SetInventoryItem("player", slot)
@@ -192,6 +208,7 @@ local function GetBaseSpeed()
 				num = tonumber((num:gsub(",", ".")))
 				if num and num > 0 then
 					baseSpeedCache[itemID] = num
+					currentBase, baseDirty = num, false
 					return num
 				end
 			end
@@ -239,6 +256,7 @@ YaHT.ReportError = ReportError
 local function OnUpdate(self, elapsed)
 	local config = YaHT.db.profile
 	local SWING_TIME = Windup(self.speed)
+	self.windup = SWING_TIME -- reused by the text/glow updates this frame
 	self.swingtime = math.max(self.speed - SWING_TIME, 0.1)
 	self.readyMoving = false
 	if not config.lock then
@@ -317,7 +335,7 @@ local function UpdateText(self)
 		return
 	end
 	holder:Show()
-	local windup = Windup(self.speed)
+	local windup = self.windup or Windup(self.speed)
 	local toShot = config.textmode ~= "MOVE"
 	local remaining
 	if not config.lock then
@@ -338,10 +356,11 @@ local function UpdateText(self)
 			remaining = windup
 		end
 	end
-	if remaining then
-		self.text:SetText(string.format("%.1f", math.max(remaining, 0)))
-	else
-		self.text:SetText("")
+	-- only touch the font string when the shown value actually changes
+	local tenths = remaining and math.floor(math.max(remaining, 0) * 10 + 0.5) or -1
+	if tenths ~= self.lastTenths then
+		self.lastTenths = tenths
+		self.text:SetText(tenths >= 0 and string.format("%.1f", tenths / 10) or "")
 	end
 end
 
@@ -851,6 +870,15 @@ function YaHT:UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
 		return
 	end
 
+	-- Feign Death restarts the ranged swing (same as WeaponSwingTimer)
+	if name and name == FeignDeath then
+		local f = self.mainFrame
+		f.lastshot = GetTime()
+		f.SwingStart = nil
+		movementDelay = 0
+		return
+	end
+
 	-- When the client has PLAYER_SWING (WoW Forever) that event is the
 	-- authoritative shot signal; this is only the fallback.
 	if not self.hasNativeSwing and (spellID == AUTO_SHOT_ID or (name and name == AutoShot)) then
@@ -902,6 +930,7 @@ function YaHT:UNIT_SPELLCAST_FAILED_QUIET(unit, castGUID, spellID)
 end
 
 function YaHT:PLAYER_EQUIPMENT_CHANGED()
+	baseDirty = true
 	self.mainFrame.newspeed = GetRangedSpeed()
 end
 
@@ -960,12 +989,30 @@ SLASH_YAHT1 = "/yaht"
 SLASH_YAHT2 = "/huntertimer"
 SLASH_YAHT3 = "/yetanotherhuntertimer"
 SlashCmdList["YAHT"] = function(msg)
-	if msg and msg:lower():match("^%s*debug") then
+	local cmd = (msg or ""):lower():match("^%s*(%S*)")
+	if not YaHT.db then return end
+	local p = YaHT.db.profile
+	if cmd == "debug" then
 		YaHT.debug = not YaHT.debug
 		YaHT:Print("debug "..(YaHT.debug and "ON: shoot a target dummy standing still, then paste the lines" or "OFF"))
-		return
+	elseif cmd == "lock" or cmd == "unlock" then
+		p.lock = (cmd == "lock")
+		YaHT:ApplySettings()
+		YaHT:Print(p.lock and L["bar locked."] or L["bar unlocked: drag it, preview runs."])
+	elseif cmd == "reset" then
+		p.point, p.relativePoint, p.x, p.y = nil, nil, nil, nil
+		YaHT:ApplySettings()
+		YaHT:Print(L["bar moved back to the middle of the screen."])
+	elseif cmd == "help" or cmd == "?" then
+		YaHT:Print("/yaht - "..L["open options"])
+		YaHT:Print("/yaht lock | unlock - "..L["lock or unlock (move + preview) the bar"])
+		YaHT:Print("/yaht reset - "..L["move the bar back to the middle"])
+		YaHT:Print("/yaht debug - "..L["print shot timings after every Auto Shot"])
+	else
+		local ACR = LibStub("AceConfigRegistry-3.0", true)
+		if ACR then ACR:NotifyChange("YaHT") end
+		LibStub("AceConfigDialog-3.0"):Open("YaHT")
 	end
-	LibStub("AceConfigDialog-3.0"):Open("YaHT")
 end
 
 local frame = CreateFrame("Frame")

@@ -4,8 +4,64 @@ local Addon = select(1, ...)
 local AceConfigRegistry = LibStub("AceConfigRegistry-3.0")
 local AceConfigDialog = LibStub("AceConfigDialog-3.0")
 
-
 local L = YaHT.L
+
+-- Copy default values back for a list of settings (one tab's "Reset" button).
+local function ResetKeys(keys)
+	local defaults, profile = YaHT.defaults.profile, YaHT.db.profile
+	for _, key in ipairs(keys) do
+		local v = defaults[key]
+		if type(v) == "table" then
+			local copy = {}
+			for k, x in pairs(v) do copy[k] = x end
+			profile[key] = copy
+		else
+			profile[key] = v
+		end
+	end
+	YaHT:ApplySettings()
+	AceConfigRegistry:NotifyChange(Addon)
+end
+
+-- One-click looks. Only touch the "effects" settings, never size/position.
+local PRESETS = {
+	MINIMAL = {
+		glow = false, sparkmode = "OFF", readypulse = true,
+		showtext = true, textpos = "OUTSIDE_RIGHT", textx = 0, texty = 0,
+	},
+	CLEAN = {
+		glow = true, glowlook = "OUTLINE", glowmode = "STAND", glowpulse = false,
+		glowstyle = "BUILTIN", glowkeepbuiltin = false, glowintensity = 0.9,
+		sparkmode = "STAND", readypulse = true, showtext = true,
+	},
+	FLASHY = {
+		glow = true, glowlook = "SOFT", glowmode = "RAMP", glowpulse = true, glowramp = 0.7,
+		glowstyle = "SWEEP", glowkeepbuiltin = true, glowintensity = 1, glowsize = 14,
+		sparkmode = "STAND", readypulse = true, showtext = true,
+	},
+}
+
+local function ApplyPreset(name)
+	local profile = YaHT.db.profile
+	for k, v in pairs(PRESETS[name]) do profile[k] = v end
+	-- Flashy uses the WeakAuras-style pixel effect when it's available
+	if name == "FLASHY" and YaHT:GetLCG() then profile.glowstyle = "PIXEL" end
+	YaHT:ApplySettings()
+	AceConfigRegistry:NotifyChange(Addon)
+end
+
+local TAB_KEYS = {
+	general = {"lock", "width", "height", "scale", "alpha", "malpha"},
+	bar = {"statusbar", "timercolor", "drawcolor", "fill", "enablebackground", "background",
+		"backgroundcolor", "enableborder", "border", "bordercolor"},
+	text = {"showtext", "textmode", "textpos", "textsize", "textx", "texty", "font", "textcolor"},
+	glow = {"glow", "glowmode", "glowlook", "glowstyle", "glowkeepbuiltin", "glowpulse", "glowramp",
+		"glowintensity", "glowsize", "glowcolor"},
+	spark = {"sparkmode", "readypulse", "sparksize", "sparkcolor"},
+	timing = {"windupauto", "windup", "castholds"},
+	announce = {"tranqannounce", "tranqannouncefail", "announcetype", "targetchannel",
+		"announcemsg", "announcefailmsg"},
+}
 
 function YaHT:CreateConfig()
 
@@ -20,15 +76,12 @@ function YaHT:CreateConfig()
 
 	local function getColor(info)
 		local db = YaHT.db.profile[info[#info]]
-		return db.r, db.g ,db.b, db.a
+		return db.r, db.g, db.b, db.a
 	end
-	
+
 	local function setColor(info, r, g, b, a)
 		local db = YaHT.db.profile[info[#info]]
-		db.r = r
-		db.g = g
-		db.b = b
-		db.a = a
+		db.r, db.g, db.b, db.a = r, g, b, a
 		YaHT:ApplySettings()
 	end
 
@@ -45,169 +98,258 @@ function YaHT:CreateConfig()
 		end
 	end
 
+	local function resetButton(tab, order)
+		return {
+			name = L["Reset this tab"],
+			desc = L["Put every setting on this tab back to its default."],
+			type = "execute",
+			order = order or 100,
+			confirm = true,
+			confirmText = L["Reset this tab to defaults?"],
+			func = function() ResetKeys(TAB_KEYS[tab]) end,
+		}
+	end
+
+	local function textOff() return not YaHT.db.profile.showtext end
+	local function glowOff() return not YaHT.db.profile.glow end
+	local function sparkOff() local p = YaHT.db.profile return p.sparkmode == "OFF" and not p.readypulse end
+	local tranq = YaHT.GetSpellName(19801) or "Tranquilizing Shot"
+
 	local aceoptions = {
-		name = "Yet another Hunter Timer",
+		name = "YaHT - Yet another Hunter Timer",
 		type = "group",
+		childGroups = "tab",
 		get = get,
 		set = set,
-		icon = "",
 		args = {
+			------------------------------------------------------------------
 			general = {
-				name = L["Overview"],
+				name = L["General"],
 				type = "group",
 				order = 1,
 				args = {
-					descriptiontext = {
-						name = "Yet another Hunter Timer by Aviana\nDonate: paypal.me/LunaUnitFrames\n".."Version: "..YaHT.version.."\nWoW Forever port",
+					about = {
+						name = L["Auto Shot timer for WoW Forever."].."  |cff888888"..L["Version"].." "..YaHT.version
+							.."  ·  "..L["Original addon by Aviana"].."|r",
 						type = "description",
-						width = "full",
+						fontSize = "medium",
 						order = 1,
 					},
-					optionsheader = {
-						name = L["Options"],
-						type = "header",
+					lock = {
+						name = L["Lock bar"],
+						desc = L["Unlock to drag the bar (and the countdown number) and to see a looping preview of every effect."],
+						type = "toggle",
 						order = 2,
 					},
-					lock = {
-						name = L["Lock"],
-						desc = L["Lock / Unlock the timer bar for drag."],
-						type = "toggle",
+					resetpos = {
+						name = L["Reset position"],
+						desc = L["Move the bar back to the middle of the screen."],
+						type = "execute",
 						order = 3,
+						func = function()
+							local p = YaHT.db.profile
+							p.point, p.relativePoint, p.x, p.y = nil, nil, nil, nil
+							YaHT:ApplySettings()
+						end,
+					},
+					presetheader = {
+						name = L["Quick looks"],
+						type = "header",
+						order = 10,
+					},
+					presetdesc = {
+						name = L["One click sets the countdown, glow and spark. Size, position and colors are kept."],
+						type = "description",
+						order = 11,
+					},
+					presetminimal = {
+						name = L["Minimal"],
+						desc = L["Just the bar and the countdown, plus the ready pulse."],
+						type = "execute",
+						order = 12,
+						func = function() ApplyPreset("MINIMAL") end,
+					},
+					presetclean = {
+						name = L["Clean"],
+						desc = L["Crisp outline glow while standing still, sparks from the middle."],
+						type = "execute",
+						order = 13,
+						func = function() ApplyPreset("CLEAN") end,
+					},
+					presetflashy = {
+						name = L["Flashy"],
+						desc = L["Soft glow that builds up, pulse, sparks and a light sweep (or a WeakAuras pixel glow if available)."],
+						type = "execute",
+						order = 14,
+						func = function() ApplyPreset("FLASHY") end,
+					},
+					sizeheader = {
+						name = L["Size & visibility"],
+						type = "header",
+						order = 20,
 					},
 					width = {
 						name = L["Width"],
-						desc = L["Set the width."],
-						width = "full",
 						type = "range",
-						order = 4,
+						order = 21,
 						min = 10,
 						max = 600,
 						step = 1,
 					},
 					height = {
 						name = L["Height"],
-						desc = L["Set the height."],
-						width = "full",
+						desc = L["Tip: 14 or more if you want the countdown inside the bar."],
 						type = "range",
-						order = 5,
-						min = 5,
+						order = 22,
+						min = 3,
 						max = 50,
 						step = 1,
 					},
 					scale = {
 						name = L["Scale"],
-						desc = L["Set the scale."],
 						type = "range",
-						order = 6,
+						order = 23,
 						isPercent = true,
 						min = 0.1,
 						max = 3,
-						step = 0.1,
+						step = 0.05,
 					},
 					alpha = {
 						name = L["Alpha"],
-						desc = L["Set the alpha."],
 						type = "range",
-						order = 6.1,
+						order = 24,
 						isPercent = true,
 						min = 0.1,
 						max = 1,
-						step = 0.1,
+						step = 0.05,
 					},
 					malpha = {
 						name = L["Movement alpha"],
-						desc = L["Set the alpha while moving."],
+						desc = L["How faded the bar is while you move. Lower makes the ready pulse stand out more."],
 						type = "range",
-						order = 6.2,
+						order = 25,
 						isPercent = true,
-						min = 0.1,
+						min = 0,
 						max = 1,
-						step = 0.1,
-					},
-					timingheader = {
-						name = L["Timing"],
-						type = "header",
-						order = 6.5,
-					},
-					windupauto = {
-						name = L["Automatic wind-up"],
-						desc = L["Wind-up = 0.5s scaled by your ranged haste (WoW Forever behaviour). Turn off to set it by hand."],
-						type = "toggle",
-						order = 6.55,
-					},
-					windup = {
-						name = L["Wind-up time"],
-						desc = L["How long you must stand still before each Auto Shot fires. WoW Forever base: 0.5. Original Classic addon: 0.65."],
-						type = "range",
-						order = 6.6,
-						min = 0.2,
-						max = 1.0,
 						step = 0.05,
-						disabled = function() return YaHT.db.profile.windupauto end,
 					},
-					castholds = {
-						name = L["Casts hold Auto Shot"],
-						desc = L["Pause the timer during Aimed Shot / Multi-Shot casts (old Classic behaviour). Leave off on WoW Forever, where Auto Shot keeps firing during casts."],
-						type = "toggle",
-						width = "double",
-						order = 6.7,
-					},
-					barheader = {
-						name = L["Bar options"],
-						type = "header",
-						order = 7,
-					},
+					reset = resetButton("general"),
+				},
+			},
+			------------------------------------------------------------------
+			bar = {
+				name = L["Bar"],
+				type = "group",
+				order = 2,
+				args = {
 					statusbar = {
-						order = 8,
-						type = "select",
 						name = L["Bar texture"],
+						type = "select",
+						order = 1,
 						dialogControl = widget("LSM30_Statusbar"),
 						values = getMediaData,
-					},
-					timercolor = {
-						name = L["Timer Color"],
-						type = "color",
-						order = 9,
-						get = getColor,
-						set = setColor,
-					},
-					drawcolor = {
-						name = L["Draw Color"],
-						type = "color",
-						order = 10,
-						get = getColor,
-						set = setColor,
 					},
 					fill = {
 						name = L["Fill from middle"],
 						desc = L["Extend the bar from the middle outwards."],
 						type = "toggle",
+						order = 2,
+					},
+					timercolor = {
+						name = L["Reload color"],
+						type = "color",
+						order = 3,
+						get = getColor,
+						set = setColor,
+					},
+					drawcolor = {
+						name = L["Stand-still color"],
+						type = "color",
+						order = 4,
+						get = getColor,
+						set = setColor,
+					},
+					backgroundheader = {
+						name = L["Background"],
+						type = "header",
+						order = 10,
+					},
+					enablebackground = {
+						name = L["Show background"],
+						type = "toggle",
 						order = 11,
 					},
-					textheader = {
-						name = L["Countdown text"],
-						type = "header",
-						order = 11.1,
+					background = {
+						name = L["Background texture"],
+						type = "select",
+						order = 12,
+						dialogControl = widget("LSM30_Background"),
+						values = getMediaData,
+						disabled = function() return not YaHT.db.profile.enablebackground end,
 					},
+					backgroundcolor = {
+						name = L["Background Color"],
+						type = "color",
+						order = 13,
+						hasAlpha = true,
+						get = getColor,
+						set = setColor,
+						disabled = function() return not YaHT.db.profile.enablebackground end,
+					},
+					borderheader = {
+						name = L["Border"],
+						type = "header",
+						order = 20,
+					},
+					enableborder = {
+						name = L["Show border"],
+						type = "toggle",
+						order = 21,
+					},
+					border = {
+						name = L["Border texture"],
+						type = "select",
+						order = 22,
+						dialogControl = widget("LSM30_Border"),
+						values = getMediaData,
+						disabled = function() return not YaHT.db.profile.enableborder end,
+					},
+					bordercolor = {
+						name = L["Border Color"],
+						type = "color",
+						order = 23,
+						get = getColor,
+						set = setColor,
+						disabled = function() return not YaHT.db.profile.enableborder end,
+					},
+					reset = resetButton("bar"),
+				},
+			},
+			------------------------------------------------------------------
+			text = {
+				name = L["Countdown"],
+				type = "group",
+				order = 3,
+				args = {
 					showtext = {
 						name = L["Show countdown"],
 						desc = L["Show the time left as a number with one decimal, like WeaponSwingTimer."],
 						type = "toggle",
-						order = 11.2,
+						order = 1,
 					},
 					textmode = {
 						name = L["Count down to"],
 						desc = L["Shot: time until the Auto Shot fires. Stand still: time until you must stop moving."],
 						type = "select",
-						order = 11.3,
+						order = 2,
 						values = {SHOT = L["Shot fires"], MOVE = L["Stand still"]},
-						disabled = function() return not YaHT.db.profile.showtext end,
+						disabled = textOff,
 					},
 					textpos = {
 						name = L["Position"],
 						desc = L["Snap the number to a spot on the bar. Unlock the bar to drag it freely."],
 						type = "select",
-						order = 11.4,
+						order = 3,
 						values = {
 							INSIDE_LEFT = L["Inside left"], INSIDE_CENTER = L["Inside center"], INSIDE_RIGHT = L["Inside right"],
 							OUTSIDE_LEFT = L["Outside left"], OUTSIDE_RIGHT = L["Outside right"],
@@ -215,91 +357,99 @@ function YaHT:CreateConfig()
 						},
 						sorting = {"OUTSIDE_LEFT", "INSIDE_LEFT", "INSIDE_CENTER", "INSIDE_RIGHT", "OUTSIDE_RIGHT", "ABOVE", "BELOW"},
 						set = function(info, value)
-							YaHT.db.profile.textpos = value
-							YaHT.db.profile.textx = 0
-							YaHT.db.profile.texty = 0
+							local p = YaHT.db.profile
+							p.textpos, p.textx, p.texty = value, 0, 0
 							YaHT:ApplySettings()
 						end,
-						disabled = function() return not YaHT.db.profile.showtext end,
+						disabled = textOff,
 					},
 					textsize = {
 						name = L["Font size"],
 						type = "range",
-						order = 11.5,
+						order = 4,
 						min = 6,
 						max = 32,
 						step = 1,
-						disabled = function() return not YaHT.db.profile.showtext end,
-					},
-					textx = {
-						name = L["X offset"],
-						desc = L["Fine-tune the position. You can also drag the number while the bar is unlocked."],
-						type = "range",
-						order = 11.6,
-						min = -300,
-						max = 300,
-						step = 1,
-						disabled = function() return not YaHT.db.profile.showtext end,
-					},
-					texty = {
-						name = L["Y offset"],
-						desc = L["Fine-tune the position. You can also drag the number while the bar is unlocked."],
-						type = "range",
-						order = 11.7,
-						min = -100,
-						max = 100,
-						step = 1,
-						disabled = function() return not YaHT.db.profile.showtext end,
+						disabled = textOff,
 					},
 					font = {
 						name = L["Font"],
 						type = "select",
-						order = 11.8,
+						order = 5,
 						dialogControl = widget("LSM30_Font"),
 						values = getMediaData,
-						disabled = function() return not YaHT.db.profile.showtext end,
+						disabled = textOff,
 					},
 					textcolor = {
 						name = L["Text Color"],
 						type = "color",
 						hasAlpha = true,
-						order = 11.9,
+						order = 6,
 						get = getColor,
 						set = setColor,
-						disabled = function() return not YaHT.db.profile.showtext end,
+						disabled = textOff,
 					},
-					glowheader = {
-						name = L["Glow"],
+					offsetheader = {
+						name = L["Fine-tune"],
 						type = "header",
-						order = 11.91,
+						order = 10,
 					},
+					textx = {
+						name = L["X offset"],
+						desc = L["Fine-tune the position. You can also drag the number while the bar is unlocked."],
+						type = "range",
+						order = 11,
+						min = -300,
+						max = 300,
+						step = 1,
+						disabled = textOff,
+					},
+					texty = {
+						name = L["Y offset"],
+						desc = L["Fine-tune the position. You can also drag the number while the bar is unlocked."],
+						type = "range",
+						order = 12,
+						min = -100,
+						max = 100,
+						step = 1,
+						disabled = textOff,
+					},
+					reset = resetButton("text"),
+				},
+			},
+			------------------------------------------------------------------
+			glow = {
+				name = L["Glow"],
+				type = "group",
+				order = 4,
+				args = {
 					glow = {
 						name = L["Glow"],
 						desc = L["Glow around the bar: none when the bar is full, building up as the reload runs out, full when you need to stand still."],
 						type = "toggle",
-						order = 11.92,
+						order = 1,
 					},
 					glowmode = {
-						name = L["Glow style"],
+						name = L["When"],
 						desc = L["Build up: glow grows during the reload. Stand still only: glow appears just for the stand-still part."],
 						type = "select",
-						order = 11.93,
+						order = 2,
 						values = {RAMP = L["Build up"], STAND = L["Stand still only"]},
-						disabled = function() return not YaHT.db.profile.glow end,
+						disabled = glowOff,
 					},
 					glowlook = {
 						name = L["Glow look"],
 						desc = L["Soft: blurry halo. Outline: crisp bright border."],
 						type = "select",
-						order = 11.932,
+						order = 3,
 						values = {SOFT = L["Soft"], OUTLINE = L["Outline"]},
-						disabled = function() return not YaHT.db.profile.glow end,
+						disabled = glowOff,
 					},
 					glowstyle = {
 						name = L["Stand-still effect"],
 						desc = L["Extra effect while you need to stand still. Pixel/Autocast/Proc/Button are borrowed from LibCustomGlow and only appear when WeakAuras (or another addon that includes it) is installed."],
 						type = "select",
-						order = 11.935,
+						order = 4,
 						values = function()
 							local v = {BUILTIN = L["Glow only"], SWEEP = L["Sweep (light runs across the bar)"]}
 							if YaHT:GetLCG() then
@@ -310,71 +460,80 @@ function YaHT:CreateConfig()
 							end
 							return v
 						end,
-						disabled = function() return not YaHT.db.profile.glow end,
+						disabled = glowOff,
 					},
 					glowkeepbuiltin = {
 						name = L["Keep soft glow too"],
 						desc = L["Show the built-in glow underneath the animated effect."],
 						type = "toggle",
-						order = 11.937,
+						order = 5,
 						hidden = function() local st = YaHT.db.profile.glowstyle return st == "BUILTIN" or st == "SWEEP" end,
-						disabled = function() return not YaHT.db.profile.glow end,
+						disabled = glowOff,
 					},
 					glowpulse = {
 						name = L["Pulse when standing"],
 						desc = L["Pulse the glow during the stand-still part."],
 						type = "toggle",
-						order = 11.94,
-						disabled = function() return not YaHT.db.profile.glow end,
+						order = 6,
+						disabled = glowOff,
+					},
+					tuneheader = {
+						name = L["Fine-tune"],
+						type = "header",
+						order = 10,
 					},
 					glowramp = {
 						name = L["Build-up strength"],
 						desc = L["How bright the glow gets by the end of the reload, before you stand still."],
 						type = "range",
-						order = 11.95,
+						order = 11,
 						isPercent = true,
 						min = 0.1,
 						max = 1,
 						step = 0.05,
-						disabled = function() return not YaHT.db.profile.glow or YaHT.db.profile.glowmode == "STAND" end,
+						disabled = function() return glowOff() or YaHT.db.profile.glowmode == "STAND" end,
 					},
 					glowintensity = {
 						name = L["Glow brightness"],
 						type = "range",
-						order = 11.96,
+						order = 12,
 						isPercent = true,
 						min = 0.1,
 						max = 1,
 						step = 0.05,
-						disabled = function() return not YaHT.db.profile.glow end,
+						disabled = glowOff,
 					},
 					glowsize = {
 						name = L["Glow size"],
 						type = "range",
-						order = 11.97,
+						order = 13,
 						min = 2,
 						max = 40,
 						step = 1,
-						disabled = function() return not YaHT.db.profile.glow end,
+						disabled = glowOff,
 					},
 					glowcolor = {
 						name = L["Glow Color"],
 						type = "color",
-						order = 11.98,
+						order = 14,
 						get = getColor,
 						set = setColor,
-						disabled = function() return not YaHT.db.profile.glow end,
+						disabled = glowOff,
 					},
-					sparkheader = {
-						name = L["Spark"],
-						type = "header",
-						order = 11.991,
-					},
+					reset = resetButton("glow"),
+				},
+			},
+			------------------------------------------------------------------
+			spark = {
+				name = L["Spark"],
+				type = "group",
+				order = 5,
+				args = {
 					sparkmode = {
 						name = L["Spark"],
 						desc = L["A bright line at the moving edge of the bar. In the stand-still part the bar grows out from the middle, so the sparks start in the centre and race to the ends as the shot fires."],
 						type = "select",
-						order = 11.992,
+						order = 1,
 						values = {OFF = L["Off"], STAND = L["Stand-still part only"], ALWAYS = L["Always"]},
 						sorting = {"OFF", "STAND", "ALWAYS"},
 					},
@@ -383,136 +542,134 @@ function YaHT:CreateConfig()
 						desc = L["When the shot is ready but you're moving, two lines pulse in the middle of the bar until you stop. Works even with the spark set to Off."],
 						type = "toggle",
 						width = "double",
-						order = 11.9925,
+						order = 2,
 					},
 					sparksize = {
 						name = L["Spark height"],
 						desc = L["Spark height compared to the bar height."],
 						type = "range",
-						order = 11.993,
+						order = 3,
 						min = 1,
 						max = 8,
 						step = 0.5,
-						disabled = function() local p = YaHT.db.profile return p.sparkmode == "OFF" and not p.readypulse end,
+						disabled = sparkOff,
 					},
 					sparkcolor = {
 						name = L["Spark Color"],
 						type = "color",
 						hasAlpha = true,
-						order = 11.994,
+						order = 4,
 						get = getColor,
 						set = setColor,
-						disabled = function() local p = YaHT.db.profile return p.sparkmode == "OFF" and not p.readypulse end,
+						disabled = sparkOff,
 					},
-					backgroundheader = {
-						name = L["Background options"],
-						type = "header",
-						order = 12,
+					reset = resetButton("spark"),
+				},
+			},
+			------------------------------------------------------------------
+			timing = {
+				name = L["Timing"],
+				type = "group",
+				order = 6,
+				args = {
+					timingdesc = {
+						name = L["The defaults match WoW Forever. Only change these if the bar is early or late; /yaht debug prints the real timings after each shot."],
+						type = "description",
+						order = 1,
 					},
-					enablebackground = {
-						name = L["Background"],
-						desc = L["Show a background."],
+					windupauto = {
+						name = L["Automatic wind-up"],
+						desc = L["Wind-up = 0.5s scaled by your ranged haste (WoW Forever behaviour). Turn off to set it by hand."],
 						type = "toggle",
-						order = 13,
+						order = 2,
 					},
-					background = {
-						order = 14,
-						type = "select",
-						name = L["Background texture"],
-						dialogControl = widget("LSM30_Background"),
-						values = getMediaData,
+					windup = {
+						name = L["Wind-up time"],
+						desc = L["How long you must stand still before each Auto Shot fires. WoW Forever base: 0.5. Original Classic addon: 0.65."],
+						type = "range",
+						order = 3,
+						min = 0.2,
+						max = 1.0,
+						step = 0.05,
+						disabled = function() return YaHT.db.profile.windupauto end,
 					},
-					backgroundcolor = {
-						name = L["Background Color"],
-						type = "color",
-						order = 15,
-						hasAlpha = true,
-						get = getColor,
-						set = setColor,
-					},
-					borderheader = {
-						name = L["Border options"],
-						type = "header",
-						order = 16,
-					},
-					enableborder = {
-						name = L["Border"],
-						desc = L["Show a border."],
+					castholds = {
+						name = L["Casts hold Auto Shot"],
+						desc = L["Pause the timer during Aimed Shot / Multi-Shot casts (old Classic behaviour). Leave off on WoW Forever, where Auto Shot keeps firing during casts."],
 						type = "toggle",
-						order = 17,
+						width = "double",
+						order = 4,
 					},
-					border = {
-						order = 18,
-						type = "select",
-						name = L["Border texture"],
-						dialogControl = widget("LSM30_Border"),
-						values = getMediaData,
-					},
-					bordercolor = {
-						name = L["Border Color"],
-						type = "color",
-						order = 19,
-						get = getColor,
-						set = setColor,
-					},
-					announceheader = {
-						name = L["Announce options"],
-						type = "header",
-						order = 23,
+					reset = resetButton("timing"),
+				},
+			},
+			------------------------------------------------------------------
+			announce = {
+				name = L["Announce"],
+				type = "group",
+				order = 7,
+				args = {
+					announcedesc = {
+						name = L["WoW Forever blocks addon chat during boss fights, and Say/Yell/Channel outside instances; YaHT skips those quietly."],
+						type = "description",
+						order = 1,
 					},
 					tranqannounce = {
-						name = string.format(L["Announce %s"],(YaHT.GetSpellName(19801) or "Tranquilizing Shot")),
+						name = string.format(L["Announce %s"], tranq),
 						desc = L["Enable / disable the announcement."],
 						type = "toggle",
-						order = 24,
+						order = 2,
 						width = "double",
 					},
 					tranqannouncefail = {
-						name = string.format(L["Announce failed %s"],(YaHT.GetSpellName(19801) or "Tranquilizing Shot")),
-						desc = L["Enable / disable the announcement."],
+						name = string.format(L["Announce failed %s"], tranq),
+						desc = L["Only works where the game lets addons read the combat log (not on WoW Forever)."],
 						type = "toggle",
-						order = 25,
+						order = 3,
 						width = "double",
+						disabled = function() return not YaHT.hasCombatLog end,
 					},
 					announcetype = {
 						name = L["Announce in"],
 						desc = L["The channel in which to announce."],
 						type = "select",
-						order = 26,
+						order = 4,
 						values = {["WHISPER"] = L["Whisper"], ["CHANNEL"] = L["Channel"], ["RAID_WARNING"] = L["Raid Warning"], ["SAY"] = L["Say"], ["YELL"] = L["Yell"], ["PARTY"] = L["Party"], ["RAID"] = L["Raid"]},
-						set = function(info, value) set(info,value) LibStub("AceConfigRegistry-3.0", true):NotifyChange("YaHT") end
+						set = function(info, value) set(info, value) AceConfigRegistry:NotifyChange(Addon) end,
 					},
 					targetchannel = {
 						name = L["Channel/Playername"],
 						desc = L["Set the channel or player for whisper."],
 						type = "input",
-						order = 27,
-						hidden = function() return not (YaHT.db.profile.announcetype == "WHISPER" or YaHT.db.profile.announcetype == "CHANNEL") end,
+						order = 5,
+						hidden = function() local t = YaHT.db.profile.announcetype return not (t == "WHISPER" or t == "CHANNEL") end,
 					},
 					announcemsg = {
 						name = L["Announce Message"],
-						desc = L["Set the message to be broadcasted."],
+						desc = L["Set the message to be broadcasted. %s is replaced by the target's name."],
 						type = "input",
-						order = 28,
+						order = 6,
 						width = "full",
 					},
 					announcefailmsg = {
 						name = L["Announce Fail Message"],
-						desc = L["Set the message to be broadcasted."],
+						desc = L["Set the message to be broadcasted. %s is replaced by the target's name."],
 						type = "input",
-						order = 29,
+						order = 7,
 						width = "full",
+						disabled = function() return not YaHT.hasCombatLog end,
 					},
-				}
-			}
-		}
+					reset = resetButton("announce"),
+				},
+			},
+		},
 	}
 
-	AceConfigRegistry:RegisterOptionsTable(Addon, aceoptions, true)
 	aceoptions.args.profile = LibStub("AceDBOptions-3.0"):GetOptionsTable(self.db)
-	
-	AceConfigDialog:AddToBlizOptions(Addon, nil, nil, "general")
-	AceConfigDialog:AddToBlizOptions(Addon, L["Profiles"], Addon, "profile")
-	
-	AceConfigDialog:SetDefaultSize(Addon, 895, 570)
+	aceoptions.args.profile.order = 100
+	AceConfigRegistry:RegisterOptionsTable(Addon, aceoptions, true)
+
+	-- also listed in the game's Settings > AddOns panel
+	AceConfigDialog:AddToBlizOptions(Addon, "YaHT")
+	AceConfigDialog:SetDefaultSize(Addon, 720, 560)
 end

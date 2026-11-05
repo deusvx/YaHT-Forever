@@ -1,8 +1,10 @@
 ## Interface: 16001
 ## Title: YaHT
-## Notes: Yet another Hunter Timer (WoW Forever port).
+## Notes: Auto Shot timer for WoW Forever: countdown, glow and spark. /yaht
 ## Author: Avi
-## Version: 2140-forever1
+## Version: 1.1.0-forever
+## IconTexture: Interface\Icons\INV_Weapon_Bow_07
+## AddonCompartmentFunc: YaHT_OnAddonCompartmentClick
 ## SavedVariables: YaHTdb
 ## OptionalDeps: Ace3, LibSharedMedia-3.0, SharedMedia, AceGUI-3.0-SharedMediaWidgets
 ## X-Category: Hunter
