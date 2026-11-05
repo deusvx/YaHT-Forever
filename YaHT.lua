@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.3.0-forever"
+YaHT.version = "1.3.1-forever"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -850,11 +850,24 @@ end
 
 -- The game reports the Auto Shot wind-up actually starting: restart the
 -- red stand-still part from that exact moment (only once per shot).
+-- A wind-up we already believe in has been running for a moment (and you're
+-- standing still). Extra SENT/FAILED messages then are rejected duplicate
+-- requests, not a new attempt (WeaponSwingTimer ignores them the same way).
+local function WindupUnderway(f, now)
+	return f.SwingStart and not IsMoving() and now - f.SwingStart > 0.05
+		and now < f.SwingStart + (f.windup or 0.5)
+end
+
 function YaHT:SyncAutoShotCast(source)
 	local f = self.mainFrame
-	if not f.shooting or f.castSynced or not YaHT.db.profile.lock then return end
-	f.castSynced = true
+	if not f.shooting or not YaHT.db.profile.lock then return end
 	local now = GetTime()
+	-- the first SENT after starting Auto Shot is always the real start
+	if not f.awaitFirstSent and WindupUnderway(f, now) then
+		if self.debug then self:Print(source..": extra request during wind-up, ignored") end
+		return
+	end
+	f.awaitFirstSent = false
 	f.sentAt = now
 	if self.debug then
 		-- + means the game started the wind-up later than the bar expected
@@ -974,7 +987,6 @@ function YaHT:OnAutoShot(duration, source)
 	f.sentAt = nil
 	f.cycleSpeed = f.speed
 	f.disturbed = false
-	f.castSynced = false
 
 	if self.debug then
 		local cdStart, cdDur = GetAutoShotCooldown()
@@ -985,6 +997,7 @@ function YaHT:OnAutoShot(duration, source)
 	end
 	f.lastshot = anchor
 	f.SwingStart, f.fillFrom, f.nextAttempt, f.wasMoving = nil, nil, nil, false
+	f.awaitFirstSent = false -- a shot went out, so later SENTs aren't "the first"
 	f.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
 end
 
@@ -1002,11 +1015,14 @@ function YaHT:UNIT_SPELLCAST_FAILED_QUIET(unit, castGUID, spellID)
 	if unit ~= "player" or IsSecret(spellID) or spellID ~= AUTO_SHOT_ID then return end
 	-- the attempt didn't start: the game retries after 0.5s, then winds up
 	local f = self.mainFrame
-	f.castSynced = false
 	f.disturbed = true
+	local now = GetTime()
+	if WindupUnderway(f, now) then
+		if self.debug then self:Print("Auto Shot: extra request rejected during wind-up, ignored") end
+		return
+	end
 	-- The failure often arrives a few ms BEFORE the bar reaches the red
 	-- part, so also accept it near the end of the reload.
-	local now = GetTime()
 	local nearReady = f.SwingStart or (now >= f.lastshot + (f.swingtime or 0) - 0.25)
 	if f.shooting and nearReady and YaHT.db.profile.lock then
 		f.nextAttempt = now + 0.5
@@ -1041,6 +1057,8 @@ function YaHT:START_AUTOREPEAT_SPELL()
 	local f = self.mainFrame
 	local curTime = GetTime()
 	f.shooting = true
+	f.disturbed = true -- a restart never counts toward learning the delay
+	f.awaitFirstSent = true
 	if curTime - f.lastshot < f.swingtime then
 		f.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
 	else
@@ -1058,6 +1076,7 @@ function YaHT:STOP_AUTOREPEAT_SPELL()
 	local f = self.mainFrame
 	if self.debug then self:Print("STOP_AUTOREPEAT_SPELL") end
 	f.shooting = nil
+	f.disturbed = true
 	if YaHT.db.profile.lock and (GetTime() - f.lastshot) >= f.swingtime then
 		f:SetAlpha(0)
 		f:Hide()
