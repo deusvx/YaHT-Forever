@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.3.1-forever"
+YaHT.version = "1.3.2-forever"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -854,7 +854,9 @@ end
 -- standing still). Extra SENT/FAILED messages then are rejected duplicate
 -- requests, not a new attempt (WeaponSwingTimer ignores them the same way).
 local function WindupUnderway(f, now)
-	return f.SwingStart and not IsMoving() and now - f.SwingStart > 0.05
+	-- 0.15s grace: the game's messages can arrive ~0.1s late, so a real retry
+	-- can land just after the wind-up "started"; true duplicates come later
+	return f.SwingStart and not IsMoving() and now - f.SwingStart > 0.15
 		and now < f.SwingStart + (f.windup or 0.5)
 end
 
