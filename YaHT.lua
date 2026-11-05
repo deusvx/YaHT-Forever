@@ -32,9 +32,35 @@ local function GetSpellName(spellID)
 end
 YaHT.GetSpellName = GetSpellName
 
+local warnedChat = {}
+local function ChatWarnOnce(key, text)
+	if warnedChat[key] then return end
+	warnedChat[key] = true
+	DEFAULT_CHAT_FRAME:AddMessage("|cFF2150C2YaHT|r: "..text)
+end
+
 local function SendChat(msg, chatType, target)
 	local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
 	if not send then return end
+	-- 12.x engine (WoW Forever): addon chat is locked down during boss
+	-- encounters / M+ / PvP matches. Sending then is silently dropped or
+	-- raises a "blocked action" popup, so don't try.
+	if C_ChatInfo and C_ChatInfo.InChatMessagingLockdown then
+		local ok, locked = pcall(C_ChatInfo.InChatMessagingLockdown)
+		if ok and not IsSecret(locked) and locked then
+			ChatWarnOnce("lockdown", "announcements are blocked by the game during encounters.")
+			return
+		end
+	end
+	-- Say/Yell/Channel from an addon only work inside instances on modern
+	-- clients; outside they trigger a "blocked action" warning.
+	if chatType == "SAY" or chatType == "YELL" or chatType == "CHANNEL" then
+		local inInstance = IsInInstance and IsInInstance()
+		if not IsSecret(inInstance) and not inInstance then
+			ChatWarnOnce("outdoor", "Say/Yell/Channel announcements only work inside instances (game restriction).")
+			return
+		end
+	end
 	-- pcall: SAY/YELL outside instances need a hardware event on modern clients
 	-- and must never break the timer if blocked.
 	local ok, err = pcall(send, msg, chatType, nil, target)
