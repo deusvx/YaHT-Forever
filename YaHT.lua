@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.2.2-forever"
+YaHT.version = "1.2.3-forever"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -848,11 +848,21 @@ function YaHT:SyncAutoShotCast(source)
 	if not f.shooting or f.castSynced or not YaHT.db.profile.lock then return end
 	f.castSynced = true
 	local now = GetTime()
-	if self.debug and f.SwingStart then
-		self:Print(string.format("%s: wind-up started %.3fs after the bar predicted", source, now - f.SwingStart))
+	f.sentAt = now
+	if self.debug then
+		-- + means the game started the wind-up later than the bar expected
+		local predicted = f.lastshot + (f.swingtime or 0)
+		self:Print(string.format("%s: wind-up start %+.3fs vs bar", source, now - predicted))
 	end
 	f.SwingStart = now
 	movementDelay = 0
+end
+
+-- Forever doesn't send UNIT_SPELLCAST_START for Auto Shot, but it does send
+-- SENT when the shot attempt begins (WeaponSwingTimer uses the same signal).
+function YaHT:UNIT_SPELLCAST_SENT(unit, target, castGUID, spellID)
+	if unit ~= "player" or IsSecret(spellID) or spellID ~= AUTO_SHOT_ID then return end
+	self:SyncAutoShotCast("SENT")
 end
 
 function YaHT:UNIT_SPELLCAST_START(unit, castGUID, spellID)
@@ -936,6 +946,10 @@ function YaHT:OnAutoShot(duration, source)
 		self.calibSamples = (self.calibSamples or 0) + 1
 		self.db.char.calib = self.calib -- remembered for next login
 	end
+	if self.debug and f.sentAt then
+		self:Print(string.format("shot left %.3fs after SENT (wind-up %.3f)", now - f.sentAt, Windup(f.speed)))
+	end
+	f.sentAt = nil
 	f.cycleSpeed = f.speed
 	f.disturbed = false
 	f.castSynced = false
@@ -1155,6 +1169,7 @@ SafeRegister("UNIT_RANGEDDAMAGE", "player")
 SafeRegister("START_AUTOREPEAT_SPELL")
 SafeRegister("STOP_AUTOREPEAT_SPELL")
 SafeRegister("UNIT_SPELLCAST_FAILED_QUIET", "player")
+SafeRegister("UNIT_SPELLCAST_SENT", "player")
 SafeRegister("PLAYER_EQUIPMENT_CHANGED")
 YaHT.hasNativeSwing = SafeRegister("PLAYER_SWING")
 YaHT.hasCombatLog = (CombatLogGetCurrentEventInfo or (C_CombatLog and C_CombatLog.GetCurrentEventInfo)) and SafeRegister("COMBAT_LOG_EVENT_UNFILTERED") or false
