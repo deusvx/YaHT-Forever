@@ -49,8 +49,9 @@ Based on research and on the Forever build of WeaponSwingTimer-SixxFix
   game reports the first Auto Shot wind-up starting. Timing tab → "Relearn timing" to start over.
 - **Jitter smoothing:** shots are evenly spaced, but the game's message about each one arrives a
   little early or late. The bar keeps a steady rhythm and only nudges toward each message.
-- **Retry delay:** if an Auto Shot attempt fails, the game waits 0.5s before trying again; the bar
-  now shows that.
+- **Retry rhythm (kiting):** when a shot attempt fails (you were moving), the game retries every
+  0.5s. YaHT follows that rhythm: after you stop moving, the wind-up starts at the next retry moment,
+  and every failed attempt the game reports re-aligns it.
 
 ## Countdown text
 Shows the time left to one decimal place (like WeaponSwingTimer), counting down to the shot

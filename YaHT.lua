@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.2.5-forever"
+YaHT.version = "1.3.0-forever"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -145,7 +145,6 @@ end
 ---------------------------------------------------------------------------
 -- Timer logic
 ---------------------------------------------------------------------------
-local movementDelay = 0
 
 local AUTO_SHOT_ID = 75
 local AutoShot = GetSpellName(AUTO_SHOT_ID)
@@ -279,13 +278,14 @@ local function OnUpdate(self, elapsed)
 	end
 	local curTime = GetTime()
 	if not self.SwingStart and (curTime - self.lastshot) >= self.swingtime then
+		-- the game makes its first attempt now, then retries every 0.5s
 		--Start Swing timer
 		-- On WoW Forever Auto Shot keeps firing during Aimed Shot casts, so a
 		-- cast only holds the timer if the user turns that option on.
 		if self.shooting and not (self.casting and config.castholds) then
 			self.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
 			self:SetAlpha(config.alpha)
-			self.SwingStart = curTime
+			self.SwingStart, self.fillFrom, self.nextAttempt = curTime, curTime, curTime
 		else
 			if not self.shooting then
 				self:Hide()
@@ -295,18 +295,25 @@ local function OnUpdate(self, elapsed)
 		if IsMoving() then
 			self.readyMoving = true -- shot is ready, you just need to stop
 			self.disturbed = true -- this cycle can't be used to learn timing
-			self.SwingStart = curTime
+			self.wasMoving = true
+			self.SwingStart, self.fillFrom = curTime, curTime
 			self.texture:SetWidth(0.01)
 			self:SetAlpha(config.malpha)
-			local timeSinceReadyToFire = curTime - self.lastshot + self.swingtime
-			if timeSinceReadyToFire > 0 then
-				while timeSinceReadyToFire > 0.5 do
-					timeSinceReadyToFire = timeSinceReadyToFire - 0.5
-				end
-				movementDelay = 0.5 - timeSinceReadyToFire
-			end
 		else
-			self.texture:SetWidth(math.max(config.width * math.min(((curTime - self.SwingStart) / (SWING_TIME + movementDelay)),1), 0.01))
+			if self.wasMoving then
+				-- Stopped: the game only retries on its 0.5s rhythm, so the
+				-- wind-up starts at the next retry moment, not right now.
+				self.wasMoving = false
+				local tick = self.nextAttempt or curTime
+				while tick < curTime - 0.001 do tick = tick + 0.5 end
+				self.nextAttempt = tick
+				self.SwingStart, self.fillFrom = tick, curTime
+			end
+			-- fill smoothly from fillFrom to the moment the shot leaves
+			local shotAt = self.SwingStart + SWING_TIME
+			local span = math.max(shotAt - (self.fillFrom or self.SwingStart), 0.01)
+			local frac = math.min(math.max((curTime - (self.fillFrom or self.SwingStart)) / span, 0), 1)
+			self.texture:SetWidth(math.max(config.width * frac, 0.01))
 			self:SetAlpha(config.alpha)
 		end
 	else
@@ -350,7 +357,7 @@ local function UpdateText(self)
 		end
 	elseif self.SwingStart then
 		-- stand-still phase (wind-up)
-		remaining = (windup + movementDelay) - (GetTime() - self.SwingStart)
+		remaining = (self.SwingStart + windup) - GetTime()
 	else
 		local reload = self.swingtime - (GetTime() - self.lastshot)
 		if reload > 0 then
@@ -858,8 +865,7 @@ function YaHT:SyncAutoShotCast(source)
 			self:Print(source..": first shot wind-up started")
 		end
 	end
-	f.SwingStart = now
-	movementDelay = 0
+	f.SwingStart, f.fillFrom, f.nextAttempt = now, now, now
 end
 
 -- Forever doesn't send UNIT_SPELLCAST_START for Auto Shot, but it does send
@@ -912,7 +918,6 @@ function YaHT:UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
 		local f = self.mainFrame
 		f.lastshot = GetTime()
 		f.SwingStart = nil
-		movementDelay = 0
 		return
 	end
 
@@ -979,9 +984,8 @@ function YaHT:OnAutoShot(duration, source)
 			jitter and string.format("%+.3f", jitter) or "-", tostring(f.casting)))
 	end
 	f.lastshot = anchor
-	f.SwingStart = nil
+	f.SwingStart, f.fillFrom, f.nextAttempt, f.wasMoving = nil, nil, nil, false
 	f.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
-	movementDelay = 0
 end
 
 -- WoW Forever: native swing event, fires for every swing with its duration.
@@ -1005,8 +1009,10 @@ function YaHT:UNIT_SPELLCAST_FAILED_QUIET(unit, castGUID, spellID)
 	local now = GetTime()
 	local nearReady = f.SwingStart or (now >= f.lastshot + (f.swingtime or 0) - 0.25)
 	if f.shooting and nearReady and YaHT.db.profile.lock then
-		f.SwingStart = now + 0.5
-		movementDelay = 0
+		f.nextAttempt = now + 0.5
+		if not IsMoving() then
+			f.SwingStart, f.fillFrom = now + 0.5, now
+		end
 	end
 	if self.debug then self:Print("Auto Shot attempt failed (retry delay)") end
 end
@@ -1039,7 +1045,7 @@ function YaHT:START_AUTOREPEAT_SPELL()
 		f.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
 	else
 		f.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
-		f.SwingStart = curTime
+		f.SwingStart, f.fillFrom, f.nextAttempt = curTime, curTime, curTime
 		if IsMoving() then
 			f.lastshot = curTime - f.swingtime
 		end
