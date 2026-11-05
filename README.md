@@ -45,5 +45,11 @@ Optional glow around the bar: nothing while the bar is full, building up as the 
 out, full (optionally pulsing) when you need to stand still. Under `/yaht` → Glow pick color,
 size, brightness and style. If WeakAuras (or another addon that includes LibCustomGlow) is
 installed, the stand-still part can use its animated effects: Pixel, Autocast, Proc or Button.
+Built in: Soft or Outline glow look, and a Sweep effect (a light streak runs across the bar).
+
+## Spark
+A bright line at the moving edge of the bar. In the stand-still part the bar grows out from the
+middle, so two sparks start at the centre and race to the ends as the shot fires. Choose Off,
+Stand-still part only, or Always; set height and color under `/yaht` → Spark.
 
 Original addon by Aviana: https://github.com/Aviana/YaHT

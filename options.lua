@@ -287,13 +287,21 @@ function YaHT:CreateConfig()
 						values = {RAMP = L["Build up"], STAND = L["Stand still only"]},
 						disabled = function() return not YaHT.db.profile.glow end,
 					},
+					glowlook = {
+						name = L["Glow look"],
+						desc = L["Soft: blurry halo. Outline: crisp bright border."],
+						type = "select",
+						order = 11.932,
+						values = {SOFT = L["Soft"], OUTLINE = L["Outline"]},
+						disabled = function() return not YaHT.db.profile.glow end,
+					},
 					glowstyle = {
 						name = L["Stand-still effect"],
-						desc = L["Built-in soft glow, or an animated effect borrowed from LibCustomGlow (comes with many glow addons, WeakAuras, ElvUI). Animated effects need one of those addons installed."],
+						desc = L["Extra effect while you need to stand still. Pixel/Autocast/Proc/Button are borrowed from LibCustomGlow and only appear when WeakAuras (or another addon that includes it) is installed."],
 						type = "select",
 						order = 11.935,
 						values = function()
-							local v = {BUILTIN = L["Built-in glow"]}
+							local v = {BUILTIN = L["Glow only"], SWEEP = L["Sweep (light runs across the bar)"]}
 							if YaHT:GetLCG() then
 								v.PIXEL = L["Pixel (animated lines)"]
 								v.AUTOCAST = L["Autocast (sparkles)"]
@@ -309,7 +317,7 @@ function YaHT:CreateConfig()
 						desc = L["Show the built-in glow underneath the animated effect."],
 						type = "toggle",
 						order = 11.937,
-						hidden = function() return YaHT.db.profile.glowstyle == "BUILTIN" end,
+						hidden = function() local st = YaHT.db.profile.glowstyle return st == "BUILTIN" or st == "SWEEP" end,
 						disabled = function() return not YaHT.db.profile.glow end,
 					},
 					glowpulse = {
@@ -356,6 +364,38 @@ function YaHT:CreateConfig()
 						get = getColor,
 						set = setColor,
 						disabled = function() return not YaHT.db.profile.glow end,
+					},
+					sparkheader = {
+						name = L["Spark"],
+						type = "header",
+						order = 11.991,
+					},
+					sparkmode = {
+						name = L["Spark"],
+						desc = L["A bright line at the moving edge of the bar. In the stand-still part the bar grows out from the middle, so the sparks start in the centre and race to the ends as the shot fires."],
+						type = "select",
+						order = 11.992,
+						values = {OFF = L["Off"], STAND = L["Stand-still part only"], ALWAYS = L["Always"]},
+						sorting = {"OFF", "STAND", "ALWAYS"},
+					},
+					sparksize = {
+						name = L["Spark height"],
+						desc = L["Spark height compared to the bar height."],
+						type = "range",
+						order = 11.993,
+						min = 1,
+						max = 8,
+						step = 0.5,
+						disabled = function() return YaHT.db.profile.sparkmode == "OFF" end,
+					},
+					sparkcolor = {
+						name = L["Spark Color"],
+						type = "color",
+						hasAlpha = true,
+						order = 11.994,
+						get = getColor,
+						set = setColor,
+						disabled = function() return YaHT.db.profile.sparkmode == "OFF" end,
 					},
 					backgroundheader = {
 						name = L["Background options"],

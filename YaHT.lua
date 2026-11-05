@@ -389,7 +389,39 @@ local function CreateGlow(f)
 		t:SetBlendMode("ADD")
 		glow.pieces[piece[1]] = t
 	end
+	-- crisp outline look
+	glow.outline = {}
+	for _, side in ipairs({"T", "B", "L", "R"}) do
+		local t = glow:CreateTexture(nil, "BACKGROUND")
+		t:SetTexture("Interface\\Buttons\\WHITE8X8")
+		t:SetBlendMode("ADD")
+		glow.outline[side] = t
+	end
 	glow:SetAlpha(0)
+
+	-- sweep: a light streak running across the bar (clipped to the bar)
+	local clip = CreateFrame("Frame", nil, f)
+	clip:SetAllPoints(f)
+	clip:SetFrameLevel(f:GetFrameLevel() + 2)
+	if clip.SetClipsChildren then clip:SetClipsChildren(true) end
+	local sweep = clip:CreateTexture(nil, "OVERLAY")
+	sweep:SetTexture("Interface\\AddOns\\YaHT\\media\\Shine")
+	sweep:SetBlendMode("ADD")
+	sweep:Hide()
+	f.sweep = sweep
+
+	-- sparks at the moving edge(s) of the bar
+	local sparkFrame = CreateFrame("Frame", nil, f)
+	sparkFrame:SetAllPoints(f)
+	sparkFrame:SetFrameLevel(f:GetFrameLevel() + 3)
+	f.sparks = {}
+	for _, edge in ipairs({"LEFT", "RIGHT"}) do
+		local sp = sparkFrame:CreateTexture(nil, "OVERLAY")
+		sp:SetTexture("Interface\\AddOns\\YaHT\\media\\Spark")
+		sp:SetBlendMode("ADD")
+		sp:Hide()
+		f.sparks[edge] = sp
+	end
 	return glow
 end
 
@@ -410,25 +442,76 @@ function YaHT:ApplyGlowSettings()
 	P.B:SetHeight(g) P.B:SetPoint("TOPLEFT", f, "BOTTOMLEFT") P.B:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT")
 	P.L:SetWidth(g) P.L:SetPoint("TOPRIGHT", f, "TOPLEFT") P.L:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT")
 	P.R:SetWidth(g) P.R:SetPoint("TOPLEFT", f, "TOPRIGHT") P.R:SetPoint("BOTTOMLEFT", f, "BOTTOMRIGHT")
+	local soft = config.glowlook ~= "OUTLINE"
+	for _, t in pairs(P) do t:SetShown(soft) end
+	local o, th = glow.outline, math.max(1, math.floor(g / 4))
+	for _, t in pairs(o) do
+		t:ClearAllPoints()
+		t:SetVertexColor(config.glowcolor.r, config.glowcolor.g, config.glowcolor.b)
+		t:SetShown(not soft)
+	end
+	o.T:SetPoint("BOTTOMLEFT", f, "TOPLEFT", -th - 1, 1) o.T:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", th + 1, 1) o.T:SetHeight(th)
+	o.B:SetPoint("TOPLEFT", f, "BOTTOMLEFT", -th - 1, -1) o.B:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT", th + 1, -1) o.B:SetHeight(th)
+	o.L:SetPoint("TOPRIGHT", f, "TOPLEFT", -1, 1) o.L:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", -1, -1) o.L:SetWidth(th)
+	o.R:SetPoint("TOPLEFT", f, "TOPRIGHT", 1, 1) o.R:SetPoint("BOTTOMLEFT", f, "BOTTOMRIGHT", 1, -1) o.R:SetWidth(th)
+
+	local sc = config.sparkcolor
+	for edge, sp in pairs(f.sparks) do
+		sp:ClearAllPoints()
+		sp:SetPoint("CENTER", f.texture, edge)
+		sp:SetSize(math.max(config.height * 1.2, 8), config.height * config.sparksize)
+		sp:SetVertexColor(sc.r, sc.g, sc.b, sc.a or 1)
+	end
+	f.sweep:SetSize(math.max(config.width * 0.25, 30), config.height * 3)
+	f.sweep:SetVertexColor(config.glowcolor.r, config.glowcolor.g, config.glowcolor.b)
+
 	if config.glow then glow:Show() else glow:Hide() self:StopFancyGlow() end
 	-- restart the animated effect so color/style changes apply
 	if self.fancyGlow then self:StopFancyGlow() end
 end
 
+local function UpdateSpark(self, standing)
+	local config = YaHT.db.profile
+	local mode = config.sparkmode
+	local active = mode == "ALWAYS" or (mode == "STAND" and standing)
+	if active and not config.lock then active = true end
+	if active and config.lock and not self.shooting and not self.SwingStart then active = false end
+	local w = self.texture:GetWidth()
+	if w and w < 1 then active = false end -- nothing to put a spark on yet
+	self.sparks.RIGHT:SetShown(active)
+	-- with "fill from middle" the bar grows both ways, so both edges spark
+	self.sparks.LEFT:SetShown(active and config.fill)
+end
+
+local function IsStanding(self)
+	local config = YaHT.db.profile
+	if not config.lock then return self.mockTime > self.swingtime end
+	return self.SwingStart ~= nil
+end
+
 local function UpdateGlow(self)
 	local config = YaHT.db.profile
-	if not config.glow then return end
+	local standing = IsStanding(self)
+	UpdateSpark(self, standing)
 	local now = GetTime()
+	-- built-in sweep for the stand-still part
+	if config.glow and standing and config.glowstyle == "SWEEP" then
+		local sw = self.sweep
+		local span = self:GetWidth() + sw:GetWidth()
+		local pos = ((now * 1.6) % 1) * span - sw:GetWidth() / 2
+		sw:ClearAllPoints()
+		sw:SetPoint("CENTER", self, "LEFT", pos, 0)
+		sw:SetAlpha(config.glowintensity)
+		sw:Show()
+	else
+		self.sweep:Hide()
+	end
+	if not config.glow then return end
 	local level -- 0..1
-	local standing = false
-	if not config.lock then
-		if self.mockTime > self.swingtime then
-			level, standing = 1, true
-		else
-			level = self.mockTime / self.swingtime
-		end
-	elseif self.SwingStart then
-		level, standing = 1, true
+	if standing then
+		level = 1
+	elseif not config.lock then
+		level = self.mockTime / self.swingtime
 	elseif self.shooting then
 		level = math.min(math.max((now - self.lastshot) / self.swingtime, 0), 1)
 	else
@@ -446,7 +529,7 @@ local function UpdateGlow(self)
 	end
 	-- Fancy animated effect from LibCustomGlow (shipped inside many glow
 	-- addons, WeakAuras, ElvUI...) for the stand-still part, if chosen.
-	local fancy = config.glowstyle ~= "BUILTIN" and standing
+	local fancy = config.glowstyle ~= "BUILTIN" and config.glowstyle ~= "SWEEP" and standing
 	if fancy and not YaHT:StartFancyGlow() then fancy = false end
 	if not fancy then YaHT:StopFancyGlow() end
 	if fancy and not config.glowkeepbuiltin then level = 0 end
