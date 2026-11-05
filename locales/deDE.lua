@@ -193,6 +193,8 @@ local L = {
 ["debug log cleared."] = "Debug-Protokoll geleert.",
 ["open the debug log so you can copy it"] = "öffnet das Debug-Protokoll zum Kopieren",
 ["empty the debug log"] = "leert das Debug-Protokoll",
+["Smooth out network jitter"] = "Netzwerk-Schwankungen glätten",
+["Shots are evenly spaced, but the game's message about each one arrives a little early or late. Keeps the bar on a steady rhythm instead of jumping with every message."] = "Schüsse kommen gleichmäßig, aber die Meldung des Spiels zu jedem Schuss trifft etwas früher oder später ein. Hält den Balken in einem gleichmäßigen Rhythmus, statt bei jeder Meldung zu springen.",
 }
 
 YaHT.L = L

@@ -58,7 +58,7 @@ local TAB_KEYS = {
 	glow = {"glow", "glowmode", "glowlook", "glowstyle", "glowkeepbuiltin", "glowpulse", "glowramp",
 		"glowintensity", "glowsize", "glowcolor"},
 	spark = {"sparkmode", "readypulse", "sparksize", "sparkcolor"},
-	timing = {"windupauto", "windup", "castholds", "autocorrect"},
+	timing = {"windupauto", "windup", "castholds", "autocorrect", "smooth"},
 	ammo = {"ammo", "ammosize", "ammofadestart", "ammolow", "ammocrit", "ammofullalpha", "ammoflash", "ammosound"},
 	announce = {"tranqannounce", "tranqannouncefail", "announcetype", "targetchannel",
 		"announcemsg", "announcefailmsg"},
@@ -699,6 +699,13 @@ function YaHT:CreateConfig()
 						type = "toggle",
 						width = "double",
 						order = 3.5,
+					},
+					smooth = {
+						name = L["Smooth out network jitter"],
+						desc = L["Shots are evenly spaced, but the game's message about each one arrives a little early or late. Keeps the bar on a steady rhythm instead of jumping with every message."],
+						type = "toggle",
+						width = "double",
+						order = 3.55,
 					},
 					relearn = {
 						name = L["Relearn timing"],

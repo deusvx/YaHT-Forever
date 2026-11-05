@@ -46,7 +46,11 @@ Based on research and on the Forever build of WeaponSwingTimer-SixxFix
 - `/yaht debug` prints swing time, wind-up and the learned delay after every shot.
 - **Self-correcting timing:** YaHT learns the small extra delay between shots (latency etc.) while
   you stand still and shoot, remembers it per character, and syncs the red part to the moment the
-  game reports the Auto Shot wind-up starting. Timing tab → "Relearn timing" to start over.
+  game reports the first Auto Shot wind-up starting. Timing tab → "Relearn timing" to start over.
+- **Jitter smoothing:** shots are evenly spaced, but the game's message about each one arrives a
+  little early or late. The bar keeps a steady rhythm and only nudges toward each message.
+- **Retry delay:** if an Auto Shot attempt fails, the game waits 0.5s before trying again; the bar
+  now shows that.
 
 ## Countdown text
 Shows the time left to one decimal place (like WeaponSwingTimer), counting down to the shot

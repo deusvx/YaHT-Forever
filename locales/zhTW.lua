@@ -190,6 +190,8 @@ local L = {
 ["debug log cleared."] = "除錯日誌已清空。",
 ["open the debug log so you can copy it"] = "開啟除錯日誌以便複製",
 ["empty the debug log"] = "清空除錯日誌",
+["Smooth out network jitter"] = "平滑網路抖動",
+["Shots are evenly spaced, but the game's message about each one arrives a little early or late. Keeps the bar on a steady rhythm instead of jumping with every message."] = "射擊間隔是均勻的，但遊戲對每次射擊的通知會稍早或稍晚到達。讓計量條保持穩定節奏，而不是隨每條通知跳動。",
 }
 
 YaHT.L = L

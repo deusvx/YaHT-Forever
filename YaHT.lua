@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.2.3-forever"
+YaHT.version = "1.2.4-forever"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -310,7 +310,7 @@ local function OnUpdate(self, elapsed)
 			self:SetAlpha(config.alpha)
 		end
 	else
-		self.texture:SetWidth(math.max(config.width * (1 - math.min(((curTime - self.lastshot) / self.swingtime),1)), 0.01))
+		self.texture:SetWidth(math.max(config.width * (1 - math.min(math.max((curTime - self.lastshot) / self.swingtime, 0), 1)), 0.01))
 		self:SetAlpha(config.alpha)
 	end
 end
@@ -852,7 +852,11 @@ function YaHT:SyncAutoShotCast(source)
 	if self.debug then
 		-- + means the game started the wind-up later than the bar expected
 		local predicted = f.lastshot + (f.swingtime or 0)
-		self:Print(string.format("%s: wind-up start %+.3fs vs bar", source, now - predicted))
+		if now - f.lastshot < (f.speed or 3) * 1.5 then
+			self:Print(string.format("%s: wind-up start %+.3fs vs bar", source, now - predicted))
+		else
+			self:Print(source..": first shot wind-up started")
+		end
 	end
 	f.SwingStart = now
 	movementDelay = 0
@@ -939,8 +943,20 @@ function YaHT:OnAutoShot(duration, source)
 	-- still, no casts, continuous Auto Shot).
 	local interval = now - f.lastshot
 	local expected = f.cycleSpeed
-	if expected and f.shooting and not f.disturbed and not f.casting
-		and interval > expected * 0.8 and interval < expected * 1.5 then
+	local clean = expected and f.shooting and not f.disturbed and not f.casting
+		and interval > expected * 0.8 and interval < expected * 1.5
+	-- Jitter smoothing: the real shots are evenly spaced but the message
+	-- reporting each one arrives a little early/late. Keep a steady rhythm
+	-- and only nudge it 30% toward each message; snap on big differences.
+	local anchor, jitter = now, nil
+	if clean then
+		local predicted = f.lastshot + expected + ((config.autocorrect and self.calib) or 0)
+		jitter = now - predicted
+		if config.smooth and math.abs(jitter) < 0.15 then
+			anchor = predicted + 0.3 * jitter
+		end
+	end
+	if clean then
 		local sample = math.min(math.max(interval - expected, -0.15), 0.6)
 		self.calib = (self.calib or 0) + 0.3 * (sample - (self.calib or 0))
 		self.calibSamples = (self.calibSamples or 0) + 1
@@ -957,11 +973,11 @@ function YaHT:OnAutoShot(duration, source)
 	if self.debug then
 		local cdStart, cdDur = GetAutoShotCooldown()
 		local function v(x) if IsSecret(x) then return "secret" end return x and string.format("%.3f", x) or "nil" end
-		self:Print(string.format("%s: %.3fs since last | swing %s | windup %.3f | learned delay %+.3f (%d shots) | base %s | casting %s",
+		self:Print(string.format("%s: %.3fs since last | swing %s | windup %.3f | learned delay %+.3f (%d shots) | jitter %s | casting %s",
 			source or "?", interval, v(duration), Windup(f.speed), self.calib or 0, self.calibSamples or 0,
-			v(GetBaseSpeed()), tostring(f.casting)))
+			jitter and string.format("%+.3f", jitter) or "-", tostring(f.casting)))
 	end
-	f.lastshot = now
+	f.lastshot = anchor
 	f.SwingStart = nil
 	f.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
 	movementDelay = 0
@@ -979,9 +995,14 @@ end
 -- ~0.5 s before retrying. The movement logic in OnUpdate models this.
 function YaHT:UNIT_SPELLCAST_FAILED_QUIET(unit, castGUID, spellID)
 	if unit ~= "player" or IsSecret(spellID) or spellID ~= AUTO_SHOT_ID then return end
-	-- the attempt didn't start (e.g. moving): let the next real start re-sync
-	self.mainFrame.castSynced = false
-	self.mainFrame.disturbed = true
+	-- the attempt didn't start: the game retries after 0.5s, then winds up
+	local f = self.mainFrame
+	f.castSynced = false
+	f.disturbed = true
+	if f.shooting and f.SwingStart and YaHT.db.profile.lock then
+		f.SwingStart = GetTime() + 0.5
+		movementDelay = 0
+	end
 	if self.debug then self:Print("Auto Shot attempt failed (retry delay)") end
 end
 
