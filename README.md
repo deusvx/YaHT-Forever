@@ -42,7 +42,10 @@ Based on research and on the Forever build of WeaponSwingTimer-SixxFix
   Turn on "Casts hold Auto Shot" if that changes back.
 - Forever blocks addons from the combat log and can hide stats ("secret values") in combat.
   YaHT checks for both, and keeps the last known value when a stat is hidden.
-- `/yaht debug` prints swing time, base speed, wind-up and cooldown after every shot.
+- `/yaht debug` prints swing time, wind-up and the learned delay after every shot.
+- **Self-correcting timing:** YaHT learns the small extra delay between shots (latency etc.) while
+  you stand still and shoot, remembers it per character, and syncs the red part to the moment the
+  game reports the Auto Shot wind-up starting. Timing tab → "Relearn timing" to start over.
 
 ## Countdown text
 Shows the time left to one decimal place (like WeaponSwingTimer), counting down to the shot

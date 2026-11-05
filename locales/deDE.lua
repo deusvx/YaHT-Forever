@@ -184,6 +184,10 @@ local L = {
 ["Warning levels"] = "Warnstufen",
 ["Warning sound"] = "Warnton",
 ["show how much ammo YaHT counts"] = "zeigt, wie viel Munition YaHT zählt",
+["Self-correcting timing"] = "Selbstkorrigierendes Timing",
+["Learns the small extra delay between shots (latency etc.) while you stand still and shoot, and syncs the red part to the moment the game starts the shot."] = "Lernt die kleine zusätzliche Verzögerung zwischen Schüssen (Latenz usw.), während du stillstehst und schießt, und synchronisiert den roten Teil mit dem Moment, in dem das Spiel den Schuss beginnt.",
+["Relearn timing"] = "Timing neu lernen",
+["Forget the learned delay and measure it again from your next shots."] = "Vergisst die gelernte Verzögerung und misst sie bei den nächsten Schüssen neu.",
 }
 
 YaHT.L = L

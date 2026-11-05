@@ -58,7 +58,7 @@ local TAB_KEYS = {
 	glow = {"glow", "glowmode", "glowlook", "glowstyle", "glowkeepbuiltin", "glowpulse", "glowramp",
 		"glowintensity", "glowsize", "glowcolor"},
 	spark = {"sparkmode", "readypulse", "sparksize", "sparkcolor"},
-	timing = {"windupauto", "windup", "castholds"},
+	timing = {"windupauto", "windup", "castholds", "autocorrect"},
 	ammo = {"ammo", "ammosize", "ammofadestart", "ammolow", "ammocrit", "ammofullalpha", "ammoflash", "ammosound"},
 	announce = {"tranqannounce", "tranqannouncefail", "announcetype", "targetchannel",
 		"announcemsg", "announcefailmsg"},
@@ -692,6 +692,24 @@ function YaHT:CreateConfig()
 						max = 1.0,
 						step = 0.05,
 						disabled = function() return YaHT.db.profile.windupauto end,
+					},
+					autocorrect = {
+						name = L["Self-correcting timing"],
+						desc = L["Learns the small extra delay between shots (latency etc.) while you stand still and shoot, and syncs the red part to the moment the game starts the shot."],
+						type = "toggle",
+						width = "double",
+						order = 3.5,
+					},
+					relearn = {
+						name = L["Relearn timing"],
+						desc = L["Forget the learned delay and measure it again from your next shots."],
+						type = "execute",
+						order = 3.6,
+						func = function()
+							YaHT.calib, YaHT.calibSamples = nil, nil
+							YaHT.db.char.calib = nil
+						end,
+						disabled = function() return not YaHT.db.profile.autocorrect end,
 					},
 					castholds = {
 						name = L["Casts hold Auto Shot"],

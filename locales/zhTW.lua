@@ -181,6 +181,10 @@ local L = {
 ["Warning levels"] = "警告等級",
 ["Warning sound"] = "警告音效",
 ["show how much ammo YaHT counts"] = "顯示 YaHT 統計到的彈藥數量",
+["Self-correcting timing"] = "自動校正計時",
+["Learns the small extra delay between shots (latency etc.) while you stand still and shoot, and syncs the red part to the moment the game starts the shot."] = "在你站立射擊時學習兩次射擊之間的額外延遲（網路延遲等），並將紅色部分與遊戲開始射擊的時刻同步。",
+["Relearn timing"] = "重新學習計時",
+["Forget the learned delay and measure it again from your next shots."] = "忘記已學習的延遲，並在接下來的射擊中重新測量。",
 }
 
 YaHT.L = L

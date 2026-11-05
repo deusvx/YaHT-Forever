@@ -55,6 +55,7 @@ function YaHT:LoadDefaults()
 			alpha = 1,
 			malpha = 0.2,
 			windupauto = true,
+			autocorrect = true,
 			windup = 0.5,
 			castholds = false,
 			enablebackground = true,

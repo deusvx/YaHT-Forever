@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.2.0-forever"
+YaHT.version = "1.2.1-forever"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -257,7 +257,9 @@ local function OnUpdate(self, elapsed)
 	local config = YaHT.db.profile
 	local SWING_TIME = Windup(self.speed)
 	self.windup = SWING_TIME -- reused by the text/glow updates this frame
-	self.swingtime = math.max(self.speed - SWING_TIME, 0.1)
+	-- learned per-shot delay (latency etc.) on top of the game's swing time
+	local calib = (config.autocorrect and YaHT.calib) or 0
+	self.swingtime = math.max(self.speed - SWING_TIME + calib, 0.1)
 	self.readyMoving = false
 	if not config.lock then
 		self.mockTime = self.mockTime + elapsed
@@ -292,6 +294,7 @@ local function OnUpdate(self, elapsed)
 	elseif self.SwingStart then
 		if IsMoving() then
 			self.readyMoving = true -- shot is ready, you just need to stop
+			self.disturbed = true -- this cycle can't be used to learn timing
 			self.SwingStart = curTime
 			self.texture:SetWidth(0.01)
 			self:SetAlpha(config.malpha)
@@ -651,6 +654,7 @@ function YaHT:OnInitialize()
 		SML:Register(SML.MediaType.STATUSBAR, "YaHT Bar", MEDIA.statusbar["YaHT Bar"])
 	end
 
+	self.calib = self.db.char.calib -- learned shot delay from last session
 	self:Load()
 	if self.InitAmmo then self:InitAmmo() end
 	self:CreateConfig()
@@ -837,10 +841,27 @@ local function IsCastSpell(spellID)
 	return name and (name == AimedShot or name == MultiShot)
 end
 
+-- The game reports the Auto Shot wind-up actually starting: restart the
+-- red stand-still part from that exact moment (only once per shot).
+function YaHT:SyncAutoShotCast(source)
+	local f = self.mainFrame
+	if not f.shooting or f.castSynced or not YaHT.db.profile.lock then return end
+	f.castSynced = true
+	local now = GetTime()
+	if self.debug and f.SwingStart then
+		self:Print(string.format("%s: wind-up started %.3fs after the bar predicted", source, now - f.SwingStart))
+	end
+	f.SwingStart = now
+	movementDelay = 0
+end
+
 function YaHT:UNIT_SPELLCAST_START(unit, castGUID, spellID)
 	if unit ~= "player" or IsSecret(spellID) then return end
 	if IsCastSpell(spellID) then
 		self.mainFrame.casting = true
+		self.mainFrame.disturbed = true
+	elseif spellID == AUTO_SHOT_ID then
+		self:SyncAutoShotCast("UNIT_SPELLCAST_START")
 	end
 end
 
@@ -903,12 +924,28 @@ function YaHT:OnAutoShot(duration, source)
 		f.speed = f.newspeed
 		f.newspeed = nil
 	end
+	-- Self-calibration: compare the real time since the last shot with what
+	-- the game said that cycle would take. Only clean cycles count (standing
+	-- still, no casts, continuous Auto Shot).
+	local interval = now - f.lastshot
+	local expected = f.cycleSpeed
+	if expected and f.shooting and not f.disturbed and not f.casting
+		and interval > expected * 0.8 and interval < expected * 1.5 then
+		local sample = math.min(math.max(interval - expected, -0.15), 0.6)
+		self.calib = (self.calib or 0) + 0.3 * (sample - (self.calib or 0))
+		self.calibSamples = (self.calibSamples or 0) + 1
+		self.db.char.calib = self.calib -- remembered for next login
+	end
+	f.cycleSpeed = f.speed
+	f.disturbed = false
+	f.castSynced = false
+
 	if self.debug then
 		local cdStart, cdDur = GetAutoShotCooldown()
 		local function v(x) if IsSecret(x) then return "secret" end return x and string.format("%.3f", x) or "nil" end
-		self:Print(string.format("%s: %.3fs since last | swing %s | ranged speed %s | base %s | windup %.3f | cd %s | casting %s",
-			source or "?", now - f.lastshot, v(duration), v(GetRangedSpeed()), v(GetBaseSpeed()), Windup(f.speed),
-			(cdDur and not IsSecret(cdDur)) and string.format("%.3f", cdDur) or tostring(cdDur), tostring(f.casting)))
+		self:Print(string.format("%s: %.3fs since last | swing %s | windup %.3f | learned delay %+.3f (%d shots) | base %s | casting %s",
+			source or "?", interval, v(duration), Windup(f.speed), self.calib or 0, self.calibSamples or 0,
+			v(GetBaseSpeed()), tostring(f.casting)))
 	end
 	f.lastshot = now
 	f.SwingStart = nil
@@ -927,8 +964,11 @@ end
 -- Auto Shot tried to start but couldn't (e.g. moving); the game waits
 -- ~0.5 s before retrying. The movement logic in OnUpdate models this.
 function YaHT:UNIT_SPELLCAST_FAILED_QUIET(unit, castGUID, spellID)
-	if unit ~= "player" or not self.debug or IsSecret(spellID) then return end
-	if spellID == AUTO_SHOT_ID then self:Print("Auto Shot attempt failed (retry delay)") end
+	if unit ~= "player" or IsSecret(spellID) or spellID ~= AUTO_SHOT_ID then return end
+	-- the attempt didn't start (e.g. moving): let the next real start re-sync
+	self.mainFrame.castSynced = false
+	self.mainFrame.disturbed = true
+	if self.debug then self:Print("Auto Shot attempt failed (retry delay)") end
 end
 
 function YaHT:PLAYER_EQUIPMENT_CHANGED()
