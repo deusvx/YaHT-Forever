@@ -34,4 +34,10 @@ Based on research and on the Forever build of WeaponSwingTimer-SixxFix
   YaHT checks for both, and keeps the last known value when a stat is hidden.
 - `/yaht debug` prints swing time, base speed, wind-up and cooldown after every shot.
 
+## Countdown text
+Shows the time left to one decimal place (like WeaponSwingTimer), counting down to the shot
+or, optionally, to when you must stand still. Under `/yaht` → Countdown text: snap it inside the
+bar (left/center/right), outside (left/right), above or below, fine-tune with X/Y offsets,
+or unlock the bar and drag the number where you want it. Font, size and color are adjustable.
+
 Original addon by Aviana: https://github.com/Aviana/YaHT

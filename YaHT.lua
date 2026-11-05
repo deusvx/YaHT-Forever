@@ -92,6 +92,11 @@ local MEDIA = {
 		["Blizzard Tooltip"] = "Interface\\Tooltips\\UI-Tooltip-Background",
 		["Solid"] = "Interface\\Buttons\\WHITE8X8",
 	},
+	font = {
+		["Friz Quadrata TT"] = "Fonts\\FRIZQT__.TTF",
+		["Arial Narrow"] = "Fonts\\ARIALN.TTF",
+		["Morpheus"] = "Fonts\\MORPHEUS.TTF",
+	},
 	border = {
 		["None"] = "Interface\\None",
 		["Blizzard Dialog"] = "Interface\\DialogFrame\\UI-DialogBox-Border",
@@ -102,6 +107,7 @@ local defaultMedia = {
 	statusbar = MEDIA.statusbar["YaHT Bar"],
 	background = MEDIA.background["Chat Frame"],
 	border = MEDIA.border["None"],
+	font = "Fonts\\FRIZQT__.TTF",
 }
 local mediaRequired
 
@@ -286,6 +292,78 @@ local function OnUpdate(self, elapsed)
 	end
 end
 
+---------------------------------------------------------------------------
+-- Countdown text (like WeaponSwingTimer: seconds until the shot, 1 decimal)
+---------------------------------------------------------------------------
+local TEXT_ANCHORS = {
+	-- key = {point on text, point on bar, x, y}
+	INSIDE_LEFT   = {"LEFT",   "LEFT",    2, 0},
+	INSIDE_CENTER = {"CENTER", "CENTER",  0, 0},
+	INSIDE_RIGHT  = {"RIGHT",  "RIGHT",  -2, 0},
+	OUTSIDE_LEFT  = {"RIGHT",  "LEFT",   -4, 0},
+	OUTSIDE_RIGHT = {"LEFT",   "RIGHT",   4, 0},
+	ABOVE         = {"BOTTOM", "TOP",     0, 2},
+	BELOW         = {"TOP",    "BOTTOM",  0, -2},
+}
+YaHT.TEXT_ANCHORS = TEXT_ANCHORS
+
+local function UpdateText(self)
+	local config = YaHT.db.profile
+	local holder = self.textHolder
+	if not config.showtext then
+		holder:Hide()
+		return
+	end
+	holder:Show()
+	local windup = Windup(self.speed)
+	local toShot = config.textmode ~= "MOVE"
+	local remaining
+	if not config.lock then
+		-- demo cycle while unlocked
+		if self.mockTime > self.swingtime then
+			remaining = windup - self.mockTime2
+		else
+			remaining = (self.swingtime - self.mockTime) + (toShot and windup or 0)
+		end
+	elseif self.SwingStart then
+		-- stand-still phase (wind-up)
+		remaining = (windup + movementDelay) - (GetTime() - self.SwingStart)
+	else
+		local reload = self.swingtime - (GetTime() - self.lastshot)
+		if reload > 0 then
+			remaining = reload + (toShot and windup or 0)
+		elseif self.shooting then
+			remaining = windup
+		end
+	end
+	if remaining then
+		self.text:SetText(string.format("%.1f", math.max(remaining, 0)))
+	else
+		self.text:SetText("")
+	end
+end
+
+function YaHT:ApplyTextSettings()
+	local config = self.db.profile
+	local f = self.mainFrame
+	local holder, text = f.textHolder, f.text
+	local font = self:GetMedia("font", config.font) or STANDARD_TEXT_FONT
+	if not text:SetFont(font, config.textsize, "OUTLINE") then
+		text:SetFont(STANDARD_TEXT_FONT, config.textsize, "OUTLINE")
+	end
+	local c = config.textcolor
+	text:SetTextColor(c.r, c.g, c.b, c.a or 1)
+	local a = TEXT_ANCHORS[config.textpos] or TEXT_ANCHORS.OUTSIDE_RIGHT
+	holder:ClearAllPoints()
+	holder:SetPoint(a[1], f, a[2], a[3] + (config.textx or 0), a[4] + (config.texty or 0))
+	holder:SetSize(math.max(config.textsize * 3, 20), config.textsize + 4)
+	text:ClearAllPoints()
+	text:SetPoint(a[1], holder, a[1])
+	text:SetJustifyH(a[1] == "LEFT" and "LEFT" or a[1] == "RIGHT" and "RIGHT" or "CENTER")
+	-- drag the number around while the bar is unlocked
+	holder:EnableMouse(not config.lock and config.showtext)
+end
+
 function YaHT:OnInitialize()
 	playerGUID = UnitGUID("player")
 	self:LoadDefaults()
@@ -388,6 +466,7 @@ function YaHT:ApplySettings()
 
 	f.texture:SetTexture(self:GetMedia("statusbar", config.statusbar))
 	f.texture:SetHeight(config.height)
+	if f.textHolder then self:ApplyTextSettings() end
 end
 
 function YaHT:Load()
@@ -410,6 +489,8 @@ function YaHT:Load()
 	f:SetScript("OnUpdate", function(frame, elapsed)
 		local ok, err = pcall(OnUpdate, frame, elapsed)
 		if not ok then ReportError("OnUpdate", err) end
+		ok, err = pcall(UpdateText, frame)
+		if not ok then ReportError("UpdateText", err) end
 	end)
 
 	f.background = f:CreateTexture("YaHTMainFrameBackground", "BACKGROUND")
@@ -420,6 +501,31 @@ function YaHT:Load()
 	end
 
 	f.texture = f:CreateTexture("YaHTMainFrameBar", "ARTWORK")
+
+	-- countdown number, in its own small frame so it can be dragged
+	local holder = CreateFrame("Frame", "YaHTMainFrameTextHolder", f)
+	holder:SetFrameLevel(f:GetFrameLevel() + 5)
+	holder:RegisterForDrag("LeftButton")
+	f.textHolder = holder
+	f.text = holder:CreateFontString("YaHTMainFrameText", "OVERLAY")
+	f.text:SetFont(STANDARD_TEXT_FONT, 12, "OUTLINE")
+	holder:SetScript("OnDragStart", function(h)
+		local config = YaHT.db.profile
+		local x, y = GetCursorPosition()
+		h.dragStart = {x = x, y = y, ox = config.textx or 0, oy = config.texty or 0}
+		h:SetScript("OnUpdate", function()
+			local cx, cy = GetCursorPosition()
+			local scale = f:GetEffectiveScale()
+			config.textx = math.floor(h.dragStart.ox + (cx - h.dragStart.x) / scale + 0.5)
+			config.texty = math.floor(h.dragStart.oy + (cy - h.dragStart.y) / scale + 0.5)
+			YaHT:ApplyTextSettings()
+		end)
+	end)
+	holder:SetScript("OnDragStop", function(h)
+		h:SetScript("OnUpdate", nil)
+		local ACR = LibStub("AceConfigRegistry-3.0", true)
+		if ACR then ACR:NotifyChange("YaHT") end
+	end)
 
 	f.border = CreateFrame("Frame", "YaHTMainFrameBorder", f, BackdropTemplateMixin and "BackdropTemplate" or nil)
 	f.border:SetPoint("CENTER", f, "CENTER")
