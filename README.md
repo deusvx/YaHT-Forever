@@ -21,4 +21,12 @@ If the game says the addon is "out of date", check your interface number in-game
   otherwise announces on cast. Say/Yell may be blocked by the game outside instances.
 - Every event is registered defensively so a missing/forbidden event can't break the addon.
 
+## Auto Shot timing on WoW Forever
+- **Wind-up** (the stand-still part before each shot) defaults to **0.5 s**, which Blizzard says is
+  Forever's intended value. The original Classic addon used 0.65 s. Adjust under `/yaht` → Timing.
+- **Aimed Shot no longer pauses the timer.** On Forever, Auto Shot keeps firing during Aimed Shot casts.
+  Turn on "Casts hold Auto Shot" if that changes back.
+- `/yaht debug` prints the real time between Auto Shots, your ranged speed and the Auto Shot cooldown
+  after every shot, so the timing can be checked against the game.
+
 Original addon by Aviana: https://github.com/Aviana/YaHT

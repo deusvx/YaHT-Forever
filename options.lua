@@ -124,6 +124,27 @@ function YaHT:CreateConfig()
 						max = 1,
 						step = 0.1,
 					},
+					timingheader = {
+						name = L["Timing"],
+						type = "header",
+						order = 6.5,
+					},
+					windup = {
+						name = L["Wind-up time"],
+						desc = L["How long you must stand still before each Auto Shot fires. WoW Forever: 0.5. Original Classic addon: 0.65."],
+						type = "range",
+						order = 6.6,
+						min = 0.3,
+						max = 1.0,
+						step = 0.05,
+					},
+					castholds = {
+						name = L["Casts hold Auto Shot"],
+						desc = L["Pause the timer during Aimed Shot / Multi-Shot casts (old Classic behaviour). Leave off on WoW Forever, where Auto Shot keeps firing during casts."],
+						type = "toggle",
+						width = "double",
+						order = 6.7,
+					},
 					barheader = {
 						name = L["Bar options"],
 						type = "header",

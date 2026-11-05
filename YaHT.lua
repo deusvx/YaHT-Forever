@@ -7,6 +7,8 @@ if select(2,UnitClass("player")) ~= "HUNTER" then return end
 YaHT = select(2, ...)
 
 local L = YaHT.L
+-- Non-English locale tables only translate some strings; fall back to the key.
+setmetatable(L, {__index = function(t, k) return k end})
 YaHT.version = "2140-forever1"
 
 ---------------------------------------------------------------------------
@@ -97,7 +99,13 @@ end
 ---------------------------------------------------------------------------
 -- Timer logic
 ---------------------------------------------------------------------------
-local SWING_TIME = 0.65
+-- Auto Shot wind-up: the part of each shot where you must stand still.
+-- WoW Forever: Blizzard states it is 0.5 s (same as 1.12). The original
+-- Classic 1.13 addon used 0.65 s. Configurable under /yaht -> "Wind-up time".
+local DEFAULT_WINDUP = 0.5
+local function Windup()
+	return (YaHT.db and YaHT.db.profile.windup) or DEFAULT_WINDUP
+end
 local movementDelay = 0
 
 local AUTO_SHOT_ID = 75
@@ -116,8 +124,19 @@ local function GetRangedSpeed()
 	return (UnitRangedDamage("player")) or 2
 end
 
+local function GetAutoShotCooldown()
+	if C_Spell and C_Spell.GetSpellCooldown then
+		local info = C_Spell.GetSpellCooldown(75)
+		if info then return info.startTime, info.duration end
+	elseif GetSpellCooldown then
+		return GetSpellCooldown(75)
+	end
+end
+
 local function OnUpdate(self, elapsed)
 	local config = YaHT.db.profile
+	local SWING_TIME = Windup()
+	self.swingtime = math.max(self.speed - SWING_TIME, 0.1)
 	if not config.lock then
 		self.mockTime = self.mockTime + elapsed
 		if self.mockTime > self.swingtime then
@@ -137,7 +156,9 @@ local function OnUpdate(self, elapsed)
 	local curTime = GetTime()
 	if not self.SwingStart and (curTime - self.lastshot) >= self.swingtime then
 		--Start Swing timer
-		if self.shooting and not self.casting then
+		-- On WoW Forever Auto Shot keeps firing during Aimed Shot casts, so a
+		-- cast only holds the timer if the user turns that option on.
+		if self.shooting and not (self.casting and config.castholds) then
 			self.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
 			self:SetAlpha(config.alpha)
 			self.SwingStart = curTime
@@ -287,7 +308,8 @@ function YaHT:Load()
 	f.mockTime = 0
 	f.mockTime2 = 0
 	f.lastshot = GetTime()
-	f.swingtime = GetRangedSpeed() - SWING_TIME
+	f.speed = GetRangedSpeed()
+	f.swingtime = math.max(f.speed - Windup(), 0.1)
 	f:SetScript("OnUpdate", OnUpdate)
 
 	f.background = f:CreateTexture("YaHTMainFrameBackground", "BACKGROUND")
@@ -362,11 +384,17 @@ function YaHT:UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
 	if spellID == AUTO_SHOT_ID or (name and name == AutoShot) then
 		local f = self.mainFrame
 		if f.shooting then
-			f.lastshot = GetTime()
+			local now = GetTime()
+			if self.debug then
+				local cdStart, cdDur = GetAutoShotCooldown()
+				self:Print(string.format("Auto Shot: %.3fs since last | ranged speed %.3f | cooldown start %s dur %s | windup %.2f | casting %s",
+					now - f.lastshot, GetRangedSpeed(), tostring(cdStart and cdStart - now), tostring(cdDur), Windup(), tostring(f.casting)))
+			end
+			f.lastshot = now
 			f.SwingStart = nil
-			if f.newswingtime then
-				f.swingtime = f.newswingtime
-				f.newswingtime = nil
+			if f.newspeed then
+				f.speed = f.newspeed
+				f.newspeed = nil
 			end
 			f.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
 			movementDelay = 0
@@ -389,6 +417,7 @@ end
 
 function YaHT:START_AUTOREPEAT_SPELL()
 	local config = YaHT.db.profile
+	if self.debug then self:Print("START_AUTOREPEAT_SPELL") end
 	local f = self.mainFrame
 	local curTime = GetTime()
 	f.shooting = true
@@ -407,6 +436,7 @@ end
 
 function YaHT:STOP_AUTOREPEAT_SPELL()
 	local f = self.mainFrame
+	if self.debug then self:Print("STOP_AUTOREPEAT_SPELL") end
 	f.shooting = nil
 	if YaHT.db.profile.lock and (GetTime() - f.lastshot) >= f.swingtime then
 		f:SetAlpha(0)
@@ -416,7 +446,7 @@ end
 
 function YaHT:UNIT_RANGEDDAMAGE(unit)
 	if unit and unit ~= "player" then return end
-	self.mainFrame.newswingtime = GetRangedSpeed() - SWING_TIME
+	self.mainFrame.newspeed = GetRangedSpeed()
 end
 
 function YaHT:Print(msg)
@@ -427,6 +457,11 @@ SLASH_YAHT1 = "/yaht"
 SLASH_YAHT2 = "/huntertimer"
 SLASH_YAHT3 = "/yetanotherhuntertimer"
 SlashCmdList["YAHT"] = function(msg)
+	if msg and msg:lower():match("^%s*debug") then
+		YaHT.debug = not YaHT.debug
+		YaHT:Print("debug "..(YaHT.debug and "ON: shoot a target dummy standing still, then paste the lines" or "OFF"))
+		return
+	end
 	LibStub("AceConfigDialog-3.0"):Open("YaHT")
 end
 
