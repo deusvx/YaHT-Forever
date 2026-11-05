@@ -28,8 +28,8 @@ If the game says the addon is "out of date", check your interface number in-game
 - Aimed Shot / Multi-Shot detection uses `UNIT_SPELLCAST_*` events instead of the combat log.
 - The old hack that rewrote Blizzard's cast bar was removed (those internal functions no
   longer exist on the modern client; the default cast bar already shows real cast times).
-- Tranquilizing Shot announce: uses the combat log if the client allows it (hit + miss);
-  otherwise announces on cast. Say/Yell may be blocked by the game outside instances.
+- Tranquilizing Shot announce: announces on cast (Forever blocks the combat log, so a miss can't
+  be detected). Say/Yell/Channel only work inside instances; addon chat is paused during boss fights.
 - Every event is registered defensively so a missing/forbidden event can't break the addon.
 
 ## Auto Shot timing on WoW Forever

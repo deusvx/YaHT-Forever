@@ -60,8 +60,8 @@ local TAB_KEYS = {
 	spark = {"sparkmode", "readypulse", "sparksize", "sparkcolor"},
 	timing = {"windupauto", "windup", "castholds", "autocorrect", "smooth"},
 	ammo = {"ammo", "ammosize", "ammofadestart", "ammolow", "ammocrit", "ammofullalpha", "ammoflash", "ammosound"},
-	announce = {"tranqannounce", "tranqannouncefail", "announcetype", "targetchannel",
-		"announcemsg", "announcefailmsg"},
+	announce = {"tranqannounce", "announcetype", "targetchannel",
+		"announcemsg"},
 }
 
 function YaHT:CreateConfig()
@@ -746,14 +746,6 @@ function YaHT:CreateConfig()
 						order = 2,
 						width = "double",
 					},
-					tranqannouncefail = {
-						name = string.format(L["Announce failed %s"], tranq),
-						desc = L["Only works where the game lets addons read the combat log (not on WoW Forever)."],
-						type = "toggle",
-						order = 3,
-						width = "double",
-						disabled = function() return not YaHT.hasCombatLog end,
-					},
 					announcetype = {
 						name = L["Announce in"],
 						desc = L["The channel in which to announce."],
@@ -775,14 +767,6 @@ function YaHT:CreateConfig()
 						type = "input",
 						order = 6,
 						width = "full",
-					},
-					announcefailmsg = {
-						name = L["Announce Fail Message"],
-						desc = L["Set the message to be broadcasted. %s is replaced by the target's name."],
-						type = "input",
-						order = 7,
-						width = "full",
-						disabled = function() return not YaHT.hasCombatLog end,
 					},
 					reset = resetButton("announce"),
 				},

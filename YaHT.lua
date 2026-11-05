@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.3.2-forever"
+YaHT.version = "1.3.3-forever"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -74,14 +74,6 @@ local function SendChat(msg, chatType, target)
 	-- and must never break the timer if blocked.
 	local ok, err = pcall(send, msg, chatType, nil, target)
 	if not ok then YaHT:Print("Announce blocked: "..tostring(err)) end
-end
-
-local function GetCombatLogInfo()
-	if CombatLogGetCurrentEventInfo then
-		return CombatLogGetCurrentEventInfo()
-	elseif C_CombatLog and C_CombatLog.GetCurrentEventInfo then
-		return C_CombatLog.GetCurrentEventInfo()
-	end
 end
 
 ---------------------------------------------------------------------------
@@ -153,7 +145,6 @@ local MultiShot = GetSpellName(2643)
 local TranqShot = GetSpellName(19801)
 local FeignDeath = GetSpellName(5384)
 local backdrop = {insets = {}}
-local playerGUID
 
 local lastMoving = false
 local function IsMoving()
@@ -230,15 +221,6 @@ local function Windup(speed)
 		return math.min(0.5 * speed / base, 0.5 * 1.5)
 	end
 	return 0.5
-end
-
-local function GetAutoShotCooldown()
-	if C_Spell and C_Spell.GetSpellCooldown then
-		local info = C_Spell.GetSpellCooldown(75)
-		if info then return info.startTime, info.duration end
-	elseif GetSpellCooldown then
-		return GetSpellCooldown(75)
-	end
 end
 
 -- Safety net: if something unexpected breaks, report it once in chat
@@ -649,7 +631,6 @@ function YaHT:StopFancyGlow()
 end
 
 function YaHT:OnInitialize()
-	playerGUID = UnitGUID("player")
 	self:LoadDefaults()
 
 	self.db = LibStub:GetLibrary("AceDB-3.0"):New("YaHTdb", self.defaults, true)
@@ -895,8 +876,6 @@ function YaHT:UNIT_SPELLCAST_START(unit, castGUID, spellID)
 	if IsCastSpell(spellID) then
 		self.mainFrame.casting = true
 		self.mainFrame.disturbed = true
-	elseif spellID == AUTO_SHOT_ID then
-		self:SyncAutoShotCast("UNIT_SPELLCAST_START")
 	end
 end
 
@@ -917,8 +896,8 @@ function YaHT:UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
 	if name and name == TranqShot then
 		local target = UnitName("target")
 		self.lastTranqTarget = (not IsSecret(target)) and target or nil
-		-- Without the combat log we cannot tell hit from miss, so announce on cast.
-		if config.tranqannounce and not self.hasCombatLog then
+		-- Forever blocks the combat log, so hit/miss can't be told apart: announce on cast.
+		if config.tranqannounce then
 			Announce(config.announcemsg, self.lastTranqTarget)
 		end
 	end
@@ -991,7 +970,6 @@ function YaHT:OnAutoShot(duration, source)
 	f.disturbed = false
 
 	if self.debug then
-		local cdStart, cdDur = GetAutoShotCooldown()
 		local function v(x) if IsSecret(x) then return "secret" end return x and string.format("%.3f", x) or "nil" end
 		self:Print(string.format("%s: %.3fs since last | swing %s | windup %.3f | learned delay %+.3f (%d shots) | jitter %s | casting %s",
 			source or "?", interval, v(duration), Windup(f.speed), self.calib or 0, self.calibSamples or 0,
@@ -1038,19 +1016,6 @@ end
 function YaHT:PLAYER_EQUIPMENT_CHANGED()
 	baseDirty = true
 	self.mainFrame.newspeed = GetRangedSpeed()
-end
-
--- Only used for Tranquilizing Shot hit/miss announcements, and only if the
--- client still lets addons read the combat log (WoW Forever does not).
-function YaHT:COMBAT_LOG_EVENT_UNFILTERED()
-	local _, event, _, casterID, _, _, _, _, targetName, _, _, _, name = GetCombatLogInfo()
-	if casterID ~= playerGUID or name ~= TranqShot then return end
-	local config = YaHT.db.profile
-	if event == "SPELL_CAST_SUCCESS" and config.tranqannounce then
-		Announce(config.announcemsg, targetName)
-	elseif event == "SPELL_MISSED" and config.tranqannouncefail then
-		Announce(config.announcefailmsg, targetName)
-	end
 end
 
 function YaHT:START_AUTOREPEAT_SPELL()
@@ -1225,7 +1190,6 @@ SafeRegister("UNIT_SPELLCAST_FAILED_QUIET", "player")
 SafeRegister("UNIT_SPELLCAST_SENT", "player")
 SafeRegister("PLAYER_EQUIPMENT_CHANGED")
 YaHT.hasNativeSwing = SafeRegister("PLAYER_SWING")
-YaHT.hasCombatLog = (CombatLogGetCurrentEventInfo or (C_CombatLog and C_CombatLog.GetCurrentEventInfo)) and SafeRegister("COMBAT_LOG_EVENT_UNFILTERED") or false
 
 frame:SetScript("OnEvent", function(self, event, ...)
 	if event == "PLAYER_LOGIN" then

@@ -66,7 +66,6 @@ function YaHT:LoadDefaults()
 			fill = true,
 			announcetype = "SAY",
 			announcemsg = YaHT.L["announcemsg"],
-			announcefailmsg = YaHT.L["announcefailmsg"],
 			bordercolor = {
 				r = 1,
 				g = 1,
