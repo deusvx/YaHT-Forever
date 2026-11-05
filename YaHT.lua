@@ -117,14 +117,14 @@ local playerGUID
 local lastMoving = false
 local function IsMoving()
 	local falling = IsFalling and IsFalling()
-	if falling == true then return true end
+	if not IsSecret(falling) and falling == true then return true end
 	local moving = IsPlayerMoving and IsPlayerMoving()
-	if moving ~= nil and not IsSecret(moving) then
+	if not IsSecret(moving) and moving ~= nil then
 		lastMoving = moving and true or false
 		return lastMoving
 	end
 	local speed = GetUnitSpeed and GetUnitSpeed("player")
-	if type(speed) == "number" and not IsSecret(speed) then
+	if not IsSecret(speed) and type(speed) == "number" then
 		lastMoving = speed > 0
 	end
 	return lastMoving -- stat hidden: keep last known state
@@ -133,7 +133,7 @@ end
 local lastRangedSpeed = 2
 local function GetRangedSpeed()
 	local speed = UnitRangedDamage("player")
-	if type(speed) == "number" and not IsSecret(speed) and speed > 0 then
+	if not IsSecret(speed) and type(speed) == "number" and speed > 0 then
 		lastRangedSpeed = speed
 	end
 	return lastRangedSpeed
@@ -145,7 +145,7 @@ local baseSpeedCache = {}
 local function GetBaseSpeed()
 	local slot = INVSLOT_RANGED or 18
 	local itemID = GetInventoryItemID and GetInventoryItemID("player", slot)
-	if not itemID then return nil end
+	if IsSecret(itemID) or not itemID then return nil end
 	if baseSpeedCache[itemID] then return baseSpeedCache[itemID] end
 	scanTip:SetOwner(WorldFrame or UIParent, "ANCHOR_NONE")
 	scanTip:ClearLines()
@@ -192,6 +192,17 @@ local function GetAutoShotCooldown()
 		return GetSpellCooldown(75)
 	end
 end
+
+-- Safety net: if something unexpected breaks, report it once in chat
+-- (instead of a Lua error popup every frame) so it can be fixed.
+local reportedErrors = {}
+local function ReportError(where, err)
+	local key = where..tostring(err)
+	if reportedErrors[key] then return end
+	reportedErrors[key] = true
+	DEFAULT_CHAT_FRAME:AddMessage("|cFF2150C2YaHT|r error in "..where.." (please report): "..tostring(err))
+end
+YaHT.ReportError = ReportError
 
 local function OnUpdate(self, elapsed)
 	local config = YaHT.db.profile
@@ -370,7 +381,10 @@ function YaHT:Load()
 	f.lastshot = GetTime()
 	f.speed = GetRangedSpeed()
 	f.swingtime = math.max(f.speed - Windup(), 0.1)
-	f:SetScript("OnUpdate", OnUpdate)
+	f:SetScript("OnUpdate", function(frame, elapsed)
+		local ok, err = pcall(OnUpdate, frame, elapsed)
+		if not ok then ReportError("OnUpdate", err) end
+	end)
 
 	f.background = f:CreateTexture("YaHTMainFrameBackground", "BACKGROUND")
 	f.background:SetAllPoints(f)
@@ -396,7 +410,9 @@ local function Announce(msgTemplate, targetName)
 	if config.announcetype == "CHANNEL" then
 		target = GetChannelName(config.targetchannel)
 	end
-	SendChat(string.format(msgTemplate, targetName or UNKNOWN or "?"), config.announcetype, target)
+	-- pcall: a custom message with a stray % sign must not throw an error.
+	local ok, msg = pcall(string.format, msgTemplate or "", targetName or UNKNOWN or "?")
+	SendChat(ok and msg or (msgTemplate or ""), config.announcetype, target)
 end
 
 ---------------------------------------------------------------------------
@@ -409,14 +425,14 @@ local function IsCastSpell(spellID)
 end
 
 function YaHT:UNIT_SPELLCAST_START(unit, castGUID, spellID)
-	if unit ~= "player" then return end
+	if unit ~= "player" or IsSecret(spellID) then return end
 	if IsCastSpell(spellID) then
 		self.mainFrame.casting = true
 	end
 end
 
 function YaHT:UNIT_SPELLCAST_STOP(unit, castGUID, spellID)
-	if unit ~= "player" then return end
+	if unit ~= "player" or IsSecret(spellID) then return end
 	if IsCastSpell(spellID) then
 		self.mainFrame.casting = nil
 	end
@@ -480,7 +496,8 @@ end
 
 -- WoW Forever: native swing event, fires for every swing with its duration.
 function YaHT:PLAYER_SWING(duration, swingType)
-	if type(duration) ~= "number" or IsSecret(duration) or duration <= 0 then return end
+	if IsSecret(duration) or IsSecret(swingType) then return end
+	if type(duration) ~= "number" or duration <= 0 then return end
 	if Enum and Enum.PlayerSwingType and swingType ~= Enum.PlayerSwingType.Ranged then return end
 	self:OnAutoShot(duration, "PLAYER_SWING")
 end
@@ -488,7 +505,7 @@ end
 -- Auto Shot tried to start but couldn't (e.g. moving); the game waits
 -- ~0.5 s before retrying. The movement logic in OnUpdate models this.
 function YaHT:UNIT_SPELLCAST_FAILED_QUIET(unit, castGUID, spellID)
-	if unit ~= "player" or not self.debug then return end
+	if unit ~= "player" or not self.debug or IsSecret(spellID) then return end
 	if spellID == AUTO_SHOT_ID then self:Print("Auto Shot attempt failed (retry delay)") end
 end
 
@@ -592,6 +609,7 @@ frame:SetScript("OnEvent", function(self, event, ...)
 		YaHT:OnInitialize()
 		self:UnregisterEvent("PLAYER_LOGIN")
 	elseif YaHT.db and YaHT[event] then
-		YaHT[event](YaHT, ...)
+		local ok, err = pcall(YaHT[event], YaHT, ...)
+		if not ok then ReportError(event, err) end
 	end
 end)
