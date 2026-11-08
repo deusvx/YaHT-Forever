@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.0.0"
+YaHT.version = "1.1.0"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -259,6 +259,10 @@ local function OnUpdate(self, elapsed)
 		return
 	end
 	local curTime = GetTime()
+	-- a SENT that wasn't refused within 0.05s really started the wind-up
+	if self.pendingSent and curTime - self.pendingSent > 0.05 then
+		YaHT:CommitWindupStart(self.pendingSent)
+	end
 	if not self.SwingStart and (curTime - self.lastshot) >= self.swingtime then
 		-- the game makes its first attempt now, then retries every 0.5s
 		--Start Swing timer
@@ -268,6 +272,7 @@ local function OnUpdate(self, elapsed)
 			self.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
 			self:SetAlpha(config.alpha)
 			self.SwingStart, self.fillFrom, self.nextAttempt = curTime, curTime, curTime
+			self.fillBase, self.fillFrac = 0, 0
 		else
 			if not self.shooting then
 				self:Hide()
@@ -279,6 +284,7 @@ local function OnUpdate(self, elapsed)
 			self.disturbed = true -- this cycle can't be used to learn timing
 			self.wasMoving = true
 			self.SwingStart, self.fillFrom = curTime, curTime
+			self.fillBase, self.fillFrac = 0, 0
 			self.texture:SetWidth(0.01)
 			self:SetAlpha(config.malpha)
 		else
@@ -290,11 +296,17 @@ local function OnUpdate(self, elapsed)
 				while tick < curTime - 0.001 do tick = tick + 0.5 end
 				self.nextAttempt = tick
 				self.SwingStart, self.fillFrom = tick, curTime
+				self.fillBase = 0
 			end
-			-- fill smoothly from fillFrom to the moment the shot leaves
+			-- Fill smoothly from where the bar is now (fillBase at fillFrom) to
+			-- full at the moment the shot leaves. New timing info only changes
+			-- the speed, so the bar never jumps backwards while you spam keys.
 			local shotAt = self.SwingStart + SWING_TIME
+			local base = self.fillBase or 0
 			local span = math.max(shotAt - (self.fillFrom or self.SwingStart), 0.01)
-			local frac = math.min(math.max((curTime - (self.fillFrom or self.SwingStart)) / span, 0), 1)
+			local t = math.min(math.max((curTime - (self.fillFrom or self.SwingStart)) / span, 0), 1)
+			local frac = base + (1 - base) * t
+			self.fillFrac = frac
 			self.texture:SetWidth(math.max(config.width * frac, 0.01))
 			self:SetAlpha(config.alpha)
 		end
@@ -645,6 +657,7 @@ function YaHT:OnInitialize()
 	self.calib = self.db.char.calib -- learned shot delay from last session
 	self:Load()
 	if self.InitAmmo then self:InitAmmo() end
+	if self.InitMelee then self:InitMelee() end
 	self:CreateConfig()
 
 	-- first install: the bar starts unlocked (preview mode) - say what to do
@@ -742,6 +755,7 @@ function YaHT:ApplySettings()
 	if f.textHolder then self:ApplyTextSettings() end
 	if f.glow then self:ApplyGlowSettings() end
 	if self.ApplyAmmoSettings then self:ApplyAmmoSettings() end
+	if self.ApplyMeleeSettings then self:ApplyMeleeSettings() end
 end
 
 function YaHT:Load()
@@ -847,27 +861,41 @@ local function WindupUnderway(f, now)
 		and now < f.SwingStart + (f.windup or 0.5)
 end
 
+-- The wind-up really started at `at`: move the red stand-still part there.
+function YaHT:CommitWindupStart(at, source)
+	local f = self.mainFrame
+	f.pendingSent = nil
+	f.sentAt = at
+	if self.debug then
+		-- + means the game started the wind-up later than the bar expected
+		local predicted = f.lastshot + (f.swingtime or 0)
+		if at - f.lastshot < (f.speed or 3) * 1.5 then
+			self:Print(string.format("%s: wind-up start %+.3fs vs bar", source or "SENT", at - predicted))
+		else
+			self:Print((source or "SENT")..": first shot wind-up started")
+		end
+	end
+	-- already in the red part: carry on from the current fill (no jump back)
+	f.fillBase = f.SwingStart and (f.fillFrac or 0) or 0
+	f.SwingStart, f.fillFrom, f.nextAttempt = at, GetTime(), at
+end
+
 function YaHT:SyncAutoShotCast(source)
 	local f = self.mainFrame
 	if not f.shooting or not YaHT.db.profile.lock then return end
 	local now = GetTime()
 	-- the first SENT after starting Auto Shot is always the real start
-	if not f.awaitFirstSent and WindupUnderway(f, now) then
-		if self.debug then self:Print(source..": extra request during wind-up, ignored") end
+	if f.awaitFirstSent then
+		f.awaitFirstSent = false
+		self:CommitWindupStart(now, source)
 		return
 	end
-	f.awaitFirstSent = false
-	f.sentAt = now
-	if self.debug then
-		-- + means the game started the wind-up later than the bar expected
-		local predicted = f.lastshot + (f.swingtime or 0)
-		if now - f.lastshot < (f.speed or 3) * 1.5 then
-			self:Print(string.format("%s: wind-up start %+.3fs vs bar", source, now - predicted))
-		else
-			self:Print(source..": first shot wind-up started")
-		end
-	end
-	f.SwingStart, f.fillFrom, f.nextAttempt = now, now, now
+	-- Don't trust it yet. A request the game refuses (a key press while you
+	-- reload, or a duplicate during a running wind-up) comes as SENT + FAILED
+	-- together. Only a SENT that isn't refused within a moment is a real
+	-- wind-up start, even one a bit after the bar's own guess (committed from
+	-- OnUpdate; the FAILED handler drops refused ones).
+	f.pendingSent = now
 end
 
 -- Forever doesn't send UNIT_SPELLCAST_START for Auto Shot, but it does send
@@ -882,12 +910,14 @@ function YaHT:UNIT_SPELLCAST_START(unit, castGUID, spellID)
 	if IsCastSpell(spellID) then
 		self.mainFrame.casting = true
 		self.mainFrame.disturbed = true
+		if self.debug then self:Print(GetSpellName(spellID).." cast started") end
 	end
 end
 
 function YaHT:UNIT_SPELLCAST_STOP(unit, castGUID, spellID)
 	if unit ~= "player" or IsSecret(spellID) then return end
 	if IsCastSpell(spellID) then
+		if self.debug and self.mainFrame.casting then self:Print(GetSpellName(spellID).." cast ended") end
 		self.mainFrame.casting = nil
 	end
 end
@@ -909,6 +939,7 @@ function YaHT:UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
 	end
 
 	if IsCastSpell(spellID) then
+		if self.debug and self.mainFrame.casting then self:Print(name.." cast finished") end
 		self.mainFrame.casting = nil
 		return
 	end
@@ -971,9 +1002,11 @@ function YaHT:OnAutoShot(duration, source)
 	if self.debug and f.sentAt then
 		self:Print(string.format("shot left %.3fs after SENT (wind-up %.3f)", now - f.sentAt, Windup(f.speed)))
 	end
-	f.sentAt = nil
+	f.sentAt, f.pendingSent = nil, nil
 	f.cycleSpeed = f.speed
-	f.disturbed = false
+	-- An Aimed/Multi-Shot cast still running pushes the next shot back a bit
+	-- on Forever, so that cycle mustn't teach the learned delay either.
+	f.disturbed = f.casting and true or false
 
 	if self.debug then
 		local function v(x) if IsSecret(x) then return "secret" end return x and string.format("%.3f", x) or "nil" end
@@ -983,6 +1016,7 @@ function YaHT:OnAutoShot(duration, source)
 	end
 	f.lastshot = anchor
 	f.SwingStart, f.fillFrom, f.nextAttempt, f.wasMoving = nil, nil, nil, false
+	f.fillBase, f.fillFrac = 0, 0
 	f.awaitFirstSent = false -- a shot went out, so later SENTs aren't "the first"
 	f.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
 end
@@ -1001,8 +1035,24 @@ function YaHT:UNIT_SPELLCAST_FAILED_QUIET(unit, castGUID, spellID)
 	if unit ~= "player" or IsSecret(spellID) or spellID ~= AUTO_SHOT_ID then return end
 	-- the attempt didn't start: the game retries after 0.5s, then winds up
 	local f = self.mainFrame
-	f.disturbed = true
 	local now = GetTime()
+	-- the game often sends FAILED twice for one refused request
+	if f.refusedAt and now - f.refusedAt < 0.05 then return end
+	if f.pendingSent and now - f.pendingSent < 0.05 then
+		-- SENT + FAILED together: the game refused a request (usually a key
+		-- press). While the bow is still reloading, or during a wind-up we
+		-- already track, that changes nothing: keep the bar as it is.
+		f.pendingSent = nil
+		local reloading = not f.SwingStart and now < f.lastshot + (f.swingtime or 0) - 0.25
+		local inWindup = f.SwingStart and not IsMoving() and now >= f.SwingStart - 0.05
+			and now < f.SwingStart + (f.windup or 0.5) + 0.05
+		if reloading or inWindup then
+			f.refusedAt = now
+			if self.debug then self:Print("Auto Shot: key press refused ("..(reloading and "reloading" or "wind-up running").."), bar unchanged") end
+			return
+		end
+	end
+	f.disturbed = true
 	if WindupUnderway(f, now) then
 		if self.debug then self:Print("Auto Shot: extra request rejected during wind-up, ignored") end
 		return
@@ -1013,6 +1063,7 @@ function YaHT:UNIT_SPELLCAST_FAILED_QUIET(unit, castGUID, spellID)
 	if f.shooting and nearReady and YaHT.db.profile.lock then
 		f.nextAttempt = now + 0.5
 		if not IsMoving() then
+			f.fillBase = f.SwingStart and (f.fillFrac or 0) or 0
 			f.SwingStart, f.fillFrom = now + 0.5, now
 		end
 	end
@@ -1037,6 +1088,7 @@ function YaHT:START_AUTOREPEAT_SPELL()
 	else
 		f.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
 		f.SwingStart, f.fillFrom, f.nextAttempt = curTime, curTime, curTime
+		f.fillBase, f.fillFrac = 0, 0
 		if IsMoving() then
 			f.lastshot = curTime - f.swingtime
 		end
@@ -1050,6 +1102,7 @@ function YaHT:STOP_AUTOREPEAT_SPELL()
 	if self.debug then self:Print("STOP_AUTOREPEAT_SPELL") end
 	f.shooting = nil
 	f.disturbed = true
+	f.pendingSent = nil
 	if YaHT.db.profile.lock and (GetTime() - f.lastshot) >= f.swingtime then
 		f:SetAlpha(0)
 		f:Hide()

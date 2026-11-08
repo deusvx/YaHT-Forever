@@ -60,6 +60,7 @@ local TAB_KEYS = {
 	spark = {"sparkmode", "readypulse", "sparksize", "sparkcolor"},
 	timing = {"windupauto", "windup", "castholds", "autocorrect", "smooth"},
 	ammo = {"ammo", "ammosize", "ammofadestart", "ammolow", "ammocrit", "ammofullalpha", "ammoflash", "ammosound"},
+	melee = {"melee", "meleemode", "meleeheight", "meleealpha", "meleeglint", "meleeraptor", "meleecolor", "meleeraptorcolor"},
 	announce = {"tranqannounce", "announcetype", "targetchannel",
 		"announcemsg"},
 }
@@ -115,6 +116,9 @@ function YaHT:CreateConfig()
 	local function glowOff() return not YaHT.db.profile.glow end
 	local function sparkOff() local p = YaHT.db.profile return p.sparkmode == "OFF" and not p.readypulse end
 	local tranq = YaHT.GetSpellName(19801) or "Tranquilizing Shot"
+	local raptor = YaHT.GetSpellName(2973) or "Raptor Strike"
+	local function meleeOff() return not YaHT.db.profile.melee end
+	local function raptorOff() local p = YaHT.db.profile return not p.melee or not p.meleeraptor end
 
 	local aceoptions = {
 		name = "YaHT Forever - Yet another Hunter Timer",
@@ -565,6 +569,90 @@ function YaHT:CreateConfig()
 						disabled = sparkOff,
 					},
 					reset = resetButton("spark"),
+				},
+			},
+			------------------------------------------------------------------
+			melee = {
+				name = L["Melee"],
+				type = "group",
+				order = 5.7,
+				args = {
+					meleedesc = {
+						name = string.format(L["A hair-thin line under the Auto Shot bar that fills with your melee swing. It fades in only while you're hitting things in melee, turns gold while %s is queued for your next swing, and a small glint runs along it on every swing."], raptor),
+						type = "description",
+						order = 1,
+					},
+					melee = {
+						name = L["Show melee swing line"],
+						type = "toggle",
+						width = "double",
+						order = 2,
+					},
+					meleemode = {
+						name = L["Show it"],
+						type = "select",
+						order = 3,
+						values = {MELEE = L["Only while meleeing"], COMBAT = L["The whole fight"]},
+						sorting = {"MELEE", "COMBAT"},
+						disabled = meleeOff,
+					},
+					meleeheight = {
+						name = L["Line thickness"],
+						type = "range",
+						order = 4,
+						min = 1,
+						max = 6,
+						step = 1,
+						disabled = meleeOff,
+					},
+					meleealpha = {
+						name = L["Alpha"],
+						type = "range",
+						order = 5,
+						min = 0.2,
+						max = 1,
+						step = 0.05,
+						isPercent = true,
+						disabled = meleeOff,
+					},
+					meleecolor = {
+						name = L["Line color"],
+						type = "color",
+						hasAlpha = true,
+						order = 6,
+						get = getColor,
+						set = setColor,
+						disabled = meleeOff,
+					},
+					meleeglint = {
+						name = L["Glint on each swing"],
+						type = "toggle",
+						order = 7,
+						disabled = meleeOff,
+					},
+					raptorheader = {
+						name = raptor,
+						type = "header",
+						order = 10,
+					},
+					meleeraptor = {
+						name = string.format(L["Gold while %s is queued"], raptor),
+						desc = string.format(L["%s hits on your next swing. The line turns this color while it's waiting, so you can see it's loaded."], raptor),
+						type = "toggle",
+						width = "double",
+						order = 11,
+						disabled = meleeOff,
+					},
+					meleeraptorcolor = {
+						name = L["Highlight color"],
+						type = "color",
+						hasAlpha = true,
+						order = 12,
+						get = getColor,
+						set = setColor,
+						disabled = raptorOff,
+					},
+					reset = resetButton("melee"),
 				},
 			},
 			------------------------------------------------------------------

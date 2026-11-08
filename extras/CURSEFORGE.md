@@ -25,6 +25,8 @@ A port of Aviana's classic **YaHT** (Yet another Hunter Timer).
 - **Ready pulse:** moving with the shot ready? Lines pulse in the middle until you stop.
 - **Ammo counter:** a movable icon that's invisible while you have plenty, fades in as you run low,
   and flashes yellow, then red, with a warning sound.
+- **Melee swing line:** a hair-thin line under the bar that fills with your melee swing, only while
+  you're in melee. Turns gold while Raptor Strike is queued, with a small glint on every swing.
 - **Tranquilizing Shot announce** to Say, Party, Raid, Raid Warning, Whisper or a channel.
 - **Quick looks:** Minimal, Clean or Flashy in one click. Reset buttons on every tab, plus profiles.
 

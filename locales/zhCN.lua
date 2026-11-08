@@ -167,6 +167,18 @@ local L = {
 ["Smooth out network jitter"] = "平滑网络抖动",
 ["Shots are evenly spaced, but the game's message about each one arrives a little early or late. Keeps the bar on a steady rhythm instead of jumping with every message."] = "射击间隔是均匀的，但游戏对每次射击的通知会稍早或稍晚到达。让计量条保持稳定节奏，而不是随每条通知跳动。",
 ["thanks for installing! Drag the bar where you want it, then type /yaht lock. /yaht opens the options."] = "感谢安装！把计量条拖到想要的位置，然后输入 /yaht lock。输入 /yaht 打开设置。",
+["Melee"] = "近战",
+["A hair-thin line under the Auto Shot bar that fills with your melee swing. It fades in only while you're hitting things in melee, turns gold while %s is queued for your next swing, and a small glint runs along it on every swing."] = "自动射击条下方的一条细线，随你的近战挥击填充。只在你近战攻击时淡入；当%s已排队等待下一次挥击时变成金色；每次挥击都会有一道小光芒划过。",
+["Show melee swing line"] = "显示近战挥击线",
+["Show it"] = "显示时机",
+["Only while meleeing"] = "仅在近战时",
+["The whole fight"] = "整场战斗",
+["Line thickness"] = "线条粗细",
+["Line color"] = "线条颜色",
+["Glint on each swing"] = "每次挥击时闪光",
+["Gold while %s is queued"] = "%s排队时变为金色",
+["%s hits on your next swing. The line turns this color while it's waiting, so you can see it's loaded."] = "%s会在你的下一次挥击时命中。等待期间线条会变成这个颜色，让你知道它已就绪。",
+["Highlight color"] = "高亮颜色",
 }
 
 YaHT.L = L

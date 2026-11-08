@@ -170,6 +170,18 @@ local L = {
 ["Smooth out network jitter"] = "Netzwerk-Schwankungen glätten",
 ["Shots are evenly spaced, but the game's message about each one arrives a little early or late. Keeps the bar on a steady rhythm instead of jumping with every message."] = "Schüsse kommen gleichmäßig, aber die Meldung des Spiels zu jedem Schuss trifft etwas früher oder später ein. Hält den Balken in einem gleichmäßigen Rhythmus, statt bei jeder Meldung zu springen.",
 ["thanks for installing! Drag the bar where you want it, then type /yaht lock. /yaht opens the options."] = "Danke für die Installation! Zieh den Balken an die gewünschte Stelle und gib dann /yaht lock ein. /yaht öffnet die Optionen.",
+["Melee"] = "Nahkampf",
+["A hair-thin line under the Auto Shot bar that fills with your melee swing. It fades in only while you're hitting things in melee, turns gold while %s is queued for your next swing, and a small glint runs along it on every swing."] = "Eine haarfeine Linie unter dem Autoschuss-Balken, die sich mit deinem Nahkampfschlag füllt. Sie blendet sich nur ein, solange du im Nahkampf zuschlägst, wird golden, während %s für deinen nächsten Schlag bereitsteht, und bei jedem Schlag huscht ein kleiner Lichtschimmer darüber.",
+["Show melee swing line"] = "Nahkampf-Schlaglinie anzeigen",
+["Show it"] = "Anzeigen",
+["Only while meleeing"] = "Nur im Nahkampf",
+["The whole fight"] = "Den ganzen Kampf",
+["Line thickness"] = "Linienstärke",
+["Line color"] = "Linienfarbe",
+["Glint on each swing"] = "Schimmer bei jedem Schlag",
+["Gold while %s is queued"] = "Golden, solange %s bereitsteht",
+["%s hits on your next swing. The line turns this color while it's waiting, so you can see it's loaded."] = "%s trifft mit deinem nächsten Schlag. Solange es wartet, hat die Linie diese Farbe, damit du siehst, dass es bereitsteht.",
+["Highlight color"] = "Hervorhebungsfarbe",
 }
 
 YaHT.L = L

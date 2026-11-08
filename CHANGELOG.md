@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.1.0
+- New: melee swing line. A hair-thin line under the Auto Shot bar that fills with your melee swing.
+  It fades in only while you're hitting things in melee, turns gold while Raptor Strike is queued
+  for your next swing, and a small glint runs along it on every swing. New Melee tab: on/off,
+  only while meleeing or the whole fight, thickness, alpha, colors, glint, Raptor highlight.
+
+## 1.0.1
+- Spamming a key that includes Auto Shot (e.g. an Aimed Shot + Auto Shot macro) no longer makes
+  the red stand-still part start early. The game refuses those presses while you reload, and
+  YaHT now ignores the refusals instead of treating them as a new wind-up.
+- On Forever an Aimed Shot cast pushes the next Auto Shot back a little. Those shots no longer
+  count toward the learned delay, so the bar doesn't drift late after you use Aimed Shot.
+- The red stand-still part now rolls smoothly while you spam keys: new timing info only speeds
+  it up or slows it down, it no longer jumps back to empty and starts over.
+- When the game's real wind-up starts a little after the bar expected it, the bar now follows it
+  instead of ignoring it (it used to finish up to ~0.15s before the shot).
+- Debug log (`/yaht debug`) now shows when an Aimed Shot / Multi-Shot cast starts and ends.
+
 ## 1.0.0 – first WoW Forever release
 Ported from Aviana's YaHT (Classic) to the WoW Forever client.
 
