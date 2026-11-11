@@ -1,5 +1,7 @@
 # YaHT Forever – Auto Shot timer for WoW Forever hunters
 
+![YaHT Forever in action](https://raw.githubusercontent.com/deusvx/YaHT-Forever/main/extras/media/yaht-in-action.gif)
+
 **Know exactly when to stop moving.** YaHT Forever is a lightweight Auto Shot bar built for WoW
 Forever's client, tuned against real in-game shot timings, including while kiting.
 
