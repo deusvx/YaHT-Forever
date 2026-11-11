@@ -76,6 +76,7 @@ local function newobj(kind)
   local o = {shown=true, scripts={}, events={}, width=0, alpha=1}
   local noop=function() end
   for _,m in ipairs({"SetFrameStrata","RegisterForDrag","SetClampedToScreen","SetAllPoints","SetHorizTile","SetVertTile","SetPoint","ClearAllPoints","SetHeight","SetScale","EnableMouse","SetMovable","SetBackdropBorderColor","SetTexture","StartMoving","StopMovingOrSizing","SetOwner","ClearLines","SetInventoryItem","SetJustifyH","SetFrameLevel","SetTexCoord","SetBlendMode","SetMovable","SetMultiLine","SetAutoFocus","SetFontObject","SetFocus","HighlightText","SetScrollChild"}) do o[m]=noop end
+  o.SetTexture=function(s,t) s.tex=t end
   o.NumLines=function() return 2 end
   o.SetSize=function(s,w,h) s.w=w s.h=h s.width=w end
   o.SetShown=function(s,v) s.shown=v and true or false end
@@ -85,10 +86,10 @@ local function newobj(kind)
   o.GetEffectiveScale=function() return 1 end
   o.SetFont=function(s,f,sz,fl) s.font={f,sz,fl} return true end
   o.SetTextColor=function(s,...) s.tcolor={...} end
-  o.SetText=function(s,t) s.txt=t end
+  o.SetText=function(s,t) if kind=="FontString" and not s.font then error("Font not set") end s.txt=t end
   o.EnableMouse=function(s,v) s.mouse=v end
   o.SetPoint=function(s,...) s.point={...} end
-  o.CreateFontString=function(s) return newobj("FontString") end
+  o.CreateFontString=function(s,name,layer,template) local fs=newobj("FontString") if template then fs.font={template} end fs.SetFontObject=function(x,f) x.font={f} end return fs end
   if kind=="GameTooltip" then YaHTScanningTooltipTextRight1={GetText=function() return nil end} YaHTScanningTooltipTextRight2={GetText=function() return "Speed 2.80" end} end
   local mt = {}
   o.SetScript=function(s,k,f) s.scripts[k]=f end

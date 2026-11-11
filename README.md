@@ -63,6 +63,6 @@ in-game shot timings.
 
 ## Credits & license
 - Original YaHT by **Aviana**: https://github.com/Aviana/YaHT (public domain, see `LICENSE`).
-- WoW Forever port by **Prime**.
+- WoW Forever port and improvements by **Tk Deadeye**.
 - Timing research helped by WeaponSwingTimer-SixxFix's Forever branch.
 - Bundled Ace3 libraries © Ace3 Development Team (see `libs/Ace3-LICENSE.txt`).

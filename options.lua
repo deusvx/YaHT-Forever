@@ -58,9 +58,18 @@ local TAB_KEYS = {
 	glow = {"glow", "glowmode", "glowlook", "glowstyle", "glowkeepbuiltin", "glowpulse", "glowramp",
 		"glowintensity", "glowsize", "glowcolor"},
 	spark = {"sparkmode", "readypulse", "sparksize", "sparkcolor"},
+	effects = {"glow", "glowmode", "glowlook", "glowstyle", "glowkeepbuiltin", "glowpulse", "glowramp",
+		"glowintensity", "glowsize", "glowcolor", "sparkmode", "readypulse", "sparksize", "sparkcolor"},
 	timing = {"windupauto", "windup", "castholds", "autocorrect", "smooth"},
 	ammo = {"ammo", "ammosize", "ammofadestart", "ammolow", "ammocrit", "ammofullalpha", "ammoflash", "ammosound"},
 	melee = {"melee", "meleemode", "meleeheight", "meleealpha", "meleeglint", "meleeraptor", "meleecolor", "meleeraptorcolor"},
+	feign = {"feign", "feignscale", "feigntime", "feignsound", "feigntargetcheck", "feigncolor",
+		"feignpoint", "feignrelpoint", "feignx", "feigny"},
+	aspect = {"aspect", "aspectwhen", "aspectpos", "aspectsize", "aspectalpha", "aspectwarnspeed", "aspectspeedalways",
+		"aspectwarnnone", "aspecthint", "aspectsound", "aspectpoint", "aspectrelpoint", "aspectx", "aspecty"},
+	procs = {"procsize", "procalpha", "procglow", "procpulse", "procsound", "mongoosecooldown", "mongoose", "mongoosepos", "mongooseglowcolor", "mongoosepoint", "mongooserelpoint", "mongoosex", "mongoosey", "quickshots", "quickshotspos", "quickshotsglowcolor", "quickshotspoint", "quickshotsrelpoint", "quickshotsx", "quickshotsy", "rapidfire", "rapidfirepos", "rapidfireglowcolor", "rapidfirepoint", "rapidfirerelpoint", "rapidfirex", "rapidfirey", "racial", "racialpos", "racialglowcolor", "racialpoint", "racialrelpoint", "racialx", "racialy"},
+	range = {"meleerange", "meleerangewhen", "meleedeadstyle", "meleedeadcolor", "meleedeadheight", "meleedeadalpha", "meleefarcolor", "meleefarsize", "meleefaralpha",
+		"meleewarnspeed", "meleewarnboost", "meleewarnglow", "meleewarnglowsize", "meleewarnglowalpha"},
 	announce = {"tranqannounce", "announcetype", "targetchannel",
 		"announcemsg"},
 }
@@ -102,12 +111,12 @@ function YaHT:CreateConfig()
 
 	local function resetButton(tab, order)
 		return {
-			name = L["Reset this tab"],
-			desc = L["Put every setting on this tab back to its default."],
+			name = L["Reset this page"],
+			desc = L["Put every setting on this page back to its default."],
 			type = "execute",
 			order = order or 100,
 			confirm = true,
-			confirmText = L["Reset this tab to defaults?"],
+			confirmText = L["Reset this page to defaults?"],
 			func = function() ResetKeys(TAB_KEYS[tab]) end,
 		}
 	end
@@ -119,11 +128,115 @@ function YaHT:CreateConfig()
 	local raptor = YaHT.GetSpellName(2973) or "Raptor Strike"
 	local function meleeOff() return not YaHT.db.profile.melee end
 	local function raptorOff() local p = YaHT.db.profile return not p.melee or not p.meleeraptor end
+	local function rangeOff() return not YaHT.db.profile.meleerange end
+	local function glowWarnOff() local p = YaHT.db.profile return not p.meleerange or p.meleewarnglow == "NONE" end
+	local mongoose = YaHT.GetSpellName(1495) or "Mongoose Bite"
+	local quickshots = YaHT.GetSpellName(6150) or "Quick Shots"
+	local function aspectOff() return not YaHT.db.profile.aspect end
+	local function feignOff() return not YaHT.db.profile.feign end
+
+	local rapidfire = YaHT.GetSpellName(3045) or "Rapid Fire"
+	local hasLCG = function() return LibStub and LibStub("LibCustomGlow-1.0", true) end
+	local function procsOff() local p = YaHT.db.profile return not (p.mongoose or p.quickshots or p.rapidfire or p.racial) end
+
+	-- one small page per proc icon: on/off, position, glow color (+ extras)
+	local function procPage(key, name, desc, order, extra)
+		local function off() return not YaHT.db.profile[key] end
+		local args = {
+			about = {name = desc, type = "description", order = 1},
+			[key] = {name = string.format(L["Show %s alert"], name), type = "toggle", width = "double", order = 2},
+			[key .. "pos"] = {
+				name = L["Position"],
+				desc = L["Anywhere: unlock the bar (/yaht unlock) and drag the icon where you want it."],
+				type = "select",
+				order = 3,
+				values = {ABOVE = L["Above the bar"], LEFT = L["Left of the bar"], RIGHT = L["Right of the bar"], FREE = L["Anywhere (drag it)"]},
+				sorting = {"ABOVE", "LEFT", "RIGHT", "FREE"},
+				disabled = off,
+			},
+			[key .. "glowcolor"] = {
+				name = L["Glow color"],
+				type = "color",
+				order = 4,
+				get = getColor,
+				set = setColor,
+				disabled = function() local p = YaHT.db.profile return not p[key] or p.procglow == "NONE" end,
+			},
+		}
+		for k, v in pairs(extra or {}) do args[k] = v end
+		return {name = name, type = "group", order = order, args = args}
+	end
+
+	local procsArgs = {
+		procsdesc = {
+			name = L["Small spell icons that pop in next to the bar while a proc lasts, with a gold timer underneath. Unlock the bar to see where they sit. Two alerts set to the same spot sit side by side."],
+			type = "description",
+			order = 1,
+		},
+		showheader = {name = L["Show"], type = "header", order = 10},
+		mongoose = {name = mongoose, type = "toggle", order = 11},
+		quickshots = {name = quickshots, type = "toggle", order = 12},
+		rapidfire = {name = rapidfire, type = "toggle", order = 13},
+		racial = {name = L["Racial ability"], type = "toggle", order = 14},
+		lookheader = {name = L["Look of all proc icons"], type = "header", order = 20},
+		procsize = {name = L["Icon size"], type = "range", order = 21, min = 16, max = 64, step = 1, disabled = procsOff},
+		procalpha = {name = L["Opacity"], type = "range", order = 22, min = 0.2, max = 1, step = 0.05, isPercent = true, disabled = procsOff},
+		procglow = {
+			name = L["Glow style"],
+			desc = L["Light around the icon while you can use it. Proc and Button are borrowed from LibCustomGlow and only appear when WeakAuras (or another addon that includes it) is installed."],
+			type = "select",
+			order = 23,
+			values = function()
+				local v = {NONE = L["None"], HALO = L["Soft halo"], RING = L["Bright ring"],
+					SHINE = L["Shine (light sweeps across)"], SPARKS = L["Sparks (circle the icon)"]}
+				if hasLCG() then
+					v.PROC = L["Proc (spell alert)"]
+					v.BUTTON = L["Button (action bar glow)"]
+				end
+				return v
+			end,
+			sorting = function()
+				local list = {"NONE", "HALO", "RING", "SHINE", "SPARKS"}
+				if hasLCG() then list[#list + 1] = "PROC" list[#list + 1] = "BUTTON" end
+				return list
+			end,
+			disabled = procsOff,
+		},
+		procpulse = {
+			name = L["Pulse style"],
+			desc = L["How the icon moves while you can use it. It speeds up in the last moments of the window."],
+			type = "select",
+			order = 24,
+			values = {NONE = L["None"], BREATHE = L["Breathe (fades in and out)"], GROW = L["Grow and shrink"],
+				HEARTBEAT = L["Heartbeat"], FLASH = L["Flash"]},
+			sorting = {"NONE", "BREATHE", "GROW", "HEARTBEAT", "FLASH"},
+			disabled = procsOff,
+		},
+		procsound = {desc = L["Plays a short sound each time a proc icon appears."], name = L["Play a sound when one pops up"], type = "toggle", width = "double", order = 25, disabled = procsOff},
+		reset = resetButton("procs"),
+		mongoosepage = procPage("mongoose", mongoose,
+			string.format(L["After you dodge, %s can be used for a few seconds. Its icon pops in next to the bar with a gold timer that drains while the chance lasts. The rim turns blue if you're short on mana. Unlock the bar to see where it sits."], mongoose), 1, {
+			mongoosecooldown = {
+				name = L["Show its cooldown"],
+				desc = string.format(L["If %s is still on cooldown when you dodge, the icon is grey with a clock sweep and a countdown, then pops back in color the moment you can press it."], mongoose),
+				type = "toggle",
+				width = "double",
+				order = 5,
+				disabled = function() return not YaHT.db.profile.mongoose end,
+			},
+		}),
+		quickshotspage = procPage("quickshots", quickshots,
+			string.format(L["With the Deadly Aspects talent, your Auto Shots can trigger %s: 30%% faster ranged attacks for 12 seconds. Its icon shows while it lasts, and the timer follows the buff."], quickshots), 2),
+		rapidfirepage = procPage("rapidfire", rapidfire,
+			string.format(L["Shows while %s lasts (15 seconds), from the moment you cast it."], rapidfire), 3),
+		racialpage = procPage("racial", L["Racial ability"],
+			L["Your race's active (Night Elf Elune's Light, Orc Blood Fury, Troll Berserking, Dwarf Stoneform, Human Perception, Tauren Plainsrunning, Skyborne Skysight) shows while it lasts, from the moment you use it. YaHT recognises it by itself; for a new racial it learns the length the first time you use it out of combat."], 4),
+	}
 
 	local aceoptions = {
 		name = "YaHT Forever - Yet another Hunter Timer",
 		type = "group",
-		childGroups = "tab",
+		childGroups = "tree", -- sections listed on the left
 		get = get,
 		set = set,
 		args = {
@@ -135,7 +248,7 @@ function YaHT:CreateConfig()
 				args = {
 					about = {
 						name = L["Auto Shot timer for WoW Forever."].."  |cff888888"..L["Version"].." "..YaHT.version
-							.."  ·  "..L["Original addon by Aviana"].."|r",
+							.."  ·  "..L["Original addon by Aviana"].."  ·  "..string.format(L["Improved by %s"], "Tk Deadeye").."|r",
 						type = "description",
 						fontSize = "medium",
 						order = 1,
@@ -189,7 +302,7 @@ function YaHT:CreateConfig()
 						func = function() ApplyPreset("FLASHY") end,
 					},
 					sizeheader = {
-						name = L["Size & visibility"],
+						name = L["Size and opacity"],
 						type = "header",
 						order = 20,
 					},
@@ -212,6 +325,7 @@ function YaHT:CreateConfig()
 					},
 					scale = {
 						name = L["Scale"],
+						desc = L["Size of the bar and everything attached to it."],
 						type = "range",
 						order = 23,
 						isPercent = true,
@@ -220,7 +334,7 @@ function YaHT:CreateConfig()
 						step = 0.05,
 					},
 					alpha = {
-						name = L["Alpha"],
+						name = L["Opacity"],
 						type = "range",
 						order = 24,
 						isPercent = true,
@@ -229,7 +343,7 @@ function YaHT:CreateConfig()
 						step = 0.05,
 					},
 					malpha = {
-						name = L["Movement alpha"],
+						name = L["Opacity while moving"],
 						desc = L["How faded the bar is while you move. Lower makes the ready pulse stand out more."],
 						type = "range",
 						order = 25,
@@ -247,6 +361,11 @@ function YaHT:CreateConfig()
 				type = "group",
 				order = 2,
 				args = {
+					lookintro = {
+						name = L["How the bar itself looks: its texture, colors, background and border."],
+						type = "description",
+						order = 0,
+					},
 					statusbar = {
 						name = L["Bar texture"],
 						type = "select",
@@ -262,6 +381,7 @@ function YaHT:CreateConfig()
 					},
 					timercolor = {
 						name = L["Reload color"],
+						desc = L["Color of the bar while you reload."],
 						type = "color",
 						order = 3,
 						get = getColor,
@@ -269,6 +389,7 @@ function YaHT:CreateConfig()
 					},
 					drawcolor = {
 						name = L["Stand-still color"],
+						desc = L["Color of the part where you must stand still for the shot."],
 						type = "color",
 						order = 4,
 						get = getColor,
@@ -293,7 +414,7 @@ function YaHT:CreateConfig()
 						disabled = function() return not YaHT.db.profile.enablebackground end,
 					},
 					backgroundcolor = {
-						name = L["Background Color"],
+						name = L["Background color"],
 						type = "color",
 						order = 13,
 						hasAlpha = true,
@@ -320,7 +441,7 @@ function YaHT:CreateConfig()
 						disabled = function() return not YaHT.db.profile.enableborder end,
 					},
 					bordercolor = {
-						name = L["Border Color"],
+						name = L["Border color"],
 						type = "color",
 						order = 23,
 						get = getColor,
@@ -336,6 +457,11 @@ function YaHT:CreateConfig()
 				type = "group",
 				order = 3,
 				args = {
+					textintro = {
+						name = L["The number that counts down to your shot, or to when you must stand still."],
+						type = "description",
+						order = 0,
+					},
 					showtext = {
 						name = L["Show countdown"],
 						desc = L["Show the time left as a number with one decimal, like WeaponSwingTimer."],
@@ -386,7 +512,7 @@ function YaHT:CreateConfig()
 						disabled = textOff,
 					},
 					textcolor = {
-						name = L["Text Color"],
+						name = L["Text color"],
 						type = "color",
 						hasAlpha = true,
 						order = 6,
@@ -428,14 +554,19 @@ function YaHT:CreateConfig()
 				type = "group",
 				order = 4,
 				args = {
+					glowintro = {
+						name = L["Effects that help you feel the rhythm: a glow as the shot gets close, and sparks at the moving edge of the bar."],
+						type = "description",
+						order = 0,
+					},
 					glow = {
-						name = L["Glow"],
+						name = L["Show glow"],
 						desc = L["Glow around the bar: none when the bar is full, building up as the reload runs out, full when you need to stand still."],
 						type = "toggle",
 						order = 1,
 					},
 					glowmode = {
-						name = L["When"],
+						name = L["Light up"],
 						desc = L["Build up: glow grows during the reload. Stand still only: glow appears just for the stand-still part."],
 						type = "select",
 						order = 2,
@@ -451,7 +582,7 @@ function YaHT:CreateConfig()
 						disabled = glowOff,
 					},
 					glowstyle = {
-						name = L["Stand-still effect"],
+						name = L["Extra effect while you stand still"],
 						desc = L["Extra effect while you need to stand still. Pixel/Autocast/Proc/Button are borrowed from LibCustomGlow and only appear when WeakAuras (or another addon that includes it) is installed."],
 						type = "select",
 						order = 4,
@@ -476,7 +607,7 @@ function YaHT:CreateConfig()
 						disabled = glowOff,
 					},
 					glowpulse = {
-						name = L["Pulse when standing"],
+						name = L["Pulse while you stand still"],
 						desc = L["Pulse the glow during the stand-still part."],
 						type = "toggle",
 						order = 6,
@@ -518,7 +649,7 @@ function YaHT:CreateConfig()
 						disabled = glowOff,
 					},
 					glowcolor = {
-						name = L["Glow Color"],
+						name = L["Glow color"],
 						type = "color",
 						order = 14,
 						get = getColor,
@@ -535,7 +666,7 @@ function YaHT:CreateConfig()
 				order = 5,
 				args = {
 					sparkmode = {
-						name = L["Spark"],
+						name = L["Sparks"],
 						desc = L["A bright line at the moving edge of the bar. In the stand-still part the bar grows out from the middle, so the sparks start in the centre and race to the ends as the shot fires."],
 						type = "select",
 						order = 1,
@@ -560,7 +691,7 @@ function YaHT:CreateConfig()
 						disabled = sparkOff,
 					},
 					sparkcolor = {
-						name = L["Spark Color"],
+						name = L["Spark color"],
 						type = "color",
 						hasAlpha = true,
 						order = 4,
@@ -589,7 +720,8 @@ function YaHT:CreateConfig()
 						order = 2,
 					},
 					meleemode = {
-						name = L["Show it"],
+						name = L["Show the line"],
+						desc = L["Only while meleeing: the line appears when you swing in melee. The whole fight: it stays up for the whole fight."],
 						type = "select",
 						order = 3,
 						values = {MELEE = L["Only while meleeing"], COMBAT = L["The whole fight"]},
@@ -606,7 +738,7 @@ function YaHT:CreateConfig()
 						disabled = meleeOff,
 					},
 					meleealpha = {
-						name = L["Alpha"],
+						name = L["Opacity"],
 						type = "range",
 						order = 5,
 						min = 0.2,
@@ -626,6 +758,7 @@ function YaHT:CreateConfig()
 					},
 					meleeglint = {
 						name = L["Glint on each swing"],
+						desc = L["A small light runs along the line on every swing."],
 						type = "toggle",
 						order = 7,
 						disabled = meleeOff,
@@ -653,6 +786,312 @@ function YaHT:CreateConfig()
 						disabled = raptorOff,
 					},
 					reset = resetButton("melee"),
+				},
+			},
+			------------------------------------------------------------------
+			procs = {
+				name = L["Procs"],
+				type = "group",
+				order = 5.72,
+				args = procsArgs,
+			},
+			------------------------------------------------------------------
+			feign = {
+				name = L["Feign Death"],
+				type = "group",
+				order = 5.74,
+				args = {
+					feigndesc = {
+						name = L["When a mob resists your Feign Death, the Feign Death icon pops up with RESIST under it and a warning sound plays. It's a separate alert: unlock the bar to drag it anywhere on your screen."],
+						type = "description",
+						order = 1,
+					},
+					feign = {
+						name = L["Show the resist alert"],
+						type = "toggle",
+						width = "double",
+						order = 2,
+					},
+					feigntest = {
+						name = L["Test it"],
+						desc = L["Plays the alert once, so you can see and hear it."],
+						type = "execute",
+						order = 3,
+						func = function() YaHT:TestFeignAlert() end,
+						disabled = feignOff,
+					},
+					feignscale = {name = L["Size"], type = "range", order = 4, min = 0.5, max = 3, step = 0.05, isPercent = true, disabled = feignOff},
+					feigntime = {name = L["Seconds on screen"], type = "range", order = 5, min = 1, max = 6, step = 0.5, disabled = feignOff},
+					feigncolor = {
+						name = L["Color"],
+						type = "color",
+						order = 6,
+						get = getColor,
+						set = setColor,
+						disabled = feignOff,
+					},
+					feignsound = {name = L["Play a warning sound"], type = "toggle", order = 7, disabled = feignOff},
+					detectheader = {name = L["How a resist is noticed"], type = "header", order = 10},
+					feigntargetcheck = {
+						name = L["Your target still targets you"],
+						desc = L["Also counts a resist when the mob still targets you 1.5 and 2.5 seconds after you feign. The game's own \"Resisted\" message always counts."],
+						type = "toggle",
+						width = "double",
+						order = 13,
+						disabled = feignOff,
+					},
+					reset = resetButton("feign"),
+				},
+			},
+			------------------------------------------------------------------
+			aspect = {
+				name = L["Aspect"],
+				type = "group",
+				order = 5.73,
+				args = {
+					aspectdesc = {
+						name = L["A small icon of the aspect you're in, next to the bar. It stays quiet while it's fine and turns red and pulses when it's risky: Cheetah or Pack in a fight (one hit dazes you), or no aspect at all."],
+						type = "description",
+						order = 1,
+					},
+					aspect = {
+						name = L["Show your aspect"],
+						type = "toggle",
+						width = "double",
+						order = 2,
+					},
+					aspectwhen = {
+						name = L["When"],
+						desc = L["In combat or while shooting: the badge shows only then. Always: also out of combat."],
+						type = "select",
+						order = 3,
+						values = {COMBAT = L["In combat or while shooting"], ALWAYS = L["Always"]},
+						sorting = {"COMBAT", "ALWAYS"},
+						disabled = aspectOff,
+					},
+					aspectpos = {
+						name = L["Position"],
+						desc = L["Anywhere: unlock the bar (/yaht unlock) and drag the icon where you want it."],
+						type = "select",
+						order = 4,
+						values = {ABOVE = L["Above the bar"], LEFT = L["Left of the bar"], RIGHT = L["Right of the bar"], FREE = L["Anywhere (drag it)"]},
+						sorting = {"ABOVE", "LEFT", "RIGHT", "FREE"},
+						disabled = aspectOff,
+					},
+					aspectsize = {name = L["Icon size"], type = "range", order = 5, min = 14, max = 48, step = 1, disabled = aspectOff},
+					aspectalpha = {
+						name = L["Opacity while it's fine"],
+						desc = L["Warnings always show at full strength."],
+						type = "range",
+						order = 6,
+						min = 0.2,
+						max = 1,
+						step = 0.05,
+						isPercent = true,
+						disabled = aspectOff,
+					},
+					warnheader = {name = L["Warnings"], type = "header", order = 10},
+					aspectwarnspeed = {
+						name = L["Red: Cheetah or Pack in a fight"],
+						desc = L["Getting hit while in Aspect of the Cheetah or the Pack dazes you."],
+						type = "toggle",
+						width = "double",
+						order = 11,
+						disabled = aspectOff,
+					},
+					aspectspeedalways = {
+						name = L["Always show Cheetah and Pack"],
+						desc = L["Shows the icon any time you're in Aspect of the Cheetah or the Pack, also out of combat, so you don't forget you're in them."],
+						type = "toggle",
+						width = "double",
+						order = 11.5,
+						disabled = aspectOff,
+					},
+					aspectwarnnone = {
+						name = L["Red: no aspect in a fight"],
+						desc = L["Turns red when you're in a fight without any aspect."],
+						type = "toggle",
+						width = "double",
+						order = 12,
+						disabled = aspectOff,
+					},
+					aspecthint = {
+						name = L["Yellow hint: Hawk in melee, Monkey at range"],
+						desc = L["Uses the range warnings to know where you are, so those need to be switched on."],
+						type = "toggle",
+						width = "double",
+						order = 13,
+						disabled = aspectOff,
+					},
+					aspectsound = {
+						name = L["Sound on a red warning"],
+						desc = L["Plays a warning sound the moment the badge turns red."],
+						type = "toggle",
+						order = 14,
+						disabled = aspectOff,
+					},
+					reset = resetButton("aspect"),
+				},
+			},
+			------------------------------------------------------------------
+			range = {
+				name = L["Range"],
+				type = "group",
+				order = 5.75,
+				args = {
+					rangedesc = {
+						name = L["While you're fighting, you see when you can't shoot: yellow stripes in the deadzone, red arrows pointing you closer when you're too far away. Nothing shows in normal shooting range."],
+						type = "description",
+						order = 1,
+					},
+					meleerange = {
+						name = L["Show deadzone and too-far warnings"],
+						desc = L["Yellow stripes in the deadzone, red arrows when you're too far. Nothing shows in normal shooting range."],
+						type = "toggle",
+						width = "double",
+						order = 2,
+					},
+					meleerangewhen = {
+						name = L["When"],
+						desc = L["In combat: while you're fighting or Auto Shot is on. Always: any time you have an enemy targeted, also out of combat (handy for pulling from the right spot)."],
+						type = "select",
+						order = 3,
+						values = {COMBAT = L["In combat only"], ALWAYS = L["Always (enemy targeted)"]},
+						sorting = {"COMBAT", "ALWAYS"},
+						disabled = rangeOff,
+					},
+					deadheader = {
+						name = L["Deadzone"],
+						type = "header",
+						order = 10,
+					},
+					meleedeadstyle = {
+						name = L["Deadzone warning on"],
+						desc = L["Line: the thin line under the bar turns into drifting stripes. Bar: the Auto Shot bar itself turns into caution tape (you can't see the reload behind it while you're in the deadzone)."],
+						type = "select",
+						order = 11,
+						values = {LINE = L["The line under the bar"], BAR = L["The Auto Shot bar"]},
+						sorting = {"LINE", "BAR"},
+						disabled = rangeOff,
+					},
+					meleedeadcolor = {
+						name = L["Deadzone color"],
+						type = "color",
+						hasAlpha = true,
+						order = 12,
+						get = getColor,
+						set = setColor,
+						disabled = rangeOff,
+					},
+					meleedeadalpha = {
+						name = L["Opacity"],
+						type = "range",
+						order = 13.5,
+						min = 0.2,
+						max = 1,
+						step = 0.05,
+						isPercent = true,
+						disabled = rangeOff,
+					},
+					meleedeadheight = {
+						name = L["Stripe thickness"],
+						desc = L["How tall the striped line is. Only used when the warning is on the line."],
+						type = "range",
+						order = 13,
+						min = 3,
+						max = 14,
+						step = 1,
+						disabled = function() local p = YaHT.db.profile return not p.meleerange or p.meleedeadstyle == "BAR" end,
+					},
+					farheader = {
+						name = L["Too far"],
+						type = "header",
+						order = 20,
+					},
+					meleefarcolor = {
+						name = L["Too far color"],
+						type = "color",
+						hasAlpha = true,
+						order = 21,
+						get = getColor,
+						set = setColor,
+						disabled = rangeOff,
+					},
+					meleefaralpha = {
+						name = L["Opacity"],
+						type = "range",
+						order = 23,
+						min = 0.2,
+						max = 1,
+						step = 0.05,
+						isPercent = true,
+						disabled = rangeOff,
+					},
+					meleefarsize = {
+						name = L["Arrow size"],
+						type = "range",
+						order = 22,
+						min = 6,
+						max = 20,
+						step = 1,
+						disabled = rangeOff,
+					},
+					lookheader = {
+						name = L["Motion"],
+						type = "header",
+						order = 30,
+					},
+					meleewarnspeed = {
+						name = L["Animation speed"],
+						desc = L["How fast the stripes drift and the arrows slide (and the deadzone glow pulses)."],
+						type = "range",
+						order = 31,
+						min = 0.25,
+						max = 2.5,
+						step = 0.05,
+						isPercent = true,
+						disabled = rangeOff,
+					},
+					meleewarnboost = {
+						name = L["Extra brightness"],
+						desc = L["Adds a lit-up copy of the stripes and arrows on top, so they look bright instead of painted on. 0% is the plain color."],
+						type = "range",
+						order = 32,
+						min = 0,
+						max = 1,
+						step = 0.05,
+						isPercent = true,
+						disabled = rangeOff,
+					},
+					meleewarnglow = {
+						name = L["Deadzone glow"],
+						desc = L["A soft light around the deadzone stripes, in the deadzone color. Around the whole bar when the warning is on the bar."],
+						type = "select",
+						order = 14,
+						values = {NONE = L["None"], SOFT = L["Soft"], PULSE = L["Pulsing"]},
+						sorting = {"NONE", "SOFT", "PULSE"},
+						disabled = rangeOff,
+					},
+					meleewarnglowsize = {
+						name = L["Glow size"],
+						type = "range",
+						order = 15,
+						min = 4,
+						max = 30,
+						step = 1,
+						disabled = glowWarnOff,
+					},
+					meleewarnglowalpha = {
+						name = L["Glow strength"],
+						type = "range",
+						order = 16,
+						min = 0.1,
+						max = 1,
+						step = 0.05,
+						isPercent = true,
+						disabled = glowWarnOff,
+					},
+					reset = resetButton("range"),
 				},
 			},
 			------------------------------------------------------------------
@@ -717,7 +1156,7 @@ function YaHT:CreateConfig()
 						disabled = function() return not YaHT.db.profile.ammo end,
 					},
 					ammofullalpha = {
-						name = L["Visibility when plenty"],
+						name = L["Opacity when you have plenty"],
 						desc = L["0% = completely hidden while you have plenty of ammo."],
 						type = "range",
 						order = 14,
@@ -729,6 +1168,7 @@ function YaHT:CreateConfig()
 					},
 					ammoflash = {
 						name = L["Flash when low"],
+						desc = L["The icon flashes yellow when you're low and red when you're almost out."],
 						type = "toggle",
 						order = 15,
 						disabled = function() return not YaHT.db.profile.ammo end,
@@ -843,14 +1283,14 @@ function YaHT:CreateConfig()
 						set = function(info, value) set(info, value) AceConfigRegistry:NotifyChange(Addon) end,
 					},
 					targetchannel = {
-						name = L["Channel/Playername"],
+						name = L["Channel or player name"],
 						desc = L["Set the channel or player for whisper."],
 						type = "input",
 						order = 5,
 						hidden = function() local t = YaHT.db.profile.announcetype return not (t == "WHISPER" or t == "CHANNEL") end,
 					},
 					announcemsg = {
-						name = L["Announce Message"],
+						name = L["Message"],
 						desc = L["Set the message to be broadcasted. %s is replaced by the target's name."],
 						type = "input",
 						order = 6,
@@ -862,11 +1302,96 @@ function YaHT:CreateConfig()
 		},
 	}
 
+	-- Three groups instead of one long list: The bar / Alerts / Advanced.
+	local A = aceoptions.args
+	-- glow and spark on one page
+	local effects = A.glow
+	effects.name = L["Glow and spark"]
+	effects.args.sparkheader = {name = L["Spark"], type = "header", order = 50}
+	for k, v in pairs(A.spark.args) do
+		if k ~= "reset" then
+			v.order = 50 + (v.order or 0)
+			effects.args[k] = v
+		end
+	end
+	effects.args.reset = resetButton("effects")
+	A.bar.name = L["Look"]
+
+	local bar = A.general
+	bar.name = L["The bar"]
+	bar.order = 1
+	bar.args.lookpage = A.bar
+	bar.args.textpage = A.text
+	bar.args.effectspage = effects
+	A.bar.order, A.text.order, effects.order = 1, 2, 3
+
+	local alerts = {
+		name = L["Alerts"],
+		type = "group",
+		order = 2,
+		args = {
+			about = {
+				name = L["Everything that warns or informs you while you fight. Each one has its own page below."],
+				type = "description",
+				order = 1,
+			},
+			preview = {
+				name = L["Preview all alerts"],
+				desc = L["Shows every alert for a few seconds so you can see how they look."],
+				type = "execute",
+				order = 2,
+				func = function() YaHT:PreviewAlerts() end,
+			},
+			onheader = {name = L["Turn alerts on or off"], type = "header", order = 10},
+			aspect = {name = L["Aspect badge"], type = "toggle", order = 11},
+			feign = {name = L["Feign Death resist"], type = "toggle", order = 12},
+			meleerange = {name = L["Range warnings"], type = "toggle", order = 13},
+			melee = {name = L["Melee swing line"], type = "toggle", order = 14},
+			ammo = {name = L["Ammo counter"], type = "toggle", order = 15},
+			procsnote = {name = L["The proc icons are switched on and off on the Procs page."], type = "description", order = 16},
+			procspage = A.procs,
+			aspectpage = A.aspect,
+			feignpage = A.feign,
+			rangepage = A.range,
+			meleepage = A.melee,
+			ammopage = A.ammo,
+		},
+	}
+	A.procs.order, A.aspect.order, A.feign.order, A.range.order, A.melee.order, A.ammo.order = 1, 2, 3, 4, 5, 6
+	A.melee.name = L["Melee line"]
+
+	local advanced = {
+		name = L["Advanced"],
+		type = "group",
+		order = 3,
+		args = {
+			about = {
+				name = L["Rarely needed: the defaults match WoW Forever."],
+				type = "description",
+				order = 1,
+			},
+			timingpage = A.timing,
+			announcepage = A.announce,
+		},
+	}
+	A.timing.order, A.announce.order = 1, 2
+
+	aceoptions.args = {bar = bar, alerts = alerts, advanced = advanced}
+
 	aceoptions.args.profile = LibStub("AceDBOptions-3.0"):GetOptionsTable(self.db)
 	aceoptions.args.profile.order = 100
 	AceConfigRegistry:RegisterOptionsTable(Addon, aceoptions, true)
 
 	-- also listed in the game's Settings > AddOns panel
 	AceConfigDialog:AddToBlizOptions(Addon, "YaHT")
-	AceConfigDialog:SetDefaultSize(Addon, 720, 560)
+	AceConfigDialog:SetDefaultSize(Addon, 860, 560)
+	-- open the groups (and Procs) in the list by default, so every page is one click away
+	local status = AceConfigDialog.GetStatusTable and AceConfigDialog:GetStatusTable(Addon)
+	if status then
+		status.groups = status.groups or {}
+		status.groups.groups = status.groups.groups or {}
+		for _, node in ipairs({"bar", "alerts", "alerts\001procspage", "advanced"}) do
+			if status.groups.groups[node] == nil then status.groups.groups[node] = true end
+		end
+	end
 end

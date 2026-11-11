@@ -11,7 +11,7 @@ fire("PLAYER_LOGIN")
 local R = LibStub("AceConfigRegistry-3.0")
 local opts = R:GetOptionsTable("YaHT")("dialog","AceConfigDialog-3.0")
 R:ValidateOptionsTable(opts, "YaHT")
-local vals = opts.args.glow.args.glowstyle.values()
+local vals = opts.args.bar.args.effectspage.args.glowstyle.values()
 local n=0 for k in pairs(vals) do n=n+1 end print("styles offered:", n)
 local db=YaHT.db.profile local f=YaHT.mainFrame
 local function tick(k,dt) for i=1,k do advance(dt) f.scripts.OnUpdate(f,dt) end end

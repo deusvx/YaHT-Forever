@@ -9,14 +9,14 @@ print("tabs:", table.concat(tabs," "))
 local db=YaHT.db.profile local f=YaHT.mainFrame
 local function tick(k,dt) for i=1,k do advance(dt) f.scripts.OnUpdate(f,dt) end end
 -- presets
-opts.args.general.args.presetclean.func() print("clean:", db.glowlook, db.glowmode, db.sparkmode, db.glowstyle)
-opts.args.general.args.presetflashy.func() print("flashy:", db.glowlook, db.glowstyle, db.glowkeepbuiltin, db.glowsize)
-opts.args.general.args.presetminimal.func() print("minimal:", db.glow, db.sparkmode, db.readypulse)
+opts.args.bar.args.presetclean.func() print("clean:", db.glowlook, db.glowmode, db.sparkmode, db.glowstyle)
+opts.args.bar.args.presetflashy.func() print("flashy:", db.glowlook, db.glowstyle, db.glowkeepbuiltin, db.glowsize)
+opts.args.bar.args.presetminimal.func() print("minimal:", db.glow, db.sparkmode, db.readypulse)
 -- reset tab
-opts.args.glow.args.reset.func() print("glow tab reset:", db.glow, db.glowsize, db.glowstyle, "spark untouched:", db.sparkmode)
-db.glowcolor.r=0 opts.args.glow.args.reset.func() print("color reset r:", db.glowcolor.r, "is copy:", db.glowcolor ~= YaHT.defaults.profile.glowcolor)
+opts.args.bar.args.effectspage.args.reset.func() print("glow and spark page reset:", db.glow, db.glowsize, db.glowstyle, db.sparkmode)
+db.glowcolor.r=0 opts.args.bar.args.effectspage.args.reset.func() print("color reset r:", db.glowcolor.r, "is copy:", db.glowcolor ~= YaHT.defaults.profile.glowcolor)
 -- reset position
-db.point="TOP" db.x=50 opts.args.general.args.resetpos.func() print("pos reset:", db.point, db.x)
+db.point="TOP" db.x=50 opts.args.bar.args.resetpos.func() print("pos reset:", db.point, db.x)
 -- slash
 SlashCmdList.YAHT("lock") print("lock:", db.lock) SlashCmdList.YAHT("unlock") print("unlock:", db.lock)
 db.point="TOP" SlashCmdList.YAHT("reset") print("slash reset:", db.point)

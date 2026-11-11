@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.1.0"
+YaHT.version = "1.2.0"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -656,8 +656,13 @@ function YaHT:OnInitialize()
 
 	self.calib = self.db.char.calib -- learned shot delay from last session
 	self:Load()
-	if self.InitAmmo then self:InitAmmo() end
-	if self.InitMelee then self:InitMelee() end
+	-- each feature starts on its own: if one fails, the rest (and the options) still load
+	for _, init in ipairs({"InitAmmo", "InitMelee", "InitProcs", "InitFeign"}) do
+		if self[init] then
+			local ok, err = pcall(self[init], self)
+			if not ok then ReportError(init, err) end
+		end
+	end
 	self:CreateConfig()
 
 	-- first install: the bar starts unlocked (preview mode) - say what to do
@@ -756,6 +761,8 @@ function YaHT:ApplySettings()
 	if f.glow then self:ApplyGlowSettings() end
 	if self.ApplyAmmoSettings then self:ApplyAmmoSettings() end
 	if self.ApplyMeleeSettings then self:ApplyMeleeSettings() end
+	if self.ApplyProcSettings then self:ApplyProcSettings() end
+	if self.ApplyFeignSettings then self:ApplyFeignSettings() end
 end
 
 function YaHT:Load()
@@ -979,7 +986,12 @@ function YaHT:OnAutoShot(duration, source)
 	-- still, no casts, continuous Auto Shot).
 	local interval = now - f.lastshot
 	local expected = f.cycleSpeed
+	-- Your attack speed just changed (Rapid Fire, Quick Shots, a haste buff
+	-- coming or going): this cycle and the next are irregular, so neither
+	-- may teach the learned delay (seen in a log: +0.10 and +0.17s samples).
+	local speedChanged = expected and duration and math.abs(duration - expected) > 0.005
 	local clean = expected and f.shooting and not f.disturbed and not f.casting
+		and not speedChanged and not f.speedSettling
 		and interval > expected * 0.8 and interval < expected * 1.5
 	-- Jitter smoothing: the real shots are evenly spaced but the message
 	-- reporting each one arrives a little early/late. Keep a steady rhythm
@@ -1004,6 +1016,7 @@ function YaHT:OnAutoShot(duration, source)
 	end
 	f.sentAt, f.pendingSent = nil, nil
 	f.cycleSpeed = f.speed
+	f.speedSettling = speedChanged and true or false
 	-- An Aimed/Multi-Shot cast still running pushes the next shot back a bit
 	-- on Forever, so that cycle mustn't teach the learned delay either.
 	f.disturbed = f.casting and true or false
@@ -1207,6 +1220,10 @@ SlashCmdList["YAHT"] = function(msg)
 	elseif cmd == "ammo" then
 		local count, icon, method = YaHT:ReadAmmo()
 		YaHT:Print(string.format("ammo: %s (read from: %s)", tostring(count), tostring(method)))
+	elseif cmd == "feign" then
+		if YaHT.TestFeignAlert then YaHT:TestFeignAlert() end
+	elseif cmd == "buffs" then
+		if YaHT.ReportBuffs then YaHT:ReportBuffs() end
 	elseif cmd == "help" or cmd == "?" then
 		YaHT:Print("/yaht - "..L["open options"])
 		YaHT:Print("/yaht lock | unlock - "..L["lock or unlock (move + preview) the bar"])
@@ -1215,6 +1232,8 @@ SlashCmdList["YAHT"] = function(msg)
 		YaHT:Print("/yaht copy - "..L["open the debug log so you can copy it"])
 		YaHT:Print("/yaht clear - "..L["empty the debug log"])
 		YaHT:Print("/yaht ammo - "..L["show how much ammo YaHT counts"])
+		YaHT:Print("/yaht buffs - "..L["list your buffs as YaHT sees them (Quick Shots, aspect)"])
+		YaHT:Print("/yaht feign - "..L["play the Feign Death resist alert once"])
 	else
 		local ACR = LibStub("AceConfigRegistry-3.0", true)
 		if ACR then ACR:NotifyChange("YaHT") end

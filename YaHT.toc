@@ -1,8 +1,8 @@
 ## Interface: 16001
 ## Title: YaHT Forever
 ## Notes: Auto Shot timer for WoW Forever hunters: accurate swing bar, countdown, glow, sparks and ammo warning. /yaht
-## Author: Aviana (original), Prime (Forever port)
-## Version: 1.1.0
+## Author: Aviana (original), Tk Deadeye (Forever port and improvements)
+## Version: 1.2.0
 ## IconTexture: Interface\Icons\INV_Weapon_Bow_07
 ## AddonCompartmentFunc: YaHT_OnAddonCompartmentClick
 ## SavedVariables: YaHTdb
@@ -24,5 +24,7 @@ locales\zhCN.lua
 YaHT.lua
 ammo.lua
 melee.lua
+procs.lua
+feign.lua
 defaults.lua
 options.lua

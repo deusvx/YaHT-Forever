@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.2.0
+- Timing: shots right after your attack speed changes (Rapid Fire, Quick Shots or another haste
+  effect starting or ending) no longer teach the learned shot delay, so it stays accurate.
+- Options: rebuilt for a cleaner menu. Sections are listed on the left in three groups (The bar,
+  Alerts, Advanced), proc icons share one look, wording is clearer and consistent, and a "Preview all
+  alerts" button shows every alert at once.
+- New: range warnings. While you fight, yellow caution stripes show in the deadzone (on the line
+  under the bar, or over the Auto Shot bar itself), and red arrows slide in from both ends when
+  you're too far away. In normal shooting range nothing shows. Shown in combat only, or always
+  with an enemy targeted. Its own Range tab sets this, where the deadzone shows, colors, stripe
+  thickness, arrow size, opacity, extra brightness, animation speed and an optional (pulsing)
+  deadzone glow.
+- New: Feign Death resist alert. A separate, movable alert (the Feign Death icon with RESIST under
+  it, plus a warning sound) when a mob resists your Feign Death. Test it from its options page.
+- New: aspect badge. The icon of the aspect you're in sits next to the bar; it turns red and pulses
+  for Cheetah or Pack in a fight (daze risk) or no aspect at all, with an optional yellow hint for
+  Hawk in melee or Monkey at range. Its own Aspect section in the options.
+- Every proc icon and the aspect badge can also be placed anywhere: set its Position to "Anywhere"
+  and drag it while the bar is unlocked.
+- New: Rapid Fire and racial ability alerts: their icons show while they last, from the moment you
+  use them, next to the Quick Shots icon. The racial alert recognises the active of every Hunter race by itself
+  (Elune's Light, Blood Fury, Berserking, Stoneform and more) and learns new ones' lengths.
+- New: Quick Shots alert (Deadly Aspects talent): its icon shows while the 30% faster ranged
+  attacks last. Forever hides your buffs from addons in combat, so YaHT notices it from your shot
+  speed (Rapid Fire and Berserking are told apart) and uses the buff itself when the game shows it. Same glow, pulse and placement options as the
+  Mongoose Bite alert; both now live in the new Procs section of the options.
+- New: Mongoose Bite alert. After you dodge, the Mongoose Bite icon pops in next to the bar
+  (above, left or right) with a gold timer that drains while you can use it. Pick a glow (halo, ring,
+  shine, sparks, or proc/button glows with WeakAuras) and a pulse (breathe, grow, heartbeat, flash).
+  Optional sound. If Mongoose Bite is still on cooldown, the icon shows it (grey, clock sweep and
+  countdown) and pops back in color the moment you can press it.
+
 ## 1.1.0
 - New: melee swing line. A hair-thin line under the Auto Shot bar that fills with your melee swing.
   It fades in only while you're hitting things in melee, turns gold while Raptor Strike is queued
