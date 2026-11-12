@@ -22,6 +22,7 @@ assert(table.concat(order, ",") == "bar,alerts,advanced,profile", "menu groups: 
 local bar, alerts, adv = opts.args.bar.args, opts.args.alerts.args, opts.args.advanced.args
 assert(bar.lookpage and bar.textpage and bar.effectspage and bar.presetclean, "The bar group incomplete")
 assert(bar.effectspage.args.glowstyle and bar.effectspage.args.sparkmode, "glow and spark should share one page")
+assert(alerts.petpage and alerts.pet, "no Pet page in the Alerts group")
 assert(alerts.procspage and alerts.aspectpage and alerts.feignpage and alerts.rangepage and alerts.meleepage and alerts.ammopage, "Alerts group incomplete")
 assert(adv.timingpage and adv.announcepage, "Advanced group incomplete")
 -- the Procs page is short: one shared look, small pages per proc
@@ -48,16 +49,19 @@ local dt = 0.02
 local function run(sec) for k = 1, math.floor(sec/dt + 0.5) do advance(dt)
   mev.scripts.OnUpdate(mev, dt)
   for _, f in ipairs(frs) do if f.shown then f.scripts.OnUpdate(f, dt) end end
-  for _, f in ipairs({fa, m, b}) do if f.shown then f.scripts.OnUpdate(f, dt) end end end end
+  for _, f in ipairs({fa, m, b, YaHT.petWatch}) do if f.shown then f.scripts.OnUpdate(f, dt) end end end end
 sounds = {}
 alerts.preview.func() run(0.5)
 for i, f in ipairs(frs) do assert(f.shown and f.alpha > 0.9, "proc icon "..i.." not previewed") end
 assert(fa.shown, "Feign Death alert not previewed")
+local pet, petw = YaHT.petFrame, YaHT.petWatch
+assert(pet.shown and pet.text.shown and pet.low.shown and pet.low.alpha == 1, "pet warnings not previewed")
 assert(b.shown and b.level == "DANGER", "aspect badge warning not previewed")
 assert(m.position == "DEAD" and m.striped, "deadzone not previewed")
 run(3) assert(m.position == "FAR", "too far not previewed after the deadzone")
 run(4)
 for i, f in ipairs(frs) do assert(not f.shown, "proc icon "..i.." still shown after the preview") end
 assert(not fa.shown and m.position == nil, "preview didn't end")
+assert(not pet.shown and not petw.shown, "pet preview didn't end")
 run(1) assert(not b.shown or b.alpha < 0.05, "aspect preview didn't end")
 print("OK34")

@@ -52,6 +52,7 @@ local SLOT_ORDER = {"mongoose", "quickshots", "rapidfire", "racial", "aspect"}
 -- the size an icon around the bar takes up (the aspect badge has its own)
 local function IconSize(p, key)
 	if key == "aspect" then return p.aspectsize end
+	if p[key .. "own"] then return p[key .. "iconsize"] end
 	return p.procsize
 end
 
@@ -140,10 +141,14 @@ local function NewIcon(def)
 end
 
 -- The look (size, opacity, glow style, pulse, sound) is shared by all proc
--- icons ("proc" settings); position, glow color and on/off are per icon.
+-- icons ("proc" settings), unless an icon is given its own (<key>own, then
+-- <key>iconsize ...); position, glow color and on/off are always per icon.
 local SHARED = {size = true, alpha = true, glow = true, pulse = true, sound = true}
 function Icon:Setting(p, suffix)
-	if SHARED[suffix] then return p["proc" .. suffix] end
+	if SHARED[suffix] then
+		if p[self.key .. "own"] then return p[self.key .. "icon" .. suffix] end
+		return p["proc" .. suffix]
+	end
 	return p[self.key .. suffix]
 end
 
@@ -626,6 +631,7 @@ local function CheckMongoose()
 	local p = YaHT.db.profile
 	local f = mongoose.frame
 	if not p.mongoose or not p.lock then mongoose:End() return end
+	if f.previewUntil and GetTime() < f.previewUntil then return end -- "Preview all alerts" is showing it
 	local usable, noMana = ReadMongoose()
 	if usable == nil then return end -- hidden: keep what we have
 	if usable then
@@ -971,6 +977,7 @@ local ASPECT_WORDS = {{"dragonhawk", "DRAGONHAWK"}, {"hawk", "HAWK"}, {"monkey",
 local NO_ASPECT_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 local LEVEL_COLOR = {OK = {0.16, 0.14, 0.10}, HINT = {1, 0.8, 0.16}, DANGER = {1, 0.22, 0.16}}
 local ASPECT_CHECK = 0.1 -- how often the badge re-judges while it's up
+local NONE_GRACE = 0.5   -- "no aspect" must last this long before it warns
 local MAX_BUFFS = 40
 
 local aspectByID, aspectByName, aspectNames -- built once the game knows the names
@@ -1109,8 +1116,23 @@ local function AspectLevel(p)
 	local shooting = YaHT.mainFrame and YaHT.mainFrame.shooting
 	local engaged = fighting or shooting
 	local a = badge.aspect
+	if a ~= "NONE" then badge.noneSince = nil end
 	if a == nil then return nil end -- the game hides it: show nothing rather than guess
-	if a == "NONE" then return (fighting and p.aspectwarnnone) and "DANGER" or nil end
+	if a == "NONE" then
+		-- no aspect at all: red in a fight; out of one, a yellow reminder whenever the
+		-- badge would be showing (while shooting, or set to show always)
+		if not p.aspectwarnnone then return nil end
+		local warn = fighting and "DANGER" or ((shooting or p.aspectwhen == "ALWAYS") and "HINT" or nil)
+		if warn then
+			-- Switching aspects can leave you without one for an instant (seen in
+			-- game as a warning that came and went within a second): it only
+			-- counts once it has lasted. Until then the badge just shows, quietly.
+			local now = GetTime()
+			badge.noneSince = badge.noneSince or now
+			if now - badge.noneSince < NONE_GRACE then return "OK" end
+		end
+		return warn
+	end
 	local speed = a == "CHEETAH" or a == "PACK"
 	-- Cheetah and Pack show any time, so you don't forget you're in them
 	if p.aspectwhen ~= "ALWAYS" and not engaged and not (speed and p.aspectspeedalways) then return nil end
@@ -1146,6 +1168,20 @@ local function BadgeUpdate(self, elapsed)
 			pcall(PlaySound, SOUNDKIT.RAID_WARNING, "Master")
 		end
 		self.level = level
+		-- the saved record notes each real warning as it starts (not previews, and not the
+		-- Hawk / Monkey hints, which come and go all fight long)
+		if p.lock and not self.previewUntil then
+			local warn
+			if level == "DANGER" then
+				warn = "red warning, aspect " .. (ASPECT_NAMES[self.aspect] or "unknown")
+			elseif level == "HINT" and self.aspect == "NONE" then
+				warn = "yellow reminder: no aspect"
+			end
+			if warn ~= self.recWarn then
+				self.recWarn = warn
+				if warn and YaHT.Record then YaHT:Record("aspect", warn) end
+			end
+		end
 	end
 	local level = self.level
 	local want = level and 1 or 0
@@ -1277,6 +1313,7 @@ function YaHT:PreviewAlerts()
 	end
 	if self.TestFeignAlert then self:TestFeignAlert() end
 	if self.PreviewRange then self:PreviewRange(PREVIEW_TIME) end
+	if self.PreviewPet then self:PreviewPet(PREVIEW_TIME) end
 end
 
 ---------------------------------------------------------------------------

@@ -41,6 +41,8 @@ local PRESETS = {
 	},
 }
 
+YaHT.presets = PRESETS
+
 local function ApplyPreset(name)
 	local profile = YaHT.db.profile
 	for k, v in pairs(PRESETS[name]) do profile[k] = v end
@@ -51,7 +53,7 @@ local function ApplyPreset(name)
 end
 
 local TAB_KEYS = {
-	general = {"lock", "width", "height", "scale", "alpha", "malpha"},
+	general = {"lock", "width", "height", "scale", "alpha", "malpha", "minimap", "minimapangle"},
 	bar = {"statusbar", "timercolor", "drawcolor", "fill", "enablebackground", "background",
 		"backgroundcolor", "enableborder", "border", "bordercolor"},
 	text = {"showtext", "textmode", "textpos", "textsize", "textx", "texty", "font", "textcolor"},
@@ -63,11 +65,14 @@ local TAB_KEYS = {
 	timing = {"windupauto", "windup", "castholds", "autocorrect", "smooth"},
 	ammo = {"ammo", "ammosize", "ammofadestart", "ammolow", "ammocrit", "ammofullalpha", "ammoflash", "ammosound"},
 	melee = {"melee", "meleemode", "meleeheight", "meleealpha", "meleeglint", "meleeraptor", "meleecolor", "meleeraptorcolor"},
-	feign = {"feign", "feignscale", "feigntime", "feignsound", "feigntargetcheck", "feigncolor",
+	feign = {"feign", "feignscale", "feigntime", "feignsound", "feigntargetcheck", "feignthreatcheck", "feigncolor",
 		"feignpoint", "feignrelpoint", "feignx", "feigny"},
+	pet = {"pet", "petlow", "petlowat", "petwhen", "petdead", "petidle", "petsound", "petpulse", "pettextsize",
+		"petpoint", "petrelpoint", "petx", "pety"},
 	aspect = {"aspect", "aspectwhen", "aspectpos", "aspectsize", "aspectalpha", "aspectwarnspeed", "aspectspeedalways",
 		"aspectwarnnone", "aspecthint", "aspectsound", "aspectpoint", "aspectrelpoint", "aspectx", "aspecty"},
-	procs = {"procsize", "procalpha", "procglow", "procpulse", "procsound", "mongoosecooldown", "mongoose", "mongoosepos", "mongooseglowcolor", "mongoosepoint", "mongooserelpoint", "mongoosex", "mongoosey", "quickshots", "quickshotspos", "quickshotsglowcolor", "quickshotspoint", "quickshotsrelpoint", "quickshotsx", "quickshotsy", "rapidfire", "rapidfirepos", "rapidfireglowcolor", "rapidfirepoint", "rapidfirerelpoint", "rapidfirex", "rapidfirey", "racial", "racialpos", "racialglowcolor", "racialpoint", "racialrelpoint", "racialx", "racialy"},
+	procs = {"procsize", "procalpha", "procglow", "procpulse", "procsound", "mongoosecooldown", "mongoose", "mongoosepos", "mongooseglowcolor", "mongoosepoint", "mongooserelpoint", "mongoosex", "mongoosey", "quickshots", "quickshotspos", "quickshotsglowcolor", "quickshotspoint", "quickshotsrelpoint", "quickshotsx", "quickshotsy", "rapidfire", "rapidfirepos", "rapidfireglowcolor", "rapidfirepoint", "rapidfirerelpoint", "rapidfirex", "rapidfirey", "racial", "racialpos", "racialglowcolor", "racialpoint", "racialrelpoint", "racialx", "racialy",
+		"mongooseown", "mongooseownset", "mongooseiconsize", "mongooseiconalpha", "mongooseiconglow", "mongooseiconpulse", "mongooseiconsound", "quickshotsown", "quickshotsownset", "quickshotsiconsize", "quickshotsiconalpha", "quickshotsiconglow", "quickshotsiconpulse", "quickshotsiconsound", "rapidfireown", "rapidfireownset", "rapidfireiconsize", "rapidfireiconalpha", "rapidfireiconglow", "rapidfireiconpulse", "rapidfireiconsound", "racialown", "racialownset", "racialiconsize", "racialiconalpha", "racialiconglow", "racialiconpulse", "racialiconsound"},
 	range = {"meleerange", "meleerangewhen", "meleedeadstyle", "meleedeadcolor", "meleedeadheight", "meleedeadalpha", "meleefarcolor", "meleefarsize", "meleefaralpha",
 		"meleewarnspeed", "meleewarnboost", "meleewarnglow", "meleewarnglowsize", "meleewarnglowalpha"},
 	announce = {"tranqannounce", "announcetype", "targetchannel",
@@ -134,14 +139,36 @@ function YaHT:CreateConfig()
 	local quickshots = YaHT.GetSpellName(6150) or "Quick Shots"
 	local function aspectOff() return not YaHT.db.profile.aspect end
 	local function feignOff() return not YaHT.db.profile.feign end
+	local function petOff() return not YaHT.db.profile.pet end
+	local function petLowOff() local p = YaHT.db.profile return not p.pet or not p.petlow end
 
 	local rapidfire = YaHT.GetSpellName(3045) or "Rapid Fire"
 	local hasLCG = function() return LibStub and LibStub("LibCustomGlow-1.0", true) end
 	local function procsOff() local p = YaHT.db.profile return not (p.mongoose or p.quickshots or p.rapidfire or p.racial) end
+	-- the glow and pulse choices, used by the shared look and by an icon's own look
+	local function glowValues()
+		local v = {NONE = L["None"], HALO = L["Soft halo"], RING = L["Bright ring"],
+			SHINE = L["Shine (light sweeps across)"], SPARKS = L["Sparks (circle the icon)"]}
+		if hasLCG() then
+			v.PROC = L["Proc (spell alert)"]
+			v.BUTTON = L["Button (action bar glow)"]
+		end
+		return v
+	end
+	local function glowSorting()
+		local list = {"NONE", "HALO", "RING", "SHINE", "SPARKS"}
+		if hasLCG() then list[#list + 1] = "PROC" list[#list + 1] = "BUTTON" end
+		return list
+	end
+	local PULSE_VALUES = {NONE = L["None"], BREATHE = L["Breathe (fades in and out)"], GROW = L["Grow and shrink"],
+		HEARTBEAT = L["Heartbeat"], FLASH = L["Flash"]}
+	local PULSE_SORTING = {"NONE", "BREATHE", "GROW", "HEARTBEAT", "FLASH"}
+	local OWN_LOOK = {"size", "alpha", "glow", "pulse", "sound"}
 
 	-- one small page per proc icon: on/off, position, glow color (+ extras)
 	local function procPage(key, name, desc, order, extra)
 		local function off() return not YaHT.db.profile[key] end
+		local function ownOff() return not YaHT.db.profile[key .. "own"] end
 		local args = {
 			about = {name = desc, type = "description", order = 1},
 			[key] = {name = string.format(L["Show %s alert"], name), type = "toggle", width = "double", order = 2},
@@ -160,8 +187,36 @@ function YaHT:CreateConfig()
 				order = 4,
 				get = getColor,
 				set = setColor,
-				disabled = function() local p = YaHT.db.profile return not p[key] or p.procglow == "NONE" end,
+				disabled = function()
+					local p = YaHT.db.profile
+					local glow = p[key .. "own"] and p[key .. "iconglow"] or p.procglow
+					return not p[key] or glow == "NONE"
+				end,
 			},
+			-- its own look, instead of the one all proc icons share
+			[key .. "own"] = {
+				name = L["Its own look"],
+				desc = L["Give this icon its own size, opacity, glow, pulse and sound, instead of the look all proc icons share. It starts out as a copy of the shared look."],
+				type = "toggle",
+				width = "double",
+				order = 10,
+				set = function(info, value)
+					local p = YaHT.db.profile
+					if value and not p[key .. "ownset"] then
+						-- the first time: start from what the icon looks like now
+						for _, part in ipairs(OWN_LOOK) do p[key .. "icon" .. part] = p["proc" .. part] end
+						p[key .. "ownset"] = true
+					end
+					p[key .. "own"] = value
+					YaHT:ApplySettings()
+				end,
+				disabled = off,
+			},
+			[key .. "iconsize"] = {name = L["Icon size"], type = "range", order = 11, min = 16, max = 64, step = 1, hidden = ownOff, disabled = off},
+			[key .. "iconalpha"] = {name = L["Opacity"], type = "range", order = 12, min = 0.2, max = 1, step = 0.05, isPercent = true, hidden = ownOff, disabled = off},
+			[key .. "iconglow"] = {name = L["Glow style"], type = "select", order = 13, values = glowValues, sorting = glowSorting, hidden = ownOff, disabled = off},
+			[key .. "iconpulse"] = {name = L["Pulse style"], type = "select", order = 14, values = PULSE_VALUES, sorting = PULSE_SORTING, hidden = ownOff, disabled = off},
+			[key .. "iconsound"] = {name = L["Play a sound when it pops up"], type = "toggle", width = "double", order = 15, hidden = ownOff, disabled = off},
 		}
 		for k, v in pairs(extra or {}) do args[k] = v end
 		return {name = name, type = "group", order = order, args = args}
@@ -186,20 +241,8 @@ function YaHT:CreateConfig()
 			desc = L["Light around the icon while you can use it. Proc and Button are borrowed from LibCustomGlow and only appear when WeakAuras (or another addon that includes it) is installed."],
 			type = "select",
 			order = 23,
-			values = function()
-				local v = {NONE = L["None"], HALO = L["Soft halo"], RING = L["Bright ring"],
-					SHINE = L["Shine (light sweeps across)"], SPARKS = L["Sparks (circle the icon)"]}
-				if hasLCG() then
-					v.PROC = L["Proc (spell alert)"]
-					v.BUTTON = L["Button (action bar glow)"]
-				end
-				return v
-			end,
-			sorting = function()
-				local list = {"NONE", "HALO", "RING", "SHINE", "SPARKS"}
-				if hasLCG() then list[#list + 1] = "PROC" list[#list + 1] = "BUTTON" end
-				return list
-			end,
+			values = glowValues,
+			sorting = glowSorting,
 			disabled = procsOff,
 		},
 		procpulse = {
@@ -207,9 +250,8 @@ function YaHT:CreateConfig()
 			desc = L["How the icon moves while you can use it. It speeds up in the last moments of the window."],
 			type = "select",
 			order = 24,
-			values = {NONE = L["None"], BREATHE = L["Breathe (fades in and out)"], GROW = L["Grow and shrink"],
-				HEARTBEAT = L["Heartbeat"], FLASH = L["Flash"]},
-			sorting = {"NONE", "BREATHE", "GROW", "HEARTBEAT", "FLASH"},
+			values = PULSE_VALUES,
+			sorting = PULSE_SORTING,
 			disabled = procsOff,
 		},
 		procsound = {desc = L["Plays a short sound each time a proc icon appears."], name = L["Play a sound when one pops up"], type = "toggle", width = "double", order = 25, disabled = procsOff},
@@ -259,16 +301,41 @@ function YaHT:CreateConfig()
 						type = "toggle",
 						order = 2,
 					},
+					posheader = {name = L["Position"], type = "header", order = 5},
+					barx = {
+						name = L["Left / right (X)"],
+						desc = L["Where the middle of the bar sits, measured from the middle of the screen (0). The arrows move it one step."],
+						type = "range",
+						order = 6,
+						min = -2000, max = 2000, step = 1,
+						get = function() local x = YaHT:GetBarOffset() return x end,
+						set = function(_, value) YaHT:SetBarOffset(value, nil) end,
+					},
+					bary = {
+						name = L["Up / down (Y)"],
+						desc = L["Where the middle of the bar sits, measured from the middle of the screen (0). The arrows move it one step."],
+						type = "range",
+						order = 7,
+						min = -1200, max = 1200, step = 1,
+						get = function() local _, y = YaHT:GetBarOffset() return y end,
+						set = function(_, value) YaHT:SetBarOffset(nil, value) end,
+					},
 					resetpos = {
 						name = L["Reset position"],
 						desc = L["Move the bar back to the middle of the screen."],
 						type = "execute",
-						order = 3,
+						order = 8,
 						func = function()
 							local p = YaHT.db.profile
 							p.point, p.relativePoint, p.x, p.y = nil, nil, nil, nil
 							YaHT:ApplySettings()
 						end,
+					},
+					minimap = {
+						name = L["Minimap button"],
+						desc = L["A YaHT button on the minimap: left-click opens the options, right-click a quick menu, drag to move it."],
+						type = "toggle",
+						order = 4,
 					},
 					presetheader = {
 						name = L["Quick looks"],
@@ -796,6 +863,83 @@ function YaHT:CreateConfig()
 				args = procsArgs,
 			},
 			------------------------------------------------------------------
+			pet = {
+				name = L["Pet"],
+				type = "group",
+				order = 5.745,
+				args = {
+					petdesc = {
+						name = L["Small warning text for your pet: when it's low on health, dead or missing in a fight, or not attacking while you shoot. It's a separate alert: unlock the bar to drag it anywhere on your screen."],
+						type = "description",
+						order = 1,
+					},
+					pet = {
+						name = L["Show pet alerts"],
+						type = "toggle",
+						width = "double",
+						order = 2,
+					},
+					warnheader = {name = L["Warn me when my pet is"], type = "header", order = 10},
+					petdead = {
+						name = L["Dead or missing"],
+						desc = L["In a fight, when your pet is dead or not out."],
+						type = "toggle",
+						order = 11,
+						disabled = petOff,
+					},
+					petidle = {
+						name = L["Not attacking"],
+						desc = L["When you've been shooting for 3 seconds and your pet isn't attacking anything."],
+						type = "toggle",
+						order = 12,
+						disabled = petOff,
+					},
+					petlow = {
+						name = L["Low on health"],
+						desc = L["The game hides your pet's exact health from addons, so this warning can't play a sound."],
+						type = "toggle",
+						order = 13,
+						disabled = petOff,
+					},
+					petlowat = {
+						name = L["Low means below"],
+						type = "range",
+						order = 14,
+						min = 0.1, max = 0.6, step = 0.05,
+						isPercent = true,
+						get = function() return YaHT.db.profile.petlowat / 100 end,
+						set = function(_, v) YaHT.db.profile.petlowat = math.floor(v * 100 + 0.5) YaHT:ApplySettings() end,
+						disabled = petLowOff,
+					},
+					petwhen = {
+						name = L["Low health shows"],
+						desc = L["In combat or while shooting: only then. Always: whenever your pet is out."],
+						type = "select",
+						order = 15,
+						values = {COMBAT = L["In combat or while shooting"], ALWAYS = L["Always"]},
+						sorting = {"COMBAT", "ALWAYS"},
+						disabled = petLowOff,
+					},
+					lookheader = {name = L["Look"], type = "header", order = 20},
+					pettextsize = {name = L["Font size"], type = "range", order = 21, min = 8, max = 24, step = 1, disabled = petOff},
+					petpulse = {
+						name = L["Pulse"],
+						desc = L["The dead, missing and not-attacking warnings pulse. PET LOW stays steady."],
+						type = "toggle",
+						order = 22,
+						disabled = petOff,
+					},
+					petsound = {
+						name = L["Play a warning sound"],
+						desc = L["Plays when your pet dies or is missing in a fight."],
+						type = "toggle",
+						order = 23,
+						disabled = petOff,
+					},
+					reset = resetButton("pet"),
+				},
+			},
+			------------------------------------------------------------------
 			feign = {
 				name = L["Feign Death"],
 				type = "group",
@@ -832,6 +976,14 @@ function YaHT:CreateConfig()
 					},
 					feignsound = {name = L["Play a warning sound"], type = "toggle", order = 7, disabled = feignOff},
 					detectheader = {name = L["How a resist is noticed"], type = "header", order = 10},
+					feignthreatcheck = {
+						name = L["You're still on the mob's threat list"],
+						desc = L["A feign that works takes you off your target's threat list within about a second. If you're still on it after that, it counts as resisted. This is the fastest sign when the game shows no \"Resisted\" message."],
+						type = "toggle",
+						width = "double",
+						order = 12,
+						disabled = feignOff,
+					},
 					feigntargetcheck = {
 						name = L["Your target still targets you"],
 						desc = L["Also counts a resist when the mob still targets you 1.5 and 2.5 seconds after you feign. The game's own \"Resisted\" message always counts."],
@@ -908,8 +1060,8 @@ function YaHT:CreateConfig()
 						disabled = aspectOff,
 					},
 					aspectwarnnone = {
-						name = L["Red: no aspect in a fight"],
-						desc = L["Turns red when you're in a fight without any aspect."],
+						name = L["Warn when you have no aspect"],
+						desc = L["Red when you're in a fight without any aspect. Out of a fight it's a yellow reminder, while you shoot or when the badge is set to show always."],
 						type = "toggle",
 						width = "double",
 						order = 12,
@@ -1345,6 +1497,7 @@ function YaHT:CreateConfig()
 			onheader = {name = L["Turn alerts on or off"], type = "header", order = 10},
 			aspect = {name = L["Aspect badge"], type = "toggle", order = 11},
 			feign = {name = L["Feign Death resist"], type = "toggle", order = 12},
+			pet = {name = L["Pet alerts"], type = "toggle", order = 12.5},
 			meleerange = {name = L["Range warnings"], type = "toggle", order = 13},
 			melee = {name = L["Melee swing line"], type = "toggle", order = 14},
 			ammo = {name = L["Ammo counter"], type = "toggle", order = 15},
@@ -1352,12 +1505,13 @@ function YaHT:CreateConfig()
 			procspage = A.procs,
 			aspectpage = A.aspect,
 			feignpage = A.feign,
+			petpage = A.pet,
 			rangepage = A.range,
 			meleepage = A.melee,
 			ammopage = A.ammo,
 		},
 	}
-	A.procs.order, A.aspect.order, A.feign.order, A.range.order, A.melee.order, A.ammo.order = 1, 2, 3, 4, 5, 6
+	A.procs.order, A.aspect.order, A.feign.order, A.pet.order, A.range.order, A.melee.order, A.ammo.order = 1, 2, 3, 4, 5, 6, 7
 	A.melee.name = L["Melee line"]
 
 	local advanced = {
@@ -1370,6 +1524,47 @@ function YaHT:CreateConfig()
 				type = "description",
 				order = 1,
 			},
+			debugheader = {name = L["Debug log"], type = "header", order = 10},
+			debugdesc = {
+				name = L["For bug reports: writes down every shot and alert while it is on. /yaht copy opens the log so you can copy it."],
+				type = "description",
+				order = 11,
+			},
+			debug = {
+				name = L["Write the debug log"],
+				type = "toggle",
+				order = 12,
+				get = function() return YaHT.debug and true or false end,
+				set = function(_, value)
+					YaHT.debug = value and true or false
+					YaHT.db.global.debug = YaHT.debug -- stays on (or off) after you log out
+				end,
+			},
+			debugwindow = {
+				name = L["Show its lines in"],
+				desc = L["Where the debug lines appear while the log is on. The log itself keeps every line either way. To give them their own tab, make a new chat window in the game first, then pick it here."],
+				type = "select",
+				order = 13,
+				values = function()
+					local v = {[0] = L["The main chat window"], [-1] = L["Nowhere (only the log)"]}
+					for i = 2, (NUM_CHAT_WINDOWS or 10) do
+						local name = GetChatWindowInfo and GetChatWindowInfo(i)
+						if type(name) == "string" and name ~= "" then v[i] = string.format(L["Chat tab: %s"], name) end
+					end
+					return v
+				end,
+				sorting = function()
+					local list = {0}
+					for i = 2, (NUM_CHAT_WINDOWS or 10) do
+						local name = GetChatWindowInfo and GetChatWindowInfo(i)
+						if type(name) == "string" and name ~= "" then list[#list + 1] = i end
+					end
+					list[#list + 1] = -1
+					return list
+				end,
+				get = function() return YaHT.db.global.debugwindow or 0 end,
+				set = function(_, value) YaHT.db.global.debugwindow = value end,
+			},
 			timingpage = A.timing,
 			announcepage = A.announce,
 		},
@@ -1381,6 +1576,7 @@ function YaHT:CreateConfig()
 	aceoptions.args.profile = LibStub("AceDBOptions-3.0"):GetOptionsTable(self.db)
 	aceoptions.args.profile.order = 100
 	AceConfigRegistry:RegisterOptionsTable(Addon, aceoptions, true)
+	self.optionsTable = aceoptions -- YaHT's own window (menu.lua) is drawn from this same table
 
 	-- also listed in the game's Settings > AddOns panel
 	AceConfigDialog:AddToBlizOptions(Addon, "YaHT")

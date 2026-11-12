@@ -48,7 +48,7 @@ NUM_BAG_SLOTS = 4
 sounds = {}
 SOUNDKIT = {RAID_WARNING=8959, ALARM_CLOCK_WARNING_3=12889}
 function PlaySound(k) table.insert(sounds, k) end
-Enum = {PlayerSwingType = {MainHand=0, OffHand=1, Ranged=2}}
+Enum = {PlayerSwingType = {MainHand=0, OffHand=1, Ranged=2}, UITextureSliceMode = {Stretched=0, Tiled=1}}
 function GetLocale() return "enUS" end
 function UnitFactionGroup() return "Alliance","Alliance" end
 function UnitRace() return "Dwarf","Dwarf" end
@@ -67,6 +67,12 @@ sent = {}
 C_ChatInfo = {SendChatMessage=function(m,t,_,tg) table.insert(sent, t..":"..m) end}
 BackdropTemplateMixin = {}
 UIParent = {}
+UISpecialFrames = {}
+NORMAL_FONT_COLOR_CODE = "|cffffd200"
+FONT_COLOR_CODE_CLOSE = "|r"
+StaticPopupDialogs = {}
+popups = {}
+function StaticPopup_Show(which, text, _, data) table.insert(popups, {which=which, text=text, data=data}) end
 DEFAULT_CHAT_FRAME = {AddMessage=function(_,m) print("CHAT", m) end}
 SlashCmdList = {}
 geterrorhandler = function() return function(e) print("ERR",e) end end
@@ -75,9 +81,20 @@ function hooksecurefunc() end
 local function newobj(kind)
   local o = {shown=true, scripts={}, events={}, width=0, alpha=1}
   local noop=function() end
-  for _,m in ipairs({"SetFrameStrata","RegisterForDrag","SetClampedToScreen","SetAllPoints","SetHorizTile","SetVertTile","SetPoint","ClearAllPoints","SetHeight","SetScale","EnableMouse","SetMovable","SetBackdropBorderColor","SetTexture","StartMoving","StopMovingOrSizing","SetOwner","ClearLines","SetInventoryItem","SetJustifyH","SetFrameLevel","SetTexCoord","SetBlendMode","SetMovable","SetMultiLine","SetAutoFocus","SetFontObject","SetFocus","HighlightText","SetScrollChild"}) do o[m]=noop end
+  for _,m in ipairs({"SetFrameStrata","RegisterForDrag","SetClampedToScreen","SetAllPoints","SetHorizTile","SetVertTile","SetPoint","ClearAllPoints","SetHeight","SetScale","EnableMouse","SetMovable","SetBackdropBorderColor","SetTexture","StartMoving","StopMovingOrSizing","SetOwner","ClearLines","SetInventoryItem","SetJustifyH","SetFrameLevel","SetTexCoord","SetBlendMode","SetMovable","SetMultiLine","SetAutoFocus","SetFontObject","SetFocus","HighlightText","SetScrollChild","SetMinMaxValues","SetStatusBarTexture","SetStatusBarColor","SetColorTexture","SetTextureSliceMargins","SetTextureSliceMode"}) do o[m]=noop end
+  o.SetScale=function(s,v) s.scale=v end
   o.SetTexture=function(s,t) s.tex=t end
   o.NumLines=function() return 2 end
+  for _,m in ipairs({"SetJustifyV","SetWordWrap","SetOrientation","SetValueStep","SetObeyStepOnDrag","SetThumbTexture","EnableMouseWheel","SetToplevel","ClearFocus","SetTextInsets","SetBackdropColor","RegisterForClicks","SetHighlightTexture"}) do o[m]=noop end
+  o.GetStringHeight=function(s) return 12 end
+  o.GetStringWidth=function(s) return #(tostring(s.txt or ""))*6 end
+  o.GetText=function(s) return s.txt end
+  o.GetHeight=function(s) return s.h or s.height or 20 end
+  o.GetThumbTexture=function(s) s.thumb = s.thumb or newobj("Texture") return s.thumb end
+  o.SetVerticalScroll=function(s,v) s.vscroll=v end
+  o.GetVerticalScroll=function(s) return s.vscroll or 0 end
+  o.CreateAnimationGroup=function(s) local g={playing=false} g.CreateAnimation=function() local an={} for _,m in ipairs({"SetFromAlpha","SetToAlpha","SetDuration","SetSmoothing"}) do an[m]=function() end end return an end g.SetLooping=function() end g.Play=function(x) x.playing=true end g.Stop=function(x) x.playing=false end return g end
+  o.SetValue=function(s,v) s.value=v end
   o.SetSize=function(s,w,h) s.w=w s.h=h s.width=w end
   o.SetShown=function(s,v) s.shown=v and true or false end
   o.SetIgnoreParentAlpha=function(s,v) s.ignore=v end

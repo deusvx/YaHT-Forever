@@ -1,5 +1,43 @@
 # Changelog
 
+## 1.3.0
+- New: YaHT's own options window (/yaht). The pages are listed on the left and the settings are
+  grouped in boxes. On the right, a live preview shows your bar and icons as you change them, and a
+  help panel explains the setting under your mouse. A Home page has the quick looks as live cards
+  and the main switches, and a search box finds any setting. It is drawn smaller on small screens.
+  Every setting, reset button and profile works as before; /yaht classic opens the old window.
+- New: pet alerts. Small warning text you can drag anywhere on your screen (unlock the bar to move
+  it): PET DEAD or NO PET when your pet is dead or missing in a fight (with a warning sound), PET NOT
+  ATTACKING when you've been shooting for 3 seconds and your pet attacks nothing, and PET LOW when
+  its health drops below a share you choose (35% by default). Forever hides your pet's exact health
+  from addons, so PET LOW is drawn by the game itself and can't play a sound. Its own Pet page in
+  the options: each warning on or off, the low threshold, text size, pulse and sound.
+- Feign Death: a resist is now also noticed from your target's threat list (you stay on it). When
+  the game shows no "Resisted" message the alert comes in a little over a second instead of 2.5,
+  and it also catches resists where your pet pulls the mob off you.
+- Feign Death: the RESIST alert shows at once when the game's "Resisted" message arrives a moment
+  before the cast is confirmed (it could be 2.5 seconds late).
+- Aspect badge: having no aspect is now also flagged out of a fight (yellow), while you shoot or
+  when the badge is set to show always; it stays red in a fight. A blink without an aspect while you
+  switch from one to another no longer warns.
+- Proc icons can each have their own look (size, opacity, glow, pulse, sound) instead of the shared
+  one: "Its own look" on each proc's page.
+- The bar can be placed exactly: X and Y under The bar (slider, single-step arrows, or type the
+  number), and a Grid switch at the top of the options (or /yaht grid) draws an alignment grid over
+  the screen. Lock bar sits at the top of the options too.
+- Sliders in the options have small arrows for single steps, and you can double-click the number to
+  type a value.
+- New: a minimap button. Left-click opens the options, right-click a quick menu (lock or unlock
+  the bar, preview all alerts, options, hide the button), drag it around the minimap. Switch it
+  off in the options or with /yaht minimap.
+- New: /yaht selftest checks in the game that everything YaHT needs is there, that every options
+  page draws and that every alert shows, and saves a report with your settings.
+- New: a small always-on record of the things that are hard to test on purpose (pet warnings, aspect
+  warnings, anything of YaHT's that broke); /yaht record shows the newest lines.
+- Debug log: choose where its lines show (the main chat, another chat tab, or only the log) and
+  switch it on or off under Advanced; the switch is remembered.
+- Fixed: Mongoose Bite dropped out of "Preview all alerts" after a moment.
+
 ## 1.2.0
 - Timing: shots right after your attack speed changes (Rapid Fire, Quick Shots or another haste
   effect starting or ending) no longer teach the learned shot delay, so it stays accurate.

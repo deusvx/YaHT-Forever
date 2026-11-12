@@ -178,4 +178,12 @@ db.mongoose=true usable=false
 -- unlocked: preview loops so you can place it
 db.lock=false YaHT:ApplySettings() run(0.5)
 assert(m.shown and m.alpha>0.9, "no preview while unlocked")
+-- "Preview all alerts": Mongoose Bite's own check (it isn't usable) must not take the preview down
+db.lock = true YaHT:ApplySettings() usable = false fire("SPELL_UPDATE_USABLE") run(0.5)
+local mf = YaHT.mongooseFrame
+assert(not mf.proc, "setup: no Mongoose Bite chance")
+YaHT:PreviewAlerts()
+fire("SPELL_UPDATE_USABLE") run(0.6)
+assert(mf.proc and mf.shown and mf.previewUntil, "Mongoose Bite dropped out of Preview all alerts")
+run(7) assert(not mf.proc and not mf.previewUntil, "the preview should end by itself")
 print("OK26")

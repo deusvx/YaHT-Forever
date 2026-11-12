@@ -56,7 +56,27 @@ db.aspectwarnspeed=true
 
 -- no aspect in a fight: red question mark
 current=nil fire("UNIT_AURA") run(0.2)
+assert(b.aspect=="NONE" and not red() and b.shown, "no aspect should not warn in the first instant (aspect switches pass through it)")
+run(0.6)
 assert(b.aspect=="NONE" and red() and b.drawnTex:find("QuestionMark"), "no warning without an aspect")
+-- switching aspects: without one for a blink is not a warning
+current="Aspect of the Hawk" fire("UNIT_AURA") run(0.3) assert(not red(), "Hawk should be fine")
+current=nil fire("UNIT_AURA") run(0.2) current="Aspect of the Monkey" fire("UNIT_AURA") run(0.6)
+assert(not red() and b.aspect=="MONKEY", "a blink without an aspect while switching warned")
+current=nil fire("UNIT_AURA") run(0.8) assert(red(), "setup: no aspect again")
+-- no aspect out of a fight: nothing when the badge is for fights only, a yellow reminder when it shows always
+local wasCombat, wasWhen, wasShooting = inCombat, db.aspectwhen, main.shooting
+inCombat = false w.inCombat = false main.shooting = false db.aspectwhen = "COMBAT" fire("PLAYER_REGEN_ENABLED") run(1.2)
+assert(b.aspect=="NONE" and (not b.shown or b.alpha < 0.05), "no aspect out of a fight should stay quiet when the badge is for fights only")
+db.aspectwhen = "ALWAYS" fire("UNIT_AURA") run(1.0)
+assert(b.shown and b.level == "HINT" and yellow() and b.halo.shown, "no yellow reminder for having no aspect out of a fight")
+db.aspectwarnnone = false fire("UNIT_AURA") run(1.2)
+assert(not b.shown or b.alpha < 0.05, "the no-aspect reminder ignores its switch")
+-- ... and while shooting without one, even when the badge is for fights only
+db.aspectwarnnone = true db.aspectwhen = "COMBAT" main.shooting = true fire("UNIT_AURA") run(1.0)
+assert(b.shown and b.level == "HINT", "no reminder for shooting without an aspect")
+db.aspectwhen = wasWhen main.shooting = wasShooting
+inCombat = wasCombat w.inCombat = wasCombat fire(wasCombat and "PLAYER_REGEN_DISABLED" or "PLAYER_REGEN_ENABLED") run(0.3)
 -- back to Hawk: quiet again
 current="Aspect of the Hawk" fire("UNIT_AURA") run(0.3)
 assert(not red() and not b.halo.shown, "warning stuck after switching to Hawk")
@@ -156,4 +176,9 @@ assert(db.aspectsize==22 and db.aspecthint==false, "Aspect reset didn't restore 
 -- unlocked: preview
 inCombat=false db.lock=false YaHT:ApplySettings() run(0.3)
 assert(b.shown and b.alpha>0.5, "no preview while unlocked")
+-- the record kept each warning coming and going
+local rec = YaHT.db.global.record or {}
+local function recorded(what) for _, l in ipairs(rec) do if l:find(what, 1, true) then return true end end end
+assert(recorded("[aspect] red warning, aspect Cheetah") and recorded("[aspect] red warning, aspect none") and recorded("[aspect] yellow reminder: no aspect"), "aspect warnings weren't written to the record")
+assert(not recorded("cleared") and not recorded("Monkey") and not recorded("Hawk"), "the record should only keep warnings starting, not the Hawk / Monkey hints")
 print("OK28")

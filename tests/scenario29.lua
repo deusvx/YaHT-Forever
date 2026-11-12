@@ -106,4 +106,75 @@ local fa = opts.args.alerts.args.feignpage.args
 assert(fa.feign and fa.feigntest and not fa.feignhitcheck and fa.reset, "Feign Death section incomplete (or still shows the dead health option)")
 db.feignscale=2 fa.reset.func()
 assert(db.feignscale==1 and db.feignpoint==nil, "reset didn't restore size and position")
+-- "Resisted" arriving just BEFORE the cast is confirmed (seen in game: the alert was 2.5s late)
+run(6) feigned=false sounds = {}
+assert(not a.shown and not w.active, "setup: quiet before the early-message tests")
+fire("UI_ERROR_MESSAGE", 1, "Resisted") assert(not a.shown, "a stray Resisted message alone must not alert")
+feign() run(0.05)
+assert(a.shown and w.resisted and #sounds == 1, "Resisted just before the cast wasn't alerted at once")
+run(6) feigned=false
+-- ... or right after the key press, with the cast confirmed later or never
+fire("UNIT_SPELLCAST_SENT", "player", "target", "guid", 5384)
+fire("UI_ERROR_MESSAGE", 1, "Resisted") run(0.05)
+assert(a.shown and #sounds == 2, "Resisted right after pressing Feign Death wasn't alerted at once")
+feign() run(3.5)
+assert(#sounds == 2, "alerted twice for one resisted feign")
+run(6) feigned=false
+-- a Resisted message long before a feign has nothing to do with it
+fire("UI_ERROR_MESSAGE", 1, "Resisted") run(2) feign() run(0.5)
+assert(not w.resisted and #sounds == 2, "an old Resisted message was pinned on a later feign")
+run(6) feigned=false
+
+-- THREAT (measured in game: readable in a fight; a working feign drops you off the list within
+-- about a second, a resisted one doesn't, and the game may send no "Resisted" message at all)
+local threat = 3
+function UnitThreatSituation() return threat end
+sounds = {}
+-- resisted: still on the list -> alerted after 1.25s, not 2.5s
+targetOnYou = true feign() run(1.15)
+assert(not w.resisted and not a.shown, "the threat check fired too early")
+run(0.2)
+assert(w.resisted and a.shown and #sounds == 1, "still on the threat list should alert after about 1.25s")
+run(6) feigned = false
+-- worked: you drop off the list -> no alert, even if the mob is still looking your way for a moment
+feign() run(0.5) threat = nil run(3)
+assert(not w.resisted and #sounds == 1 and w.threatGone and w.threatGone < 0.65, "a feign that took you off the threat list was called resisted")
+run(4) feigned = false threat = 3
+-- the mob never had you on its list (pet was tanking, no target): fall back to the old check
+threat = nil targetOnYou = true feign() run(2.0)
+assert(not w.resisted, "without threat to read the alert should wait for the target check")
+run(0.7) assert(w.resisted and #sounds == 2, "the target check should still work when threat can't tell")
+run(6) feigned = false
+-- threat the game hides: also the old check; and the new check can be switched off
+threat = SECRET feign() run(2.0) assert(not w.resisted, "a hidden threat value was taken for something")
+run(4.5) feigned = false threat = 3
+db.feignthreatcheck = false feign() run(1.6) assert(not w.resisted, "the threat check ignores its switch")
+run(5) feigned = false db.feignthreatcheck = true targetOnYou = false
+function UnitThreatSituation() return nil end
+
+-- a message the game repeats every frame is written down once a feign, not a hundred times
+targetOnYou = false feign()
+for i = 1, 100 do fire("UI_ERROR_MESSAGE", 57, "Target too close") end
+fire("UI_ERROR_MESSAGE", 58, "Out of range.")
+local close, far = 0, 0
+for _, l in ipairs(YaHT.db.global.fdlog) do
+  if l:find("Target too close", 1, true) then close = close + 1 end
+  if l:find("Out of range", 1, true) then far = far + 1 end
+end
+assert(close == 1 and far == 1, "repeated messages flooded the record: " .. close .. " / " .. far)
+run(4) feigned = false
+feign() fire("UI_ERROR_MESSAGE", 57, "Target too close") run(4) feigned = false
+close = 0 for _, l in ipairs(YaHT.db.global.fdlog) do if l:find("Target too close", 1, true) then close = close + 1 end end
+assert(close == 2, "the next feign should write the message down again")
+
+-- the last feigns are always written down (debug off), so a late alert can be looked into
+local fd = YaHT.db.global.fdlog
+assert(not YaHT.debug and fd and #fd > 10 and #fd <= 150, "no record of the last feigns")
+local resisted, threat = false, false
+for _, line in ipairs(fd) do
+  if line:find("RESISTED", 1, true) then resisted = true end
+  if line:find("threat", 1, true) then threat = true end
+  assert(not line:find("health", 1, true) or line:find("cast |", 1, true), "chatty health lines kept: "..line)
+end
+assert(resisted and threat, "the record misses the resist or the threat looks")
 print("OK29")

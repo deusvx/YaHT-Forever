@@ -20,6 +20,12 @@ local function Plain(v) if IsSecret(v) then return nil end return v end
 local FEIGN_ID = 5384
 local FALLBACK_ICON = "Interface\\Icons\\Ability_Rogue_FeignDeath"
 local WATCH = 3          -- seconds after feigning to watch for a resist
+-- The game's "Resisted" message can arrive a moment BEFORE it confirms the cast
+-- (seen in game: the alert then came from the slow target check instead). So a
+-- resist message also counts when it comes shortly after you pressed Feign
+-- Death, or just before the cast is confirmed.
+local SENT_WINDOW = 1.5  -- "Resisted" this soon after pressing Feign Death counts, confirmed or not
+local EARLY_WINDOW = 0.5 -- "Resisted" this soon before the cast is confirmed counts
 local HIT_GRACE = 0.25   -- health changes this soon after feigning still count as before it
 -- your target must still be on you at both moments (a mob that's only slow to
 -- turn away after a good feign has let go by the second look)
@@ -67,8 +73,58 @@ local function TargetStillOnYou()
 	return Plain(onYou)
 end
 
-local function Log(msg)
+-- Feign Death is used rarely and resisted more rarely still, so what happened
+-- around the last few is always kept (a handful of lines each, in the saved
+-- settings): a late or missing alert can then be looked into afterwards
+-- without /yaht debug having been on. debugOnly: too chatty to keep.
+local FD_LOG_MAX = 150
+local function Log(msg, debugOnly)
+	local g = YaHT.db and YaHT.db.global
+	if g and not debugOnly then
+		local log = g.fdlog or {}
+		g.fdlog = log
+		log[#log + 1] = string.format("%.3f  %s", GetTime(), msg)
+		if #log > FD_LOG_MAX then table.remove(log, 1) end
+	end
 	if YaHT.debug then YaHT:Print("FD: " .. msg) end
+end
+
+-- What the game says about your threat on your target. A feign that worked
+-- should take you off its list; if this is readable in a fight it would
+-- notice a resist sooner than waiting to see whether the mob keeps coming.
+-- For now it is only written down (a few looks after each feign).
+-- Measured in game (2026-11-12, five feigns): threat on your target is readable
+-- in a fight. A feign that works takes you off its list within about a second
+-- (seen gone by 0.3s, 0.6s, 1.0s and 1.0s); a resisted one leaves you on it
+-- (still tanking at 2.5s), and the game sent no "Resisted" message for it. So:
+-- still on the list THREAT_WAIT after feigning = resisted. That is twice as
+-- fast as waiting to see whether the mob keeps coming, and the moment you drop
+-- off the list is written down so the wait can be tightened with more data.
+local THREAT_POLL = 0.1
+local THREAT_WAIT = 1.25
+local THREAT_LOOKS = {1.5, 2.5}
+
+-- Are you on your target's threat list? true / false, nil when the game won't say
+local function OnThreatList()
+	if not UnitThreatSituation then return nil end
+	local ok, situation = pcall(UnitThreatSituation, "player", "target")
+	if not ok or IsSecret(situation) then return nil end
+	return situation ~= nil
+end
+local function Threat()
+	local function txt(v) if IsSecret(v) then return "SECRET" end return tostring(v) end
+	local parts = {}
+	if UnitThreatSituation then
+		local ok, situation = pcall(UnitThreatSituation, "player", "target")
+		parts[#parts + 1] = "situation " .. (ok and txt(situation) or "ERR")
+	else
+		parts[#parts + 1] = "situation n/a"
+	end
+	if UnitDetailedThreatSituation then
+		local ok, tanking, status, scaled = pcall(UnitDetailedThreatSituation, "player", "target")
+		parts[#parts + 1] = ok and string.format("tanking %s status %s pct %s", txt(tanking), txt(status), txt(scaled)) or "detailed ERR"
+	end
+	return table.concat(parts, " | ")
 end
 
 ---------------------------------------------------------------------------
@@ -229,16 +285,45 @@ end
 
 local function StartWatch()
 	watch.active, watch.resisted, watch.targetChecks, watch.stillOnYou = true, false, 0, true
+	watch.threatLooks = 0
+	watch.seenMsg = {}
 	watch.at = GetTime()
 	watch.health = Health()
+	-- only a mob that had you on its list can show the feign working by dropping you
+	watch.hadThreat, watch.threatGone, watch.nextThreat = OnThreatList() == true, nil, 0
+	-- already alerted from the message that came right after the key press: no second alert
+	if watch.alertedAt and watch.at - watch.alertedAt <= SENT_WINDOW then watch.resisted = true end
 	Log(string.format("cast | health %s | feigned %s | in combat %s", tostring(watch.health),
 		tostring(Feigned()), tostring(Plain(InCombatLockdown and InCombatLockdown()))))
+	Log("threat at cast: " .. Threat())
 	watch:Show()
+	-- the message beat the cast confirmation: alert now, not after the slow checks
+	if watch.msgAt and watch.at - watch.msgAt <= EARLY_WINDOW then
+		watch.msgAt = nil
+		Resisted("the game said resisted, just before the cast")
+	end
 end
 
 local function WatchUpdate(self)
 	if not self.active then self:Hide() return end
 	local t = GetTime() - self.at
+	-- the fast check: are you still on the mob's threat list?
+	if self.hadThreat and not self.threatGone and not self.resisted and t >= (self.nextThreat or 0) then
+		self.nextThreat = t + THREAT_POLL
+		local on = OnThreatList()
+		if on == false then
+			self.threatGone = t
+			Log(string.format("off the threat list %.2fs after feigning: it worked", t))
+		elseif on == true and t >= THREAT_WAIT and YaHT.db.profile.feignthreatcheck then
+			Log("threat " .. Threat())
+			Resisted("still on your target's threat list")
+		end
+	end
+	local look = THREAT_LOOKS[(self.threatLooks or 0) + 1]
+	if look and t >= look then
+		self.threatLooks = (self.threatLooks or 0) + 1
+		Log(string.format("%.1fs: threat %s", t, Threat()))
+	end
 	local nextCheck = TARGET_CHECKS[self.targetChecks + 1]
 	if nextCheck and t >= nextCheck then
 		self.targetChecks = self.targetChecks + 1
@@ -246,7 +331,9 @@ local function WatchUpdate(self)
 		Log(string.format("%.1fs: target on you %s | feigned %s | in combat %s", t, tostring(onYou),
 			tostring(Feigned()), tostring(Plain(InCombatLockdown and InCombatLockdown()))))
 		if not onYou then self.stillOnYou = false end
-		if self.targetChecks == #TARGET_CHECKS and self.stillOnYou and YaHT.db.profile.feigntargetcheck then
+		-- (a mob that dropped you from its list was fooled, whoever it looks at next)
+		if self.targetChecks == #TARGET_CHECKS and self.stillOnYou and not self.threatGone
+			and YaHT.db.profile.feigntargetcheck then
 			Resisted("your target stayed on you")
 		end
 	end
@@ -258,33 +345,70 @@ local function WatchUpdate(self)
 	end
 end
 
+local function IsFeign(spellID)
+	spellID = Plain(spellID)
+	if spellID == FEIGN_ID then return true end
+	feignName = feignName or YaHT.GetSpellName(FEIGN_ID)
+	return spellID ~= nil and feignName ~= nil and YaHT.GetSpellName(spellID) == feignName
+end
+
 local function OnEvent(self, event, ...)
 	if not YaHT.db then return end
 	if event == "UNIT_SPELLCAST_SUCCEEDED" then
 		local unit, _, spellID = ...
 		if unit ~= "player" then return end
-		spellID = Plain(spellID)
-		feignName = feignName or YaHT.GetSpellName(FEIGN_ID)
-		local isFeign = spellID == FEIGN_ID
-		if not isFeign and spellID and feignName then isFeign = YaHT.GetSpellName(spellID) == feignName end
-		if isFeign then StartWatch() end
+		if IsFeign(spellID) then StartWatch() end
+	elseif event == "UNIT_SPELLCAST_SENT" then
+		-- the key press, before the game answers: remember it for a "Resisted" that comes first
+		local unit, _, _, spellID = ...
+		if unit == "player" and IsFeign(spellID) then
+			self.sentAt = GetTime()
+			Log("pressed")
+		end
+	elseif (event == "UI_ERROR_MESSAGE" or event == "UI_INFO_MESSAGE") and not self.active then
+		local _, msg = ...
+		if not IsResistMessage(msg) then return end
+		local now = GetTime()
+		if self.sentAt and now - self.sentAt <= SENT_WINDOW then
+			-- pressed Feign Death, and "Resisted" came before (or without) the cast confirmation
+			Log(string.format("RESISTED (the game said resisted) %.2fs after the key press, before the cast was confirmed", now - self.sentAt))
+			self.sentAt = nil
+			self.alertedAt = now
+			ShowAlert("the game said resisted")
+		else
+			self.msgAt = now -- counts if the cast is confirmed within a moment
+		end
 	elseif not self.active then
 		return
 	elseif event == "UI_ERROR_MESSAGE" or event == "UI_INFO_MESSAGE" then
 		local _, msg = ...
-		Log(string.format("%s: %s", event == "UI_ERROR_MESSAGE" and "error" or "info", tostring(Plain(msg) or "(hidden)")))
+		-- The game repeats some messages every frame while a key is held ("Target
+		-- too close" filled the whole record once): each is written down once a feign.
+		local text = tostring(Plain(msg) or "(hidden)")
+		self.seenMsg = self.seenMsg or {}
+		if not self.seenMsg[text] then
+			self.seenMsg[text] = true
+			Log(string.format("%s: %s", event == "UI_ERROR_MESSAGE" and "error" or "info", text))
+		end
 		if IsResistMessage(msg) then Resisted("the game said resisted") end
 	elseif event == "UNIT_HEALTH" then
 		local unit = ...
 		if unit ~= "player" then return end
 		local h = Health()
 		local t = GetTime() - self.at
-		Log(string.format("health %s at %.2fs | feigned %s", tostring(h), t, tostring(Feigned())))
+		Log(string.format("health %s at %.2fs | feigned %s", tostring(h), t, tostring(Feigned())), true)
 		if h and self.health and h < self.health and t > HIT_GRACE and Feigned() ~= false
 			and YaHT.db.profile.feignhitcheck then
 			Resisted("you were hit while feigned")
 		end
 		if h then self.health = h end
+	elseif event == "UNIT_COMBAT" then
+		local unit, action, descriptor = ...
+		action = Plain(action)
+		-- hits on you are too many to keep; anything else might be the game saying "resisted"
+		if unit == "player" and action ~= "WOUND" and action ~= "HEAL" then
+			Log(string.format("combat text on you: %s %s at %.2fs", tostring(action), tostring(Plain(descriptor)), GetTime() - self.at))
+		end
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		Log(string.format("left combat %.2fs after feigning", GetTime() - self.at))
 	end
@@ -299,6 +423,8 @@ function YaHT:InitFeign()
 		pcall(watch.RegisterEvent, watch, e)
 	end
 	pcall(watch.RegisterUnitEvent, watch, "UNIT_SPELLCAST_SUCCEEDED", "player")
+	pcall(watch.RegisterUnitEvent, watch, "UNIT_SPELLCAST_SENT", "player")
+	pcall(watch.RegisterUnitEvent, watch, "UNIT_COMBAT", "player")
 	pcall(watch.RegisterUnitEvent, watch, "UNIT_HEALTH", "player")
 	watch:SetScript("OnEvent", function(self, event, ...)
 		local ok, err = pcall(OnEvent, self, event, ...)

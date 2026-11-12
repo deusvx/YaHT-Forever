@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.2.0"
+YaHT.version = "1.3.0"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -227,9 +227,12 @@ end
 -- (instead of a Lua error popup every frame) so it can be fixed.
 local reportedErrors = {}
 local function ReportError(where, err)
+	YaHT.errorCount = (YaHT.errorCount or 0) + 1 -- (the self-test counts these)
+	YaHT.lastError = where .. ": " .. tostring(err)
 	local key = where..tostring(err)
 	if reportedErrors[key] then return end
 	reportedErrors[key] = true
+	if YaHT.Record then pcall(YaHT.Record, YaHT, "error", YaHT.lastError) end -- kept in the saved record
 	DEFAULT_CHAT_FRAME:AddMessage("|cFF2150C2YaHT|r error in "..where.." (please report): "..tostring(err))
 end
 YaHT.ReportError = ReportError
@@ -655,9 +658,10 @@ function YaHT:OnInitialize()
 	end
 
 	self.calib = self.db.char.calib -- learned shot delay from last session
+	self.debug = self.db.global.debug and true or false -- the debug log stays on until you switch it off
 	self:Load()
 	-- each feature starts on its own: if one fails, the rest (and the options) still load
-	for _, init in ipairs({"InitAmmo", "InitMelee", "InitProcs", "InitFeign"}) do
+	for _, init in ipairs({"InitAmmo", "InitMelee", "InitProcs", "InitFeign", "InitPet", "InitMinimap", "InitRecord"}) do
 		if self[init] then
 			local ok, err = pcall(self[init], self)
 			if not ok then ReportError(init, err) end
@@ -695,6 +699,33 @@ function YaHT:MediaRegistered(event, mediaType, key)
 		mediaRequired[mediaType] = nil
 		self:ApplySettings()
 	end
+end
+
+-- Where the middle of the bar is, measured from the middle of the screen (in
+-- the units its position is stored in), whichever corner it was last anchored
+-- by: dragging saves whatever anchor the game picks.
+function YaHT:GetBarOffset()
+	local p, f = self.db.profile, self.mainFrame
+	if f and f.GetCenter and UIParent.GetCenter then
+		local fx, fy = f:GetCenter()
+		local ux, uy = UIParent:GetCenter()
+		if fx and fy and ux and uy then
+			local us = UIParent.GetEffectiveScale and UIParent:GetEffectiveScale() or 1
+			local fs = f.GetEffectiveScale and f:GetEffectiveScale() or 1
+			local k = us / (fs > 0 and fs or 1)
+			return math.floor(fx - ux * k + 0.5), math.floor(fy - uy * k + 0.5)
+		end
+	end
+	if p.point == "CENTER" and p.relativePoint == "CENTER" then return p.x or 0, p.y or 0 end
+	return 0, -350
+end
+
+-- Puts the bar at an exact spot (either number may be left out to keep it)
+function YaHT:SetBarOffset(x, y)
+	local p = self.db.profile
+	local cx, cy = self:GetBarOffset()
+	p.point, p.relativePoint, p.x, p.y = "CENTER", "CENTER", x or cx, y or cy
+	self:ApplySettings()
 end
 
 function YaHT:ApplySettings()
@@ -763,6 +794,8 @@ function YaHT:ApplySettings()
 	if self.ApplyMeleeSettings then self:ApplyMeleeSettings() end
 	if self.ApplyProcSettings then self:ApplyProcSettings() end
 	if self.ApplyFeignSettings then self:ApplyFeignSettings() end
+	if self.ApplyPetSettings then self:ApplyPetSettings() end
+	if self.ApplyMinimapSettings then self:ApplyMinimapSettings() end
 end
 
 function YaHT:Load()
@@ -776,6 +809,8 @@ function YaHT:Load()
 		local config, _ = YaHT.db.profile
 		f:StopMovingOrSizing()
 		config.point, _, config.relativePoint, config.x, config.y = f:GetPoint()
+		-- the options window's X and Y follow a drag
+		if YaHT.menu and YaHT.menu.Render then YaHT.menu.Render() end
 	end)
 	f.mockTime = 0
 	f.mockTime2 = 0
@@ -1127,14 +1162,30 @@ function YaHT:UNIT_RANGEDDAMAGE(unit)
 	self.mainFrame.newspeed = GetRangedSpeed()
 end
 
-function YaHT:Print(msg)
-	DEFAULT_CHAT_FRAME:AddMessage("|cFF2150C2YaHT|cFFFFFFFF: ".. msg)
+local DEBUG_LOG_MAX = 800 -- lines kept (and saved); the oldest drop off
+
+-- direct: an answer to something you just asked for; always in the main chat.
+-- Everything else printed while the debug log is on is a debug line, and goes
+-- where "Show its lines in" says: the main chat, another chat tab, or nowhere
+-- (the log keeps every line either way). YaHT's lines aren't a chat channel,
+-- so the game's own chat settings can't move them.
+function YaHT:Print(msg, direct)
+	local chat = DEFAULT_CHAT_FRAME
+	if self.debug and self.db and not direct and not self.replying then
+		local where = self.db.global.debugwindow or 0
+		if where == -1 then
+			chat = nil
+		elseif where > 0 then
+			chat = _G["ChatFrame" .. where] or chat
+		end
+	end
+	if chat then chat:AddMessage("|cFF2150C2YaHT|cFFFFFFFF: ".. msg) end
 	-- while debugging, keep a copyable log (also saved to SavedVariables)
 	if self.debug and self.db then
 		local log = self.db.global.debuglog or {}
 		self.db.global.debuglog = log
 		log[#log + 1] = string.format("%.3f  %s", GetTime(), msg)
-		if #log > 300 then table.remove(log, 1) end
+		if #log > DEBUG_LOG_MAX then table.remove(log, 1) end
 	end
 end
 
@@ -1197,12 +1248,13 @@ end
 SLASH_YAHT1 = "/yaht"
 SLASH_YAHT2 = "/huntertimer"
 SLASH_YAHT3 = "/yetanotherhuntertimer"
-SlashCmdList["YAHT"] = function(msg)
+local function HandleSlash(msg)
 	local cmd = (msg or ""):lower():match("^%s*(%S*)")
 	if not YaHT.db then return end
 	local p = YaHT.db.profile
 	if cmd == "debug" then
 		YaHT.debug = not YaHT.debug
+		YaHT.db.global.debug = YaHT.debug
 		YaHT:Print("debug "..(YaHT.debug and "ON: shoot a target dummy standing still, then type /yaht copy" or "OFF"))
 	elseif cmd == "lock" or cmd == "unlock" then
 		p.lock = (cmd == "lock")
@@ -1224,6 +1276,21 @@ SlashCmdList["YAHT"] = function(msg)
 		if YaHT.TestFeignAlert then YaHT:TestFeignAlert() end
 	elseif cmd == "buffs" then
 		if YaHT.ReportBuffs then YaHT:ReportBuffs() end
+	elseif cmd == "pet" then
+		if YaHT.ReportPet then YaHT:ReportPet() end
+	elseif cmd == "minimap" then
+		if YaHT.ToggleMinimapButton then YaHT:ToggleMinimapButton() end
+	elseif cmd == "grid" then
+		if YaHT.ToggleGrid then YaHT:ToggleGrid() end
+	elseif cmd == "selftest" or cmd == "test" or cmd == "record" then
+		if not YaHT.SelfTest then
+			-- a file added by an update only loads when the game itself starts
+			YaHT:Print(L["that part of YaHT isn't loaded yet: quit the game completely and start it again."])
+		elseif cmd == "record" then
+			YaHT:PrintRecord((msg or ""):lower():match("^%s*%S+%s+(%S+)"))
+		else
+			YaHT:SelfTest()
+		end
 	elseif cmd == "help" or cmd == "?" then
 		YaHT:Print("/yaht - "..L["open options"])
 		YaHT:Print("/yaht lock | unlock - "..L["lock or unlock (move + preview) the bar"])
@@ -1234,11 +1301,31 @@ SlashCmdList["YAHT"] = function(msg)
 		YaHT:Print("/yaht ammo - "..L["show how much ammo YaHT counts"])
 		YaHT:Print("/yaht buffs - "..L["list your buffs as YaHT sees them (Quick Shots, aspect)"])
 		YaHT:Print("/yaht feign - "..L["play the Feign Death resist alert once"])
-	else
-		local ACR = LibStub("AceConfigRegistry-3.0", true)
-		if ACR then ACR:NotifyChange("YaHT") end
+		YaHT:Print("/yaht pet - "..L["show what YaHT sees of your pet"])
+		YaHT:Print("/yaht grid - "..L["show or hide the alignment grid"])
+		YaHT:Print("/yaht minimap - "..L["show or hide the minimap button"])
+		YaHT:Print("/yaht selftest - "..L["run a self-test in the game and save a report"])
+		YaHT:Print("/yaht record - "..L["show the newest lines of the record (pet, aspect, problems)"])
+		YaHT:Print("/yaht classic - "..L["open the old options window"])
+	elseif cmd == "classic" then
 		LibStub("AceConfigDialog-3.0"):Open("YaHT")
+	else
+		-- YaHT's own window; if it can't be built, the Ace3 dialog still works
+		local ok, opened = false, false
+		if YaHT.OpenMenu then ok, opened = pcall(YaHT.OpenMenu, YaHT) end
+		if not ok or not opened then
+			if YaHT.OpenMenu and not ok then ReportError("the options window", opened) end
+			LibStub("AceConfigDialog-3.0"):Open("YaHT")
+		end
 	end
+end
+
+-- What a /yaht command prints is an answer to you: it always shows in the main chat
+SlashCmdList["YAHT"] = function(msg)
+	YaHT.replying = true
+	local ok, err = pcall(HandleSlash, msg)
+	YaHT.replying = false
+	if not ok then ReportError("/yaht", err) end
 end
 
 local frame = CreateFrame("Frame")
