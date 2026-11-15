@@ -5,7 +5,7 @@
 **Know exactly when to stop moving.** YaHT Forever is a lightweight Auto Shot bar built for WoW
 Forever's client, tuned against real in-game shot timings, including while kiting. Around the bar
 it warns you about the things that get hunters killed: the deadzone, a resisted Feign Death, the
-wrong aspect, a pet that is low or dead.
+wrong aspect, a pet that is low or dead. It also times your procs and your Summon Hawk hawks.
 
 A port of Aviana's classic **YaHT** (Yet another Hunter Timer). **Original project:** [github.com/Aviana/YaHT](https://github.com/Aviana/YaHT)
 
@@ -32,8 +32,15 @@ A port of Aviana's classic **YaHT** (Yet another Hunter Timer). **Original proje
 - **Mongoose Bite:** pops in after you dodge, with a gold timer for the window and its cooldown.
 - **Quick Shots:** with Deadly Aspects talented, shows while the haste lasts.
 - **Rapid Fire and your racial:** show while they last. Your race's active is recognised automatically.
+- **Summon Hawk:** each hawk that is out, with its 18 seconds running down and the seconds left. It
+  turns red under 6 seconds: time to summon again before you spend the shared cooldown on Arcane
+  Shot. One icon per hawk, or one with a count.
 - Place each icon above, left or right of the bar, or drag it anywhere. Give them one shared look
   (size, glow, pulse, sound) or give any icon its own.
+- **Round or square:** a round icon sits in a ring that runs down as its timer, a square one has its
+  timer line under it. One switch changes every icon.
+- **Polished look:** bevelled frames, a soft light and a shadow, if you like it richer. Off to start
+  with; one switch for everything.
 
 ## The bar
 - **Swing bar:** reload, then the red "stand still" wind-up.
@@ -43,13 +50,15 @@ A port of Aviana's classic **YaHT** (Yet another Hunter Timer). **Original proje
 - **Ready pulse:** moving with the shot ready? Lines pulse in the middle until you stop.
 - **Melee swing line:** a thin line under the bar that fills with your melee swing, only while you're
   in melee. Turns gold while Raptor Strike is queued.
-- **Quick looks:** Minimal, Clean or Flashy in one click.
+- **Three looks:** Minimal (just the bar), Clean (the bar with its icons) or Flashy (everything).
+  Click one to see it in the live preview, then keep it with one more click.
 - **Tranquilizing Shot announce** to Say, Party, Raid, Raid Warning, Whisper or a channel.
 
 ## An options window that explains itself
 - **Live preview:** your bar and icons, drawn from your settings as you change them.
 - **Help beside the settings:** point at a setting and the panel on the right says what it does.
-- **Search,** a page list on the left, and a Home page with the main switches.
+- **Search,** a page list on the left, and a Home page with the main switches, each with a small
+  picture so you find it at a glance.
 - **Exact placement:** X and Y sliders with single-step arrows, type-in values, and an alignment grid.
 - **Lock bar** always in reach at the top, a minimap button with a quick menu, profiles, and a reset
   button on every page.

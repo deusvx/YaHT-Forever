@@ -3,7 +3,7 @@
 An Auto Shot timer for **WoW Forever** hunters (game version 1.60.x, interface `16001`).
 A port of Aviana's classic **YaHT**, rebuilt for Forever's modern client and tuned against real
 in-game shot timings. Around the bar it warns you about the deadzone, a resisted Feign Death, the
-wrong aspect, and a pet that is low or dead.
+wrong aspect, and a pet that is low or dead, and it times your procs and your Summon Hawk hawks.
 
 ![YaHT Forever in action](extras/media/yaht-in-action.gif)
 
@@ -19,7 +19,8 @@ wrong aspect, and a pet that is low or dead.
 - **Ready pulse:** if you're moving when the shot is ready, lines pulse in the middle until you stop.
 - **Melee swing line:** a thin line under the bar that fills with your melee swing, gold while
   Raptor Strike is queued.
-- **Quick looks:** Minimal, Clean or Flashy in one click.
+- **Three looks:** Minimal (just the bar), Clean (the bar with its icons) or Flashy (everything).
+  Click one to see it in the live preview, then keep it with one more click.
 
 **Warnings**
 - **Deadzone and too far:** yellow caution stripes in the deadzone, red arrows when out of range.
@@ -34,11 +35,19 @@ wrong aspect, and a pet that is low or dead.
 
 **Proc and cooldown icons**
 - **Mongoose Bite** (with its cooldown), **Quick Shots**, **Rapid Fire** and your **racial**.
+- **Summon Hawk:** each hawk that is out, with its 18 seconds running down. It turns red under 6
+  seconds, when it is time to summon again before you spend the shared cooldown on Arcane Shot.
+  One icon per hawk, or one with a count.
 - Above, left or right of the bar, or anywhere; one shared look, or its own look per icon.
+- **Round or square:** a round icon sits in a ring that runs down as its timer, a square one has
+  its timer line under it. One switch changes every icon.
+- **Polished look:** bevelled frames, a soft light and a shadow, if you like it richer. Off to
+  start with; one switch for everything.
 
 **Options**
 - YaHT's own options window: pages on the left, a live preview and a help panel on the right,
-  search, a Home page with the main switches, exact X / Y placement with an alignment grid.
+  search, a Home page with the main switches (each with a small picture), exact X / Y placement
+  with an alignment grid.
 - A minimap button with a quick menu, profiles, and a reset button on every page.
 - **Tranquilizing Shot announce** to Say, Party, Raid, Raid Warning, Whisper or a channel.
 
@@ -62,7 +71,7 @@ English, German, Simplified and Traditional Chinese.
 | `/yaht minimap` | Show or hide the minimap button |
 | `/yaht selftest` | Check in the game that everything works, and save a report |
 | `/yaht record` | Show the newest lines of the record (pet and aspect warnings, problems) |
-| `/yaht ammo` / `/yaht pet` / `/yaht buffs` | Show what YaHT sees of your ammo, pet or buffs |
+| `/yaht ammo` / `/yaht pet` / `/yaht hawk` / `/yaht buffs` | Show what YaHT sees of your ammo, pet, hawks or buffs |
 | `/yaht feign` | Play the Feign Death resist alert once |
 | `/yaht debug` | Print shot timings after every Auto Shot |
 | `/yaht copy` / `/yaht clear` | Copy the debug log (Ctrl+C), or empty it |

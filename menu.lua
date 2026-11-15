@@ -21,7 +21,8 @@ local WHITE = "Interface\\Buttons\\WHITE8X8"
 local WIDTH, HEIGHT = 1120, 700
 local EDGE = 10            -- between the window's edge and its panels, and between panels
 local HEAD_H, NAV_W, HELP_W = 44, 184, 296
-local PREVIEW_H = 132      -- the live preview's box, at the top of the right column
+local PREVIEW_H = 176      -- the live preview's box, at the top of the right column
+local PREVIEW_DY = -26     -- the bar stands below the middle of the box: the icons and hawk circles need the room above it
 local PREVIEW_BOX_W = HELP_W - 20
 local BODY_TOP = HEAD_H + 6
 local VIEW_W, VIEW_H = WIDTH - NAV_W - HELP_W - 4 * EDGE, HEIGHT - BODY_TOP - EDGE
@@ -32,13 +33,24 @@ local MARK_W = 10          -- kept free on the right of the page for the scroll 
 local NAV_ROW = 24
 local LIST_ROWS = 12       -- a dropdown shows this many choices, then scrolls
 local SLIDER_W = 170
-local CARD_H = 118         -- a quick-look card: live preview, name and up to four lines of text
+local CARD_H = 142         -- a look's card: its small live preview, its name and one line of text
+local CARD_STAGE_H = 92    -- the preview on a card
 local GLOW_TEX = "Interface\\AddOns\\YaHT\\media\\Glow"
 local SHINE_TEX = "Interface\\AddOns\\YaHT\\media\\Shine"
 local SPARK_TEX = "Interface\\AddOns\\YaHT\\media\\Spark"
 local ROUND_TEX = "Interface\\AddOns\\YaHT\\media\\Round"     -- a filled rounded rectangle
 local EDGE_TEX = "Interface\\AddOns\\YaHT\\media\\RoundEdge"  -- its one-pixel outline
 local DOT_TEX = "Interface\\AddOns\\YaHT\\media\\Dot"         -- a filled circle
+local DISC_TEX = "Interface\\AddOns\\YaHT\\media\\Disc"       -- a larger filled circle (the hawk circles)
+local RING_TEX = "Interface\\AddOns\\YaHT\\media\\Ring"       -- its ring
+local RINGFLAT_TEX = "Interface\\AddOns\\YaHT\\media\\RingFlat" -- the plain ring (the standard look)
+local RINGLINE_TEX = "Interface\\AddOns\\YaHT\\media\\RingLine" -- the ring's fine edge lines
+local GLOSS_TEX = "Interface\\AddOns\\YaHT\\media\\Gloss"     -- a soft light on an icon
+local HALO_TEX = "Interface\\AddOns\\YaHT\\media\\Halo"       -- a soft round glow (and, in black, a shadow)
+local SQRING_TEX = "Interface\\AddOns\\YaHT\\media\\SquareRing"  -- a square icon's polished look: its bevelled frame,
+local SQLINE_TEX = "Interface\\AddOns\\YaHT\\media\\SquareLine"  -- the frame's fine edge lines,
+local SQGLOSS_TEX = "Interface\\AddOns\\YaHT\\media\\SquareGloss" -- a soft light on the icon
+local SQHALO_TEX = "Interface\\AddOns\\YaHT\\media\\SquareHalo"  -- and its shadow
 local STAGE_TEX = "Interface\\AddOns\\YaHT\\media\\Stage"     -- a soft pool of light (the preview's stage)
 -- rounded shapes are drawn "nine-sliced": the corners keep their size, the rest stretches
 local SLICE = Enum and Enum.UITextureSliceMode and Enum.UITextureSliceMode.Stretched
@@ -321,8 +333,8 @@ end
 -- What each quick look shows in its preview card: the same things it switches on
 local CARD_LOOK = {
 	presetminimal = {preset = "MINIMAL"},
-	presetclean = {preset = "CLEAN", outline = true, sparks = true},
-	presetflashy = {preset = "FLASHY", soft = true, sweep = true, sparks = true},
+	presetclean = {preset = "CLEAN"},
+	presetflashy = {preset = "FLASHY"},
 }
 
 local function PageItems(page)
@@ -344,6 +356,7 @@ end
 local HOME_SWITCHES = { -- (Lock bar is in the window's header, on every page)
 	{"alerts", "aspect"}, {"alerts", "feign"}, {"alerts", "pet"},
 	{"alerts", "meleerange"}, {"alerts", "melee"}, {"alerts", "ammo"}, {"bar", "minimap"},
+	{"alerts", "roundall"}, {"alerts", "polishall"},
 }
 local HOME_BUTTONS = {{"alerts", "preview"}}
 local HOME_CARDS = {"presetminimal", "presetclean", "presetflashy"}
@@ -614,8 +627,80 @@ local function Hook(row, widget)
 	On(widget, "OnLeave", function() row.hover:Hide() HideTip() end)
 end
 
+-- A small picture in front of the switches people look for most, so they are found at a glance
+-- without reading: the spell's own icon (asked from the game), else a stand-in. It is in colour
+-- while the switch is on and grey while it is off.
+local SWITCH_PICTURES = {
+	aspect = {spell = 13165, file = "Interface\\Icons\\Spell_Nature_RavenForm"},
+	feign = {spell = 5384, file = "Interface\\Icons\\Ability_Rogue_FeignDeath"},
+	pet = {spell = 883, file = "Interface\\Icons\\Ability_Hunter_BeastCall"},
+	hawk = {spell = 1293241, file = "Interface\\Icons\\Spell_Nature_RavenForm"},
+	meleerange = {spell = 1130, file = "Interface\\Icons\\Ability_Hunter_SniperShot"},
+	melee = {spell = 2973, file = "Interface\\Icons\\Ability_MeleeDamage"},
+	ammo = {file = "Interface\\Icons\\INV_Ammo_Arrow_02"},
+	minimap = {file = "Interface\\Icons\\INV_Weapon_Bow_07"},
+	mongoose = {spell = 1495, file = "Interface\\Icons\\Ability_Hunter_SwiftStrike"},
+	quickshots = {spell = 6150, file = "Interface\\Icons\\Ability_Warrior_InnerRage"},
+	rapidfire = {spell = 3045, file = "Interface\\Icons\\Ability_Hunter_RunningShot"},
+	racial = {spell = 20572, file = "Interface\\Icons\\Racial_Orc_BerserkerStrength"},
+	-- the switch for every icon's polished look shows what it does: its picture wears the frame while it is on
+	polishall = {spell = 3045, file = "Interface\\Icons\\Ability_Hunter_RunningShot", polished = true},
+	-- and the switch for every icon's shape: its picture is round while it is on, square while it is off
+	roundall = {spell = 3044, file = "Interface\\Icons\\Ability_ImpalingBolt", round = true},
+}
+
+local function SwitchPicture(key)
+	local def = key and SWITCH_PICTURES[key]
+	if not def then return nil end
+	if def.tex == nil then
+		local tex
+		-- your own race's active, as the racial alert shows it
+		local racial = key == "racial" and YaHT.racialFrame and YaHT.racialFrame.icon
+		if racial and type(racial.GetTexture) == "function" then
+			local ok, v = pcall(racial.GetTexture, racial)
+			if ok and v and not (issecretvalue and issecretvalue(v)) then tex = v end
+		end
+		if not tex and def.spell and C_Spell and C_Spell.GetSpellTexture then
+			local ok, v = pcall(C_Spell.GetSpellTexture, def.spell)
+			if ok and v and not (issecretvalue and issecretvalue(v)) then tex = v end
+		end
+		def.tex = tex or def.file
+	end
+	return def
+end
+
 Make.toggle = function(parent)
 	local row = NewRow(parent, 36)
+	row.picRim = row:CreateTexture(nil, "ARTWORK", nil, -1)
+	row.picRim:SetColorTexture(0, 0, 0, 1)
+	row.pic = row:CreateTexture(nil, "ARTWORK")
+	row.pic:SetSize(20, 20)
+	row.pic:SetPoint("LEFT", row.plate, "LEFT", PAD - 2, 0)
+	row.pic:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	row.picRim:SetPoint("TOPLEFT", row.pic, "TOPLEFT", -1, 1)
+	row.picRim:SetPoint("BOTTOMRIGHT", row.pic, "BOTTOMRIGHT", 1, -1)
+	row.picGloss = row:CreateTexture(nil, "ARTWORK", nil, 1)
+	row.picGloss:SetTexture(SQGLOSS_TEX)
+	row.picGloss:SetBlendMode("ADD")
+	row.picGloss:SetAllPoints(row.pic)
+	row.picFrame = row:CreateTexture(nil, "ARTWORK", nil, 2)
+	row.picFrame:SetTexture(SQRING_TEX)
+	row.picFrame:SetVertexColor(0.85, 0.70, 0.42)
+	row.picFrame:SetPoint("TOPLEFT", row.pic, "TOPLEFT", -1, 1)
+	row.picFrame:SetPoint("BOTTOMRIGHT", row.pic, "BOTTOMRIGHT", 1, -1)
+	row.picRing = row:CreateTexture(nil, "ARTWORK", nil, 2)
+	row.picRing:SetTexture(RINGFLAT_TEX)
+	row.picRing:SetVertexColor(0.85, 0.70, 0.42)
+	row.picRing:SetPoint("TOPLEFT", row.pic, "TOPLEFT", -2, 2)
+	row.picRing:SetPoint("BOTTOMRIGHT", row.pic, "BOTTOMRIGHT", 2, -2)
+	if type(row.CreateMaskTexture) == "function" then
+		local ok, mask = pcall(row.CreateMaskTexture, row)
+		if ok and mask and pcall(function()
+			mask:SetTexture(DISC_TEX, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+			mask:SetAllPoints(row.pic)
+		end) then row.picMask = mask end
+	end
+	row.pic:Hide() row.picRim:Hide() row.picGloss:Hide() row.picFrame:Hide() row.picRing:Hide()
 	local b = CreateFrame("Button", nil, row)
 	b:SetSize(36, 18)
 	b:SetPoint("RIGHT", row.plate, "RIGHT", -PAD, 0)
@@ -641,6 +726,34 @@ Fill.toggle = function(row, item)
 		Call(item.path, "set", not on)
 		Menu.Changed()
 	end
+	-- its picture, when it has one (rows are reused, so it is set or cleared every time)
+	local def = SwitchPicture(item.path and item.path[#item.path].key)
+	local pic = def ~= nil
+	local framed = pic and def.polished and on or false
+	local rounded = pic and def.round and on or false
+	row.pic:SetShown(pic)
+	row.picRim:SetShown(pic and not framed and not rounded)
+	row.picRing:SetShown(rounded)
+	if row.picMask then
+		if rounded and not row.picMasked then
+			row.picMasked = pcall(row.pic.AddMaskTexture, row.pic, row.picMask) or nil
+		elseif not rounded and row.picMasked then
+			pcall(row.pic.RemoveMaskTexture, row.pic, row.picMask)
+			row.picMasked = nil
+		end
+	end
+	row.picGloss:SetShown(framed)
+	row.picFrame:SetShown(framed)
+	if pic then
+		row.pic:SetTexture(def.tex)
+		-- grey while the switch is off; the polish switch shows the flat look instead, in colour
+		local grey = not on and not def.polished and not def.round
+		if row.pic.SetDesaturated then row.pic:SetDesaturated(grey) end
+		row.pic:SetAlpha(grey and 0.75 or 1)
+	end
+	row.label:ClearAllPoints()
+	row.label:SetPoint("LEFT", row.plate, "LEFT", PAD + (pic and 26 or 0), 0)
+	row.label:SetPoint("RIGHT", row.plate, "RIGHT", -(PAD + 36 + 10), 0)
 	return ROW_STEP
 end
 
@@ -1006,64 +1119,22 @@ local function IsLookInUse(name)
 	return true
 end
 
--- one frame of a card's preview. t: seconds into the shot
-local function CardTick(b, t)
-	local p, look = YaHT.db.profile, b.look
-	if not look then return end
-	local part = t / PREVIEW_CYCLE
-	local winding = part >= PREVIEW_WINDUP
-	local k = winding and (part - PREVIEW_WINDUP) / (1 - PREVIEW_WINDUP) or 0 -- how far through the wind-up
-	b.fill:SetWidth(math.max(1, b.barW * part))
-	local c = winding and p.drawcolor or p.timercolor
-	b.fill:SetVertexColor(c.r, c.g, c.b)
-	local tenth = math.floor((PREVIEW_CYCLE - t) * 10)
-	if tenth ~= b.tenth then
-		b.tenth = tenth
-		b.num:SetText(string.format("%.1f", tenth / 10))
-	end
-	-- Clean: a crisp outline while you must stand still
-	for _, line in ipairs(b.rim) do line:SetShown(look.outline and winding or false) end
-	-- Flashy: a soft glow that builds up as the shot gets close, then pulses
-	if look.soft then
-		local a
-		if winding then
-			a = 0.75 + 0.25 * math.sin(t * 12)
-		else
-			a = 0.75 * math.max(0, (part - 0.45) / (PREVIEW_WINDUP - 0.45))
-		end
-		b.glow:SetAlpha(a)
-		b.glow:Show()
-	else
-		b.glow:Hide()
-	end
-	-- Flashy: a light sweeps across the bar
-	if look.sweep and winding then
-		b.shine:ClearAllPoints()
-		b.shine:SetPoint("CENTER", b.well, "LEFT", -14 + (b.barW + 28) * k, 0)
-		b.shine:Show()
-	else
-		b.shine:Hide()
-	end
-	-- Clean and Flashy: two sparks race out from the middle
-	for i, spark in ipairs(b.sparks) do
-		if look.sparks and winding then
-			spark:ClearAllPoints()
-			spark:SetPoint("CENTER", b.well, "CENTER", (i == 1 and -1 or 1) * b.barW / 2 * k, 0)
-			spark:SetAlpha(1 - 0.4 * k)
-			spark:Show()
-		else
-			spark:Hide()
-		end
-	end
-end
+-- (the live preview's own code, further down, also draws the small preview on each card)
+local BuildPreview, LayoutPreview
+
+-- what stands under each card's preview: one short line (the full text shows in the help column)
+local CARD_LINE = {
+	presetminimal = L["Just the bar."],
+	presetclean = L["The bar with its icons."],
+	presetflashy = L["Everything, with every effect."],
+}
 
 Make.cards = function(parent)
 	local row = CreateFrame("Frame", nil, parent)
 	row.cards = {}
-	row.t = 0
 	local gap = 10
 	local w = (VIEW_W - MARK_W - 2 * BOX_PAD - 2 * gap) / 3
-	local barW = w - 20 - 30
+	local scale = (w - 12) / PREVIEW_BOX_W -- the live preview, drawn this much smaller
 	for i = 1, 3 do
 		local b = CreateFrame("Button", nil, row)
 		b:SetSize(w, CARD_H)
@@ -1071,49 +1142,22 @@ Make.cards = function(parent)
 		b.bg = Plate(b, "BACKGROUND", C.plate)
 		b.bg:SetAllPoints(b)
 		b.edge = Rim(b, C.soft)
-		b.barW = barW
-		-- the soft glow sits behind the bar
-		b.glow = b:CreateTexture(nil, "BORDER")
-		b.glow:SetTexture(GLOW_TEX)
-		b.glow:SetBlendMode("ADD")
-		b.glow:Hide()
-		-- the bar; it clips the light sweep to its own shape
-		b.well = CreateFrame("Frame", nil, b)
-		b.well:SetSize(barW, 10)
-		b.well:SetPoint("TOPLEFT", b, "TOPLEFT", 10, -18)
-		if b.well.SetClipsChildren then b.well:SetClipsChildren(true) end
-		Tex(b.well, "BACKGROUND", {0, 0, 0, 1}):SetAllPoints(b.well)
-		b.fill = b.well:CreateTexture(nil, "ARTWORK")
-		b.fill:SetHeight(10)
-		b.shine = b.well:CreateTexture(nil, "OVERLAY")
-		b.shine:SetTexture(SHINE_TEX)
-		b.shine:SetBlendMode("ADD")
-		b.shine:SetSize(28, 10)
-		b.shine:Hide()
-		b.glow:SetPoint("TOPLEFT", b.well, "TOPLEFT", -9, 9)
-		b.glow:SetPoint("BOTTOMRIGHT", b.well, "BOTTOMRIGHT", 9, -9)
-		-- the outline and the sparks draw over the bar
-		b.over = CreateFrame("Frame", nil, b)
-		b.over:SetPoint("TOPLEFT", b.well, "TOPLEFT", -1, 1)
-		b.over:SetPoint("BOTTOMRIGHT", b.well, "BOTTOMRIGHT", 1, -1)
-		b.over:SetFrameLevel(b.well:GetFrameLevel() + 2)
-		b.rim = Outline(b.over, C.gold)
-		b.sparks = {}
-		for n = 1, 2 do
-			local spark = b.over:CreateTexture(nil, "OVERLAY")
-			spark:SetTexture(SPARK_TEX)
-			spark:SetBlendMode("ADD")
-			spark:SetSize(12, 22)
-			spark:Hide()
-			b.sparks[n] = spark
-		end
-		b.num = Text(b, "GameFontHighlightSmall", C.white)
-		b.num:SetPoint("LEFT", b.well, "RIGHT", 6, 0)
+		-- the look itself: a small copy of the live preview, your bar and icons with this look's settings
+		b.stage = Plate(b, "BORDER", C.preview)
+		b.stage:SetPoint("TOPLEFT", b, "TOPLEFT", 6, -6)
+		b.stage:SetSize(w - 12, CARD_STAGE_H)
+		b.strip = CreateFrame("Frame", nil, b)
+		b.strip:SetScale(scale)
+		b.strip:SetSize(PREVIEW_BOX_W, CARD_STAGE_H / scale)
+		b.strip:SetPoint("TOPLEFT", b, "TOPLEFT", 6 / scale, -6 / scale)
+		if b.strip.SetClipsChildren then b.strip:SetClipsChildren(true) end
+		b.pv = BuildPreview(b.strip)
+		b.pv.mini = true
+		b.pv.phase:Hide()
 		b.name = Text(b, "GameFontHighlight", C.white)
-		b.name:SetPoint("TOPLEFT", b.well, "BOTTOMLEFT", 0, -12)
+		b.name:SetPoint("TOPLEFT", b, "TOPLEFT", 10, -(CARD_STAGE_H + 13))
 		b.tag = Text(b, "GameFontHighlightSmall", C.gold)
-		b.tag:SetPoint("TOPRIGHT", b, "TOPRIGHT", -10, -38)
-		b.tag:SetText(L["In use"])
+		b.tag:SetPoint("TOPRIGHT", b, "TOPRIGHT", -10, -(CARD_STAGE_H + 14))
 		b.desc = Text(b, "GameFontHighlightSmall", C.muted)
 		b.desc:SetPoint("TOPLEFT", b.name, "BOTTOMLEFT", 0, -3)
 		b.desc:SetWidth(w - 20)
@@ -1121,50 +1165,92 @@ Make.cards = function(parent)
 		b.desc:SetJustifyV("TOP")
 		if b.desc.SetSpacing then b.desc:SetSpacing(2) end
 		local function tint(self, hover)
-			local c = (hover or self.current) and C.gold or C.soft
+			local c = (hover or self.current or self.viewing) and C.gold or C.soft
 			PaintRim(self.edge, c)
 		end
 		b.tint = tint
 		On(b, "OnClick", function(self) if self.onClick then self.onClick() end end)
-		On(b, "OnEnter", function(self) tint(self, true) end)
-		On(b, "OnLeave", function(self) tint(self, false) end)
+		On(b, "OnEnter", function(self)
+			tint(self, true)
+			if self.helpTitle then SetHelp(self.helpTitle, self.helpText) end
+		end)
+		On(b, "OnLeave", function(self)
+			tint(self, false)
+			HideTip()
+		end)
 		row.cards[i] = b
 	end
-	-- one clock runs all three previews (only while the cards are on the page)
-	On(row, "OnUpdate", function(self, elapsed)
-		self.t = (self.t + elapsed) % PREVIEW_CYCLE
-		for _, b in ipairs(self.cards) do CardTick(b, self.t) end
-	end)
+	-- while a look is being viewed: a line that says so, with "Use this look" and "Cancel"
+	row.viewBar = CreateFrame("Frame", nil, row)
+	row.viewBar:SetHeight(26)
+	row.viewBar:SetPoint("TOPLEFT", row, "TOPLEFT", BOX_PAD, -(CARD_H + 6))
+	row.viewBar:SetPoint("RIGHT", row, "RIGHT", -(MARK_W + BOX_PAD), 0)
+	local function button(text, wide)
+		local bt = CreateFrame("Button", nil, row.viewBar)
+		bt:SetSize(wide, 24)
+		bt.bg = Plate(bt, "BACKGROUND", C.plate)
+		bt.bg:SetAllPoints(bt)
+		Rim(bt, C.line)
+		bt.text = Text(bt, "GameFontHighlightSmall", C.white)
+		bt.text:SetPoint("CENTER", bt, "CENTER", 0, 0)
+		bt.text:SetText(text)
+		On(bt, "OnClick", function(self) if self.onClick then self.onClick() end end)
+		On(bt, "OnEnter", function(self) Paint(self.bg, C.navOn) end)
+		On(bt, "OnLeave", function(self) Paint(self.bg, C.plate) end)
+		return bt
+	end
+	row.cancel = button(L["Cancel"], 80)
+	row.cancel:SetPoint("RIGHT", row.viewBar, "RIGHT", 0, 0)
+	row.use = button(L["Use this look"], 130)
+	row.use:SetPoint("RIGHT", row.cancel, "LEFT", -8, 0)
+	row.viewText = Text(row.viewBar, "GameFontHighlightSmall", C.gold)
+	row.viewText:SetPoint("LEFT", row.viewBar, "LEFT", 4, 0)
+	row.viewBar:Hide()
 	return row
 end
+
 Fill.cards = function(row)
-	local p = YaHT.db.profile
-	local gc = p.glowcolor or {r = 1, g = 0.82, b = 0.3}
-	local sc = p.sparkcolor or gc
+	local profile = YaHT.db.profile
+	local viewName, viewPath
 	for i, key in ipairs(HOME_CARDS) do
 		local b, path = row.cards[i], Find({"bar", key})
 		if path then
 			b.look = CARD_LOOK[key]
-			b.fill:SetTexture(YaHT:GetMedia("statusbar", p.statusbar))
-			b.fill:ClearAllPoints()
-			b.fill:SetPoint(p.fill and "CENTER" or "LEFT", b.well, p.fill and "CENTER" or "LEFT")
-			b.glow:SetVertexColor(gc.r, gc.g, gc.b)
-			for _, line in ipairs(b.rim) do line:SetColorTexture(gc.r, gc.g, gc.b, 1) end
-			for _, spark in ipairs(b.sparks) do spark:SetVertexColor(sc.r, sc.g, sc.b) end
+			-- your own bar and icons, with this look's settings laid over yours
+			LayoutPreview(b.pv, setmetatable(YaHT:LookValues(b.look.preset), {__index = profile}))
 			b.name:SetText(Value(path, "name") or "")
-			b.desc:SetText(Value(path, "desc") or "")
+			b.desc:SetText(CARD_LINE[key] or "")
+			b.helpTitle, b.helpText = Value(path, "name"), Value(path, "desc")
 			b.current = IsLookInUse(b.look.preset)
-			b.tag:SetShown(b.current)
+			b.viewing = Menu.viewing == b.look.preset
+			b.tag:SetText(b.viewing and L["Viewing"] or L["In use"])
+			b.tag:SetShown(b.current or b.viewing)
 			b.tint(b, false)
+			if b.viewing then viewName, viewPath = Value(path, "name"), path end
+			-- a click shows the look in the live preview; nothing changes until "Use this look"
 			b.onClick = function()
-				Call(path, "func")
+				if b.viewing or b.current then Menu.viewing = nil else Menu.viewing = b.look.preset end
 				Menu.Changed()
 			end
-			CardTick(b, row.t)
 			b:Show()
 		else
 			b:Hide()
 		end
+	end
+	-- a look is being viewed: say so, and offer to keep it
+	row.viewBar:SetShown(viewPath ~= nil)
+	if viewPath then
+		row.viewText:SetText(string.format(L["Viewing %s. Nothing has changed yet."], viewName or ""))
+		row.use.onClick = function()
+			Menu.viewing = nil
+			Call(viewPath, "func")
+			Menu.Changed()
+		end
+		row.cancel.onClick = function()
+			Menu.viewing = nil
+			Menu.Changed()
+		end
+		return CARD_H + ROW_GAP + 34
 	end
 	return CARD_H + ROW_GAP
 end
@@ -1322,6 +1408,7 @@ end
 
 function Menu.Show(id)
 	Menu.current = pageById[id] and id or "home"
+	Menu.viewing = nil -- (a look is viewed on the page where it was clicked)
 	Menu.query = nil
 	Menu.scrollY = 0
 	if frame and frame.search and (frame.search:GetText() or "") ~= "" then
@@ -1433,10 +1520,15 @@ end
 -- The live preview: a small copy of the bar and its icons, drawn from the
 -- settings, looping through a shot. Only runs while the window is open.
 ---------------------------------------------------------------------------
-local PREVIEW_ICONS = { -- key, a spell whose icon stands in for it
-	{"aspect", 13165}, {"mongoose", 1495}, {"quickshots", 6150}, {"rapidfire", 3045}, {"racial", 20572},
+local PREVIEW_ICONS = { -- key, a spell whose icon stands in for it; in the order they line up around the bar
+	{"mongoose", 1495}, {"quickshots", 6150}, {"rapidfire", 3045}, {"racial", 20572}, {"aspect", 13165},
 }
 local FALLBACK_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
+local HAWK_ICON = "Interface\\Icons\\Spell_Nature_RavenForm"
+local HAWK_SAMPLE = {14, 5} -- the seconds the two sample hawks have left
+local HAWK_GOLD, HAWK_RED = {1.0, 0.80, 0.30}, {1.0, 0.33, 0.28}
+local HAWK_PLAIN_GOLD, HAWK_PLAIN_RED = {0.91, 0.70, 0.24}, {0.93, 0.30, 0.27}
+local PROC_GOLD = {0.85, 0.70, 0.42} -- a proc icon's rim in the game
 
 local function SpellTexture(id)
 	local get = C_Spell and C_Spell.GetSpellTexture
@@ -1446,10 +1538,114 @@ local function SpellTexture(id)
 	return tex
 end
 
-local function BuildPreview(strip)
+-- One square icon of the preview: a dark rim, a halo when its glow is on, the timer line that runs
+-- down under it, and the parts of the polished look (shadow, gloss, bevelled frame, edge lines)
+local function PreviewSquare(strip)
+	local ic = {}
+	ic.tex = strip:CreateTexture(nil, "ARTWORK")
+	ic.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	ic.halo = strip:CreateTexture(nil, "BORDER")
+	ic.halo:SetTexture(GLOW_TEX)
+	ic.halo:SetBlendMode("ADD")
+	ic.halo:SetPoint("TOPLEFT", ic.tex, "TOPLEFT", -7, 7)
+	ic.halo:SetPoint("BOTTOMRIGHT", ic.tex, "BOTTOMRIGHT", 7, -7)
+	ic.rim = strip:CreateTexture(nil, "ARTWORK", nil, -1)
+	ic.rim:SetColorTexture(0, 0, 0, 1)
+	ic.rim:SetPoint("TOPLEFT", ic.tex, "TOPLEFT", -1, 1)
+	ic.rim:SetPoint("BOTTOMRIGHT", ic.tex, "BOTTOMRIGHT", 1, -1)
+	ic.bar = Tex(strip, "ARTWORK", C.gold)
+	ic.bar:SetPoint("TOPLEFT", ic.tex, "BOTTOMLEFT", 0, -3)
+	ic.bar:SetHeight(3)
+	ic.shadow = strip:CreateTexture(nil, "BORDER", nil, -3)
+	ic.shadow:SetTexture(SQHALO_TEX)
+	ic.shadow:SetVertexColor(0, 0, 0)
+	ic.shadow:SetAlpha(0.7)
+	ic.shadow:SetPoint("TOPLEFT", ic.tex, "TOPLEFT", -6, 5)
+	ic.shadow:SetPoint("BOTTOMRIGHT", ic.tex, "BOTTOMRIGHT", 6, -7)
+	ic.gloss = strip:CreateTexture(nil, "ARTWORK", nil, 1)
+	ic.gloss:SetTexture(SQGLOSS_TEX)
+	ic.gloss:SetBlendMode("ADD")
+	ic.gloss:SetAllPoints(ic.tex)
+	ic.frame = strip:CreateTexture(nil, "ARTWORK", nil, 2)
+	ic.frame:SetTexture(SQRING_TEX)
+	ic.frame:SetPoint("TOPLEFT", ic.tex, "TOPLEFT", -1, 1)
+	ic.frame:SetPoint("BOTTOMRIGHT", ic.tex, "BOTTOMRIGHT", 1, -1)
+	ic.line = strip:CreateTexture(nil, "ARTWORK", nil, 3)
+	ic.line:SetTexture(SQLINE_TEX)
+	ic.line:SetVertexColor(0, 0, 0)
+	ic.line:SetAllPoints(ic.frame)
+	-- the round shape: a dark disc, the ring (the timer), and for the polished look a shadow, a soft
+	-- light and the ring's fine edge lines; the picture itself is cut round with a mask
+	ic.rshadow = strip:CreateTexture(nil, "BORDER", nil, -3)
+	ic.rshadow:SetTexture(HALO_TEX)
+	ic.rshadow:SetVertexColor(0, 0, 0)
+	ic.rshadow:SetAlpha(0.75)
+	ic.rback = strip:CreateTexture(nil, "BORDER", nil, 1)
+	ic.rback:SetTexture(DISC_TEX)
+	ic.rback:SetVertexColor(0.05, 0.045, 0.04)
+	ic.rgloss = strip:CreateTexture(nil, "ARTWORK", nil, 1)
+	ic.rgloss:SetTexture(GLOSS_TEX)
+	ic.rgloss:SetBlendMode("ADD")
+	ic.rgloss:SetAllPoints(ic.tex)
+	ic.rring = strip:CreateTexture(nil, "ARTWORK", nil, 2)
+	ic.rline = strip:CreateTexture(nil, "ARTWORK", nil, 3)
+	ic.rline:SetTexture(RINGLINE_TEX)
+	ic.rline:SetVertexColor(0, 0, 0)
+	if type(strip.CreateMaskTexture) == "function" then
+		local ok, mask = pcall(strip.CreateMaskTexture, strip)
+		if ok and mask and pcall(function()
+			mask:SetTexture(DISC_TEX, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+			mask:SetAllPoints(ic.tex)
+		end) then ic.mask = mask end
+	end
+	ic.rshadow:Hide() ic.rback:Hide() ic.rgloss:Hide() ic.rring:Hide() ic.rline:Hide()
+	return ic
+end
+
+-- Shows a preview icon round (in its ring, in this colour) or takes the round parts away again.
+-- size: the whole icon's, ring included (the picture inside was sized to 80% of it)
+local function DressRound(ic, on, polished, size, c)
+	if ic.mask then
+		if on and not ic.masked then
+			ic.masked = pcall(ic.tex.AddMaskTexture, ic.tex, ic.mask) or nil
+		elseif not on and ic.masked then
+			pcall(ic.tex.RemoveMaskTexture, ic.tex, ic.mask)
+			ic.masked = nil
+		end
+	end
+	ic.rback:SetShown(on)
+	ic.rring:SetShown(on)
+	ic.rshadow:SetShown(on and polished or false)
+	ic.rgloss:SetShown(on and polished or false)
+	ic.rline:SetShown(on and polished or false)
+	if not on then return end
+	local d = size * 0.1
+	for _, part in ipairs({ic.rback, ic.rring, ic.rline}) do
+		part:ClearAllPoints()
+		part:SetPoint("TOPLEFT", ic.tex, "TOPLEFT", -d, d)
+		part:SetPoint("BOTTOMRIGHT", ic.tex, "BOTTOMRIGHT", d, -d)
+	end
+	ic.rshadow:ClearAllPoints()
+	ic.rshadow:SetPoint("TOPLEFT", ic.tex, "TOPLEFT", -d - 6, d + 5)
+	ic.rshadow:SetPoint("BOTTOMRIGHT", ic.tex, "BOTTOMRIGHT", d + 6, -d - 7)
+	ic.rring:SetTexture(polished and RING_TEX or RINGFLAT_TEX)
+	ic.rring:SetVertexColor(c[1], c[2], c[3])
+end
+
+-- Shows a preview square in the standard look (its dark rim) or the polished one (its frame in
+-- this colour), or not at all
+local SQUARE_POLISH = {"shadow", "gloss", "frame", "line"}
+local function DressSquare(ic, on, polished, c)
+	ic.tex:SetShown(on)
+	ic.rim:SetShown(on and not polished)
+	for _, part in ipairs(SQUARE_POLISH) do ic[part]:SetShown(on and polished or false) end
+	if on and polished and c then ic.frame:SetVertexColor(c[1], c[2], c[3]) end
+end
+
+BuildPreview = function(strip)
 	local pv = CreateFrame("Frame", nil, strip)
 	pv.box = strip
-	pv:SetPoint("CENTER", strip, "CENTER", 0, -12)
+	pv:SetPoint("CENTER", strip, "CENTER", 0, PREVIEW_DY)
 	-- behind the bar: a soft shadow on the stage, then the soft glow
 	pv.shadow = pv:CreateTexture(nil, "BACKGROUND", nil, -2)
 	pv.shadow:SetTexture(STAGE_TEX)
@@ -1493,29 +1689,83 @@ local function BuildPreview(strip)
 	-- (for the procs) the gold timer line that runs down under it
 	pv.icons = {}
 	for i, def in ipairs(PREVIEW_ICONS) do
-		local ic = {key = def[1], spell = def[2], timed = def[1] ~= "aspect"}
-		ic.tex = strip:CreateTexture(nil, "ARTWORK")
-		ic.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-		ic.halo = strip:CreateTexture(nil, "BORDER")
-		ic.halo:SetTexture(GLOW_TEX)
-		ic.halo:SetBlendMode("ADD")
-		ic.halo:SetPoint("TOPLEFT", ic.tex, "TOPLEFT", -7, 7)
-		ic.halo:SetPoint("BOTTOMRIGHT", ic.tex, "BOTTOMRIGHT", 7, -7)
-		ic.rim = strip:CreateTexture(nil, "ARTWORK", nil, -1)
-		ic.rim:SetColorTexture(0, 0, 0, 1)
-		ic.rim:SetPoint("TOPLEFT", ic.tex, "TOPLEFT", -1, 1)
-		ic.rim:SetPoint("BOTTOMRIGHT", ic.tex, "BOTTOMRIGHT", 1, -1)
-		ic.bar = Tex(strip, "ARTWORK", C.gold)
-		ic.bar:SetPoint("TOPLEFT", ic.tex, "BOTTOMLEFT", 0, -3)
-		ic.bar:SetHeight(3)
+		local ic = PreviewSquare(strip)
+		ic.key, ic.spell, ic.timed = def[1], def[2], def[1] ~= "aspect"
 		pv.icons[i] = ic
 	end
+	-- the hawk circles: the Summon Hawk icon cut round, the ring around it and the seconds left
+	pv.hawks = {}
+	for i = 1, 2 do
+		local hk = {}
+		hk.shadow = strip:CreateTexture(nil, "BORDER", nil, -3)
+		hk.shadow:SetTexture(HALO_TEX)
+		hk.shadow:SetVertexColor(0, 0, 0)
+		hk.shadow:SetAlpha(0.75)
+		hk.halo = strip:CreateTexture(nil, "BORDER", nil, -2)
+		hk.halo:SetTexture(HALO_TEX)
+		hk.halo:SetBlendMode("ADD")
+		hk.back = strip:CreateTexture(nil, "BORDER")
+		hk.back:SetTexture(DISC_TEX)
+		hk.back:SetVertexColor(0.05, 0.045, 0.04)
+		hk.icon = strip:CreateTexture(nil, "ARTWORK")
+		hk.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		hk.icon:SetPoint("CENTER", hk.back, "CENTER", 0, 0)
+		if type(strip.CreateMaskTexture) == "function" then
+			local ok, mask = pcall(strip.CreateMaskTexture, strip)
+			if ok and mask then
+				pcall(function()
+					mask:SetTexture(DISC_TEX, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+					mask:SetAllPoints(hk.icon)
+					hk.icon:AddMaskTexture(mask)
+				end)
+			end
+		end
+		hk.gloss = strip:CreateTexture(nil, "ARTWORK", nil, 1)
+		hk.gloss:SetTexture(GLOSS_TEX)
+		hk.gloss:SetBlendMode("ADD")
+		hk.gloss:SetAllPoints(hk.icon)
+		hk.ring = strip:CreateTexture(nil, "ARTWORK", nil, 2)
+		hk.ring:SetTexture(RING_TEX)
+		hk.ring:SetAllPoints(hk.back)
+		hk.line = strip:CreateTexture(nil, "ARTWORK", nil, 3)
+		hk.line:SetTexture(RINGLINE_TEX)
+		hk.line:SetVertexColor(0, 0, 0)
+		hk.line:SetAllPoints(hk.back)
+		hk.shadow:SetPoint("CENTER", hk.back, "CENTER", 0, -1.5)
+		hk.halo:SetPoint("CENTER", hk.back, "CENTER", 0, 0)
+		hk.num = Text(strip, "GameFontHighlightSmall", C.white)
+		hk.num:SetJustifyH("CENTER")
+		hk.sq = PreviewSquare(strip) -- the same hawk in the square shape
+		pv.hawks[i] = hk
+	end
+	pv.hawkBadge = strip:CreateTexture(nil, "ARTWORK", nil, 3)
+	pv.hawkBadge:SetTexture(DISC_TEX)
+	pv.hawkBadge:SetVertexColor(0.05, 0.045, 0.04)
+	pv.hawkBadgeRim = strip:CreateTexture(nil, "ARTWORK", nil, 4)
+	pv.hawkBadgeRim:SetTexture(RING_TEX)
+	pv.hawkBadgeRim:SetVertexColor(HAWK_GOLD[1], HAWK_GOLD[2], HAWK_GOLD[3])
+	pv.hawkBadgeRim:SetAllPoints(pv.hawkBadge)
+	pv.hawkCount = Text(strip, "GameFontHighlightSmall", C.white)
+	pv.hawkCount:SetJustifyH("CENTER")
+	pv.hawkCount:SetPoint("CENTER", pv.hawkBadge, "CENTER", 0, 0)
+	-- (on a square hawk the count sits on a small square)
+	pv.hawkBadgeSqRim = strip:CreateTexture(nil, "ARTWORK", nil, 5)
+	pv.hawkBadgeSqRim:SetColorTexture(PROC_GOLD[1], PROC_GOLD[2], PROC_GOLD[3], 1)
+	pv.hawkBadgeSq = strip:CreateTexture(nil, "ARTWORK", nil, 6)
+	pv.hawkBadgeSq:SetColorTexture(0.05, 0.045, 0.04, 1)
+	pv.hawkBadgeSq:SetPoint("TOPLEFT", pv.hawkBadgeSqRim, "TOPLEFT", 1, -1)
+	pv.hawkBadgeSq:SetPoint("BOTTOMRIGHT", pv.hawkBadgeSqRim, "BOTTOMRIGHT", -1, 1)
+	-- (icons dragged anywhere on the screen show apart, in the box's corner, with this next to them)
+	pv.freeNote = Text(strip, "GameFontDisableSmall", C.muted)
+	pv.freeNote:SetJustifyH("RIGHT")
+	pv.freeNote:SetText(L["Placed by hand"])
+	pv.freeNote:Hide()
 	pv.t = 0
 	-- One shot, over and over, drawn the way the real bar draws it: the fill, the
 	-- glow building up and pulsing, the light sweep and the sparks while you
 	-- stand still, and the proc timers running down.
 	On(pv, "OnUpdate", function(self, elapsed)
-		local p = YaHT.db.profile
+		local p = self.p or YaHT.db.profile
 		self.t = (self.t + elapsed) % PREVIEW_CYCLE
 		local t = self.t
 		local part = t / PREVIEW_CYCLE
@@ -1596,10 +1846,9 @@ local function BuildPreview(strip)
 end
 
 -- Lays the preview out from the current settings (called after every change)
-function Menu.DrawPreview()
-	local pv = frame and frame.preview
-	if not pv then return end
-	local p = YaHT.db.profile
+-- Lays a preview out from these settings: the live preview, and the small one on each look's card
+LayoutPreview = function(pv, p)
+	pv.p = p
 	-- fit the bar, with the icons and the countdown that sit beside it, into the box
 	local beside = 0
 	if p.showtext and (p.textpos == "OUTSIDE_LEFT" or p.textpos == "OUTSIDE_RIGHT" or p.textpos == nil) then beside = beside + 30 end
@@ -1675,17 +1924,18 @@ function Menu.DrawPreview()
 	if p.showtext and pos == "OUTSIDE_LEFT" then used.LEFT = 28 end
 	if p.showtext and (pos == "OUTSIDE_RIGHT" or pos == nil) then used.RIGHT = 28 end
 	local GAP = 6
-	local aboveW = 0
 	for _, ic in ipairs(pv.icons) do
 		local side = p[ic.key .. "pos"]
-		ic.on = p[ic.key] and used[side] ~= nil or false
+		ic.on = p[ic.key] and (used[side] ~= nil or side == "FREE") or false
 		if ic.on then
 			local own = ic.key == "aspect" and p.aspectsize or (p[ic.key .. "own"] and p[ic.key .. "iconsize"]) or p.procsize
-			ic.size = math.min(side == "ABOVE" and 24 or 18, math.max(12, own * k))
-			if side == "ABOVE" then aboveW = aboveW + ic.size + (aboveW > 0 and GAP or 0) end
+			ic.size = math.min(side == "ABOVE" and 24 or (side == "FREE" and 16 or 18), math.max(12, own * k))
 		end
 	end
-	local aboveX = -aboveW / 2 -- the icons above the bar are centered over it
+	-- Above the bar the game stands the first icon centred over it and the others to its right
+	local aboveX = 0
+	-- An icon set to "Anywhere" was dragged somewhere on the screen: it shows apart, in the box's top right corner
+	local freeX = 0
 	for _, ic in ipairs(pv.icons) do
 		if ic.on then
 			local side, size = p[ic.key .. "pos"], ic.size
@@ -1693,36 +1943,218 @@ function Menu.DrawPreview()
 				ic.loaded = true
 				ic.tex:SetTexture(SpellTexture(ic.spell))
 			end
-			ic.tex:SetSize(size, size)
+			-- square or round: the aspect badge's own shape, an icon's own, or the shared one
+			local round = p.procshape == "CIRCLE"
+			if ic.key == "aspect" then
+				round = p.aspectshape == "CIRCLE"
+			elseif p[ic.key .. "own"] then
+				round = p[ic.key .. "iconshape"] == "CIRCLE"
+			end
+			ic.round = round
+			local inner = round and size * 0.8 or size -- (a round picture sits inside its ring)
+			ic.tex:SetSize(inner, inner)
 			ic.tex:ClearAllPoints()
-			if side == "LEFT" then
+			if side == "FREE" then
+				ic.tex:SetPoint("TOPRIGHT", pv.box, "TOPRIGHT", -8 - freeX, -8)
+				freeX = freeX + size + 5
+			elseif side == "LEFT" then
 				ic.tex:SetPoint("RIGHT", pv, "LEFT", -GAP - used.LEFT, 0)
 				used.LEFT = used.LEFT + size + GAP
 			elseif side == "RIGHT" then
 				ic.tex:SetPoint("LEFT", pv, "RIGHT", GAP + used.RIGHT, 0)
 				used.RIGHT = used.RIGHT + size + GAP
 			else
-				ic.tex:SetPoint("BOTTOMLEFT", pv, "TOP", aboveX, 10)
+				ic.tex:SetPoint("BOTTOM", pv, "TOP", aboveX, 10)
 				aboveX = aboveX + size + GAP
 			end
 			local glow = ic.timed and ((p[ic.key .. "own"] and p[ic.key .. "iconglow"]) or p.procglow) or "NONE"
 			local hc = p[ic.key .. "glowcolor"] or gc
 			ic.glowing = glow ~= "NONE"
+			ic.halo:SetTexture(ic.round and HALO_TEX or GLOW_TEX) -- (a round glow behind a round icon)
 			ic.halo:SetVertexColor(hc.r or 1, hc.g or 0.82, hc.b or 0.3)
 			ic.halo:SetShown(ic.glowing)
 			ic.bar:SetShown(ic.timed)
-			ic.rim:Show()
-			ic.tex:Show()
+			-- the polished look or the standard one: the aspect badge's own, an icon's own, or the shared one
+			local polished = p.procpolish
+			if ic.key == "aspect" then
+				polished = p.aspectpolish
+			elseif p[ic.key .. "own"] then
+				polished = p[ic.key .. "iconpolish"]
+			end
+			polished = polished and true or false
+			DressSquare(ic, true, polished and not ic.round, PROC_GOLD)
+			DressRound(ic, ic.round, polished, size, PROC_GOLD)
+			if ic.round then -- (its ring is its rim and its timer)
+				ic.rim:Hide()
+				ic.bar:Hide()
+			end
 		else
-			ic.tex:Hide()
-			ic.rim:Hide()
+			DressSquare(ic, false)
+			DressRound(ic, false)
 			ic.halo:Hide()
 			ic.bar:Hide()
 		end
 	end
+	-- the hawks, where their own settings put them (two sample hawks; one when the layout is a count):
+	-- circles with a ring that runs down, or squares that look like the proc icons
+	local hpos = p.hawkpos
+	local hawkOn = p.hawk and true or false
+	local hawkFree = hpos == "FREE"
+	local one = p.hawkmode == "COUNT"
+	local square = p.hawkshape == "SQUARE"
+	local inRow = hpos == "ABOVE" or hpos == "LEFT" or hpos == "RIGHT"
+	local hs
+	if square then
+		local own = p.hawkown and p.hawkiconsize or p.procsize
+		hs = math.min(hawkFree and 16 or ((hpos == "LEFT" or hpos == "RIGHT") and 18 or 24), math.max(12, (own or 30) * k))
+	else
+		hs = math.min(hawkFree and 16 or 26, math.max(14, (p.hawksize or 26) * k))
+	end
+	local numPos = p.hawknumbers and p.hawknumpos or nil
+	local numSize = math.max(8, math.floor(hs * (numPos == "MIDDLE" and 0.5 or 0.42) + 0.5))
+	local numRow = (numPos == "BOTTOM") and (numSize + 2) or 0
+	local under = square and 6 or 0 -- (a square's timer line)
+	local shownHawks = hawkOn and (one and 1 or 2) or 0
+	local step = hs + ((square or inRow) and GAP or 4)
+	-- a square's look: the one all proc icons share, or the hawks' own
+	local squarePolished, squareGlow = p.procpolish, p.procglow
+	if p.hawkown then squarePolished, squareGlow = p.hawkiconpolish, p.hawkiconglow end
+	squarePolished = squarePolished and true or false
+	for i, hk in ipairs(pv.hawks) do
+		local on = i <= shownHawks
+		local round = on and not square
+		local polished = p.hawkpolish and true or false
+		hk.back:SetShown(round)
+		hk.icon:SetShown(round)
+		hk.ring:SetShown(round)
+		hk.shadow:SetShown(round and polished)
+		hk.halo:SetShown(round and polished)
+		hk.gloss:SetShown(round and polished)
+		hk.line:SetShown(round and polished)
+		hk.num:SetShown(on and numPos ~= nil)
+		local sq = hk.sq
+		if not (on and square) then
+			DressSquare(sq, false)
+			sq.halo:Hide()
+			sq.bar:Hide()
+		end
+		if on then
+			local left = HAWK_SAMPLE[one and 2 or i] -- (a count shows the hawk that ends first)
+			local warn = (p.hawkwarn or 0) > 0 and left < p.hawkwarn
+			local spot = square and sq.tex or hk.back -- what stands on this hawk's spot
+			spot:SetSize(hs, hs)
+			spot:ClearAllPoints()
+			if hawkFree then
+				-- placed by hand: in the box's corner, after any other icon that is
+				spot:SetPoint("TOPRIGHT", pv.box, "TOPRIGHT", -8 - freeX - (shownHawks - i) * step, -8 - (numPos == "TOP" and (numSize + 2) or 0))
+			elseif hpos == "TOPRIGHT" then
+				spot:SetPoint("BOTTOMRIGHT", pv, "TOPRIGHT", -(shownHawks - i) * step, 4 + numRow + under)
+			elseif hpos == "ABOVE" then
+				spot:SetPoint("BOTTOM", pv, "TOP", aboveX + (i - 1) * step, 10 + numRow)
+			elseif hpos == "LEFT" then
+				spot:SetPoint("RIGHT", pv, "LEFT", -GAP - used.LEFT - (shownHawks - i) * step, 0)
+			elseif hpos == "RIGHT" then
+				spot:SetPoint("LEFT", pv, "RIGHT", GAP + used.RIGHT + (i - 1) * step, 0)
+			else
+				spot:SetPoint("BOTTOMLEFT", pv, "TOPLEFT", (i - 1) * step, 4 + numRow + under)
+			end
+			if square then
+				if not sq.loaded then
+					sq.loaded = true
+					local tex = SpellTexture(1293241)
+					sq.tex:SetTexture(tex ~= FALLBACK_ICON and tex or HAWK_ICON)
+				end
+				local c = warn and HAWK_RED or PROC_GOLD
+				DressSquare(sq, true, squarePolished, c)
+				sq.bar:SetColorTexture(c[1], c[2], c[3], 1)
+				sq.bar:SetWidth(math.max(1, hs * left / 18))
+				sq.bar:Show()
+				sq.warn = warn
+				local hc = p.hawkglowcolor or gc
+				if warn then
+					sq.halo:SetVertexColor(HAWK_RED[1], HAWK_RED[2], HAWK_RED[3])
+				else
+					sq.halo:SetVertexColor(hc.r or 1, hc.g or 0.82, hc.b or 0.3)
+				end
+				sq.halo:SetAlpha(0.6)
+				sq.halo:SetShown(squareGlow ~= nil and squareGlow ~= "NONE")
+			else
+				if not hk.loaded then
+					hk.loaded = true
+					local tex = SpellTexture(1293241)
+					hk.icon:SetTexture(tex ~= FALLBACK_ICON and tex or HAWK_ICON)
+				end
+				hk.icon:SetSize(hs * (polished and 0.78 or 0.80), hs * (polished and 0.78 or 0.80))
+				hk.ring:SetTexture(polished and RING_TEX or RINGFLAT_TEX)
+				hk.shadow:SetSize(hs * 1.62, hs * 1.62)
+				hk.halo:SetSize(hs * 1.62, hs * 1.62)
+				local hc = polished and (warn and HAWK_RED or HAWK_GOLD) or (warn and HAWK_PLAIN_RED or HAWK_PLAIN_GOLD)
+				hk.ring:SetVertexColor(hc[1], hc[2], hc[3])
+				hk.halo:SetVertexColor(hc[1], hc[2], hc[3])
+				local a = p.hawkalpha or 1
+				hk.back:SetAlpha(a) hk.icon:SetAlpha(a) hk.ring:SetAlpha(a) hk.num:SetAlpha(a)
+				hk.shadow:SetAlpha(0.75 * a) hk.halo:SetAlpha(0.34 * a) hk.gloss:SetAlpha(a) hk.line:SetAlpha(a)
+			end
+			if square then hk.num:SetAlpha(1) end
+			if numPos then
+				if not hk.num:SetFont(font, numSize, "OUTLINE") then hk.num:SetFont(STANDARD_TEXT_FONT, numSize, "OUTLINE") end
+				hk.num:SetText(tostring(left))
+				hk.num:SetTextColor(warn and 1 or 0.95, warn and 0.55 or 0.89, warn and 0.5 or 0.71)
+				hk.num:ClearAllPoints()
+				if numPos == "MIDDLE" then
+					hk.num:SetPoint("CENTER", spot, "CENTER", 0, 0)
+				elseif numPos == "TOP" then
+					hk.num:SetPoint("BOTTOM", spot, "TOP", 0, 1)
+				else
+					hk.num:SetPoint("TOP", spot, "BOTTOM", 0, -1 - under)
+				end
+			end
+		end
+	end
+	-- (in a row beside the bar, the hawks take their room after the other icons)
+	if hpos == "LEFT" then used.LEFT = used.LEFT + shownHawks * step end
+	if hpos == "RIGHT" then used.RIGHT = used.RIGHT + shownHawks * step end
+	if hawkFree then freeX = freeX + shownHawks * step end
+	-- a word next to what was placed by hand, while there is room for it beside the caption
+	local note = freeX > 0 and freeX <= 70 and not pv.mini
+	pv.freeNote:SetShown(note)
+	if note then
+		pv.freeNote:ClearAllPoints()
+		pv.freeNote:SetPoint("TOPRIGHT", pv.box, "TOPRIGHT", -8 - freeX - 2, -11)
+	end
+	local badge = hawkOn and one
+	pv.hawkBadge:SetShown(badge and not square)
+	pv.hawkBadgeRim:SetShown(badge and not square)
+	pv.hawkBadgeSq:SetShown(badge and square)
+	pv.hawkBadgeSqRim:SetShown(badge and square)
+	pv.hawkCount:SetShown(badge)
+	if badge then
+		local bs = math.max(10, math.floor(hs * 0.46 + 0.5))
+		local spot = square and pv.hawks[1].sq.tex or pv.hawks[1].back
+		for _, t in ipairs({pv.hawkBadge, pv.hawkBadgeSqRim}) do -- a round badge on a circle, a square one on a square
+			t:SetSize(bs, bs)
+			t:ClearAllPoints()
+			t:SetPoint("CENTER", spot, "BOTTOMRIGHT", -3, 3)
+		end
+		if not pv.hawkCount:SetFont(font, math.max(8, bs - 3), "OUTLINE") then pv.hawkCount:SetFont(STANDARD_TEXT_FONT, math.max(8, bs - 3), "OUTLINE") end
+		pv.hawkCount:SetText("2")
+	end
 	-- the bar and what sits beside it, centered in the box as one group
 	pv:ClearAllPoints()
-	pv:SetPoint("CENTER", pv.box, "CENTER", (used.LEFT - used.RIGHT) / 2, -12)
+	pv:SetPoint("CENTER", pv.box, "CENTER", (used.LEFT - used.RIGHT) / 2, PREVIEW_DY)
+end
+
+-- The live preview, from the current settings (called after every change)
+function Menu.DrawPreview()
+	local pv = frame and frame.preview
+	if not pv then return end
+	local p = YaHT.db.profile
+	-- a look being viewed: the preview shows your settings with that look's laid over them
+	if Menu.viewing and YaHT.LookValues then
+		p = setmetatable(YaHT:LookValues(Menu.viewing), {__index = YaHT.db.profile})
+	end
+	if pv.box.caption then pv.box.caption:SetText(Menu.viewing and L["Preview of the look"] or L["Live preview"]) end
+	LayoutPreview(pv, p)
 end
 
 ---------------------------------------------------------------------------
@@ -1882,11 +2314,12 @@ local function Build()
 	f.stageLight:SetBlendMode("ADD")
 	f.stageLight:SetVertexColor(1, 0.82, 0.52, 0.17)
 	f.stageLight:SetSize(PREVIEW_BOX_W * 1.25, PREVIEW_H * 1.5)
-	f.stageLight:SetPoint("CENTER", strip, "CENTER", 0, -12)
+	f.stageLight:SetPoint("CENTER", strip, "CENTER", 0, PREVIEW_DY)
 	if strip.SetClipsChildren then strip:SetClipsChildren(true) end
 	local caption = Text(strip, "GameFontHighlightSmall", C.goldDim)
 	caption:SetPoint("TOPLEFT", strip, "TOPLEFT", 10, -7)
 	caption:SetText(L["Live preview"])
+	strip.caption = caption
 	f.preview = BuildPreview(strip)
 	f.previewBox = strip
 	help.title = Text(help, "GameFontNormal", C.gold)

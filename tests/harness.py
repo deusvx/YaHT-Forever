@@ -98,6 +98,9 @@ local function newobj(kind)
   o.SetSize=function(s,w,h) s.w=w s.h=h s.width=w end
   o.SetShown=function(s,v) s.shown=v and true or false end
   o.SetIgnoreParentAlpha=function(s,v) s.ignore=v end
+  o.SetCooldown=function(s,st,d) s.cooldown={st,d} end
+  o.SetSwipeColor=function(s,r,g,b) s.swipe={r,g,b} end
+  o.SetDesaturated=function(s,v) s.desat=v end
   o.GetAlpha=function(s) return s.alpha end
   o.GetFrameLevel=function() return 1 end
   o.GetEffectiveScale=function() return 1 end

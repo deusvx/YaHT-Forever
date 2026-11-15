@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.4.0
+- New: hawk icons for Summon Hawk. Each hawk that is out shows by the bar with its 18 seconds running
+  down and the seconds left as a number. Under 6 seconds it turns red: Summon Hawk shares its cooldown
+  with Arcane Shot, so red means summon again first. A third cast replaces the older hawk in its own
+  place. Show one icon per hawk or one with a count, at the bar's top left or top right, in the row
+  with the other icons, or anywhere you drag them. Settings are on a new Hawks page under Alerts;
+  /yaht hawk shows what YaHT sees of your hawks.
+- New: round or square icons. Shape is a setting of the proc icons (their shared look, or an icon's
+  own), of the aspect badge and of the hawks. A round icon is the picture inside a ring that runs down
+  as its timer; a square one has its timer line under it. Glows follow the shape. "Round icons" on the
+  Home page switches every icon at once.
+- New: a polished look. Bevelled frames and rings with fine edges, a soft light on the icon and a
+  shadow under it. It is off to start with. "Polished look on every icon" on the Home page switches
+  it for everything at once, and each icon's page has its own switch.
+- The quick looks are now three presets you can look at before you use them: Minimal is just the
+  bar, Clean is the bar with its icons, Flashy is everything with every effect. Click one to see it
+  in the live preview, then "Use this look" to keep it; until then nothing changes. Each card
+  shows the look on your own bar, with the icons where you placed them. Size, position, colors and
+  the countdown are never touched.
+- The options window: the main switches carry a small picture, in color while the switch is on, so
+  you find them at a glance. The live preview is taller and now shows the hawks, round and polished
+  icons, and icons you dragged anywhere on the screen (apart, in its corner). Icons above the bar
+  stand in the preview as they do in the game.
+
 ## 1.3.0
 - New: YaHT's own options window (/yaht). The pages are listed on the left and the settings are
   grouped in boxes. On the right, a live preview shows your bar and icons as you change them, and a

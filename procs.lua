@@ -27,6 +27,8 @@ local NUM_SPARKS = 4
 local GOLD = {0.85, 0.70, 0.42}
 local NO_MANA = {0.45, 0.55, 1.0}
 local TWO_PI = 2 * math.pi
+local MEDIA = "Interface\\AddOns\\YaHT\\media\\"
+local ROUND_TRACK = {0.34, 0.27, 0.13} -- a round icon's ring where it has run down
 
 ---------------------------------------------------------------------------
 -- Pulse styles: how the icon itself moves. Each returns scale, alpha, flash.
@@ -94,6 +96,101 @@ local function PlaceAroundBar(f, p, key)
 	end
 end
 
+-- (the hawks stand in the same rows, after every icon here: hawks.lua asks how far along that is)
+YaHT.ProcSlotShift = SlotShift
+
+---------------------------------------------------------------------------
+-- The polished look of a square icon: a bevelled frame with fine dark edges in
+-- place of the flat rim, a soft light on the icon and a shadow under it.
+-- (The proc icons, the aspect badge and the hawks in their square shape.)
+---------------------------------------------------------------------------
+local POLISH_PARTS = {"shadow", "gloss", "frame", "line"}
+local function AddPolish(owner, icon)
+	local P = {}
+	P.shadow = owner:CreateTexture(nil, "BACKGROUND", nil, -3)
+	P.shadow:SetTexture(MEDIA .. "SquareHalo")
+	P.shadow:SetVertexColor(0, 0, 0)
+	P.shadow:SetAlpha(0.7)
+	P.gloss = owner:CreateTexture(nil, "ARTWORK", nil, 1)
+	P.gloss:SetTexture(MEDIA .. "SquareGloss")
+	P.gloss:SetBlendMode("ADD")
+	P.gloss:SetAllPoints(icon)
+	P.frame = owner:CreateTexture(nil, "ARTWORK", nil, 2)
+	P.frame:SetTexture(MEDIA .. "SquareRing")
+	P.frame:SetPoint("CENTER", owner, "CENTER", 0, 0)
+	P.line = owner:CreateTexture(nil, "ARTWORK", nil, 3)
+	P.line:SetTexture(MEDIA .. "SquareLine")
+	P.line:SetVertexColor(0, 0, 0)
+	P.line:SetAllPoints(P.frame)
+	for _, part in ipairs(POLISH_PARTS) do P[part]:Hide() end
+	return P
+end
+
+-- size: the icon's (the frame stands where the flat rim does, one pixel out)
+local function SizePolish(P, owner, size)
+	P.frame:SetSize(size + 2, size + 2)
+	P.shadow:SetSize((size + 2) * 1.5, (size + 2) * 1.5)
+	P.shadow:ClearAllPoints()
+	P.shadow:SetPoint("CENTER", owner, "CENTER", 0, -size * 0.06)
+end
+
+local function ShowPolish(P, on)
+	for _, part in ipairs(POLISH_PARTS) do P[part]:SetShown(on) end
+end
+
+---------------------------------------------------------------------------
+-- The round shape (a setting): the picture cut round. A proc icon then sits in a
+-- ring that is its timer; the aspect badge gets a round rim or a round frame.
+---------------------------------------------------------------------------
+local function TryCall(obj, method, ...)
+	local fn = obj and obj[method]
+	if type(fn) ~= "function" then return false end
+	return pcall(fn, obj, ...)
+end
+
+-- a round mask for this picture (nil when the game has none: the picture then stays square)
+local function AddMask(owner, icon)
+	if type(owner.CreateMaskTexture) ~= "function" then return nil end
+	local ok, mask = pcall(owner.CreateMaskTexture, owner)
+	if not ok or not mask then return nil end
+	TryCall(mask, "SetTexture", MEDIA .. "Disc", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+	TryCall(mask, "SetAllPoints", icon)
+	return mask
+end
+
+local function SetMasked(tex, mask, on)
+	if not mask or not tex then return end
+	if on and not tex.yahtMasked then
+		if TryCall(tex, "AddMaskTexture", mask) then tex.yahtMasked = true end
+	elseif not on and tex.yahtMasked then
+		TryCall(tex, "RemoveMaskTexture", mask)
+		tex.yahtMasked = nil
+	end
+end
+
+-- the polished look of a round icon that has no timer ring (the aspect badge)
+local ROUND_POLISH = {"shadow", "gloss", "frame", "line"}
+local function AddRoundPolish(owner, icon)
+	local P = {}
+	P.shadow = owner:CreateTexture(nil, "BACKGROUND", nil, -3)
+	P.shadow:SetTexture(MEDIA .. "Halo")
+	P.shadow:SetVertexColor(0, 0, 0)
+	P.shadow:SetAlpha(0.75)
+	P.gloss = owner:CreateTexture(nil, "ARTWORK", nil, 1)
+	P.gloss:SetTexture(MEDIA .. "Gloss")
+	P.gloss:SetBlendMode("ADD")
+	P.gloss:SetAllPoints(icon)
+	P.frame = owner:CreateTexture(nil, "ARTWORK", nil, 2)
+	P.frame:SetTexture(MEDIA .. "Ring")
+	P.frame:SetPoint("CENTER", owner, "CENTER", 0, 0)
+	P.line = owner:CreateTexture(nil, "ARTWORK", nil, 3)
+	P.line:SetTexture(MEDIA .. "RingLine")
+	P.line:SetVertexColor(0, 0, 0)
+	P.line:SetAllPoints(P.frame)
+	for _, part in ipairs(ROUND_POLISH) do P[part]:Hide() end
+	return P
+end
+
 -- Icons set to "Anywhere" can be dragged while the bar is unlocked; the
 -- spot is saved per icon (like the ammo counter).
 local function MakeDraggable(f, key)
@@ -135,15 +232,20 @@ local Icon = {}
 Icon.__index = Icon
 
 -- def: key (settings prefix), frameName, spellID (icon), fallbackIcon,
--- window (seconds shown when the game doesn't say), label (debug log),
+-- window (seconds shown when the game doesn't say), label (debug log).
+-- The hawks in their square shape (hawks.lua) are two more of these, and add:
+-- on(p) (shown at all? instead of the plain on/off setting), place(f, p) (where it
+-- stands, instead of its spot around the bar), tint(secondsLeft, p) (another colour
+-- for the rim, timer and glow, or nil) and ahead (seconds its placing sample runs ahead).
 local function NewIcon(def)
-	return setmetatable({def = def, key = def.key, lcgKey = "YaHT" .. def.key}, Icon)
+	return setmetatable({def = def, key = def.key, lcgKey = "YaHT" .. (def.frameName or def.key)}, Icon)
 end
+YaHT.NewProcIcon = NewIcon
 
--- The look (size, opacity, glow style, pulse, sound) is shared by all proc
--- icons ("proc" settings), unless an icon is given its own (<key>own, then
--- <key>iconsize ...); position, glow color and on/off are always per icon.
-local SHARED = {size = true, alpha = true, glow = true, pulse = true, sound = true}
+-- The look (size, opacity, glow style, pulse, sound, polished or not) is shared
+-- by all proc icons ("proc" settings), unless an icon is given its own (<key>own,
+-- then <key>iconsize ...); position, glow color and on/off are always per icon.
+local SHARED = {size = true, alpha = true, glow = true, pulse = true, sound = true, polish = true, shape = true}
 function Icon:Setting(p, suffix)
 	if SHARED[suffix] then
 		if p[self.key .. "own"] then return p[self.key .. "icon" .. suffix] end
@@ -157,6 +259,7 @@ function Icon:HideGlows()
 	local f = self.frame
 	f.halo:Hide()
 	for _, t in pairs(f.ring) do t:Hide() end
+	if f.round then f.round.glow:Hide() end
 	f.shine:Hide()
 	for i = 1, NUM_SPARKS do f.sparks[i]:Hide() end
 end
@@ -192,7 +295,10 @@ end
 function Icon:DrawGlow(p, gp, iconSize)
 	local f = self.frame
 	local style = self:Setting(p, "glow")
-	local c = self:Setting(p, "glowcolor")
+	local c = f.tint or self:Setting(p, "glowcolor")
+	-- a round icon's glow is round: the soft halo and the bright ring follow the circle, the sparks
+	-- circle it; the styles that only exist with corners (shine, the borrowed ones) become the halo
+	if f.isRound and style ~= "NONE" and style ~= "SPARKS" and style ~= "RING" then style = "HALO" end
 	if style == "PROC" or style == "BUTTON" then
 		self:HideGlows()
 		if self:StartLibGlow(style, c) then return end
@@ -202,23 +308,40 @@ function Icon:DrawGlow(p, gp, iconSize)
 	end
 	local r, g, b = c.r, c.g, c.b
 	if style ~= "HALO" then f.halo:Hide() end
-	if style ~= "RING" then for _, t in pairs(f.ring) do t:Hide() end end
+	if style ~= "RING" or f.isRound then for _, t in pairs(f.ring) do t:Hide() end end
+	if style ~= "RING" or not f.isRound then f.round.glow:Hide() end
 	if style ~= "SHINE" then f.shine:Hide() end
 	if style ~= "SPARKS" then for i = 1, NUM_SPARKS do f.sparks[i]:Hide() end end
 
 	if style == "HALO" then
 		local h = f.halo
 		local pad = math.max(8, iconSize * 0.4)
-		h:SetSize(iconSize + 2 * pad, iconSize + 2 * pad)
+		if f.isRound then
+			-- (the round glow's bright middle is hidden behind the icon; its soft edge shows around it)
+			local d = (iconSize + 2) * 1.7
+			h:SetSize(d, d)
+		else
+			h:SetSize(iconSize + 2 * pad, iconSize + 2 * pad)
+		end
 		h:SetVertexColor(r, g, b)
 		h:SetAlpha(0.6 + 0.3 * math.sin(TWO_PI * gp / 1.6))
 		h:Show()
 	elseif style == "RING" then
 		local a = 0.65 + 0.35 * math.sin(TWO_PI * gp / 1.2)
-		for _, t in pairs(f.ring) do
-			t:SetVertexColor(r, g, b)
-			t:SetAlpha(a)
-			t:Show()
+		if f.isRound then
+			-- a bright ring just outside the icon's own ring
+			local glow = f.round.glow
+			local d = (iconSize + 2) * 1.2
+			glow:SetSize(d, d)
+			glow:SetVertexColor(r, g, b)
+			glow:SetAlpha(a)
+			glow:Show()
+		else
+			for _, t in pairs(f.ring) do
+				t:SetVertexColor(r, g, b)
+				t:SetAlpha(a)
+				t:Show()
+			end
 		end
 	elseif style == "SHINE" then
 		local s = f.shine
@@ -239,6 +362,10 @@ function Icon:DrawGlow(p, gp, iconSize)
 		for i = 1, NUM_SPARKS do
 			local sp = f.sparks[i]
 			local x, y = Perimeter((gp / 1.6 * 4 + (i - 1)) % 4, half)
+			if f.isRound then
+				local a = TWO_PI * ((gp / 1.6 + (i - 1) / NUM_SPARKS) % 1)
+				x, y = half * math.cos(a), half * math.sin(a)
+			end
 			sp:SetSize(sz, sz)
 			sp:ClearAllPoints()
 			sp:SetPoint("CENTER", f.holder, "CENTER", x, y)
@@ -251,8 +378,19 @@ end
 function Icon:SetIconSize(size)
 	local f = self.frame
 	f.border:SetSize(size + 2, size + 2)
-	f.icon:SetSize(size, size)
-	f.flash:SetSize(size, size)
+	local inner = f.isRound and (size + 2) * 0.8 or size -- (a round icon sits inside its ring)
+	f.icon:SetSize(inner, inner)
+	f.flash:SetSize(inner, inner)
+	if f.isRound then
+		local R, d = f.round, size + 2
+		R.back:SetSize(d, d)
+		R.track:SetSize(d, d)
+		R.line:SetSize(d, d)
+		R.ring:SetSize(d, d)
+		R.shadow:SetSize(d * 1.62, d * 1.62)
+		R.shadow:ClearAllPoints()
+		R.shadow:SetPoint("CENTER", f.holder, "CENTER", 0, -d * 0.06)
+	end
 	local th = 2
 	local out = size / 2 + 1 + th -- ring sits just outside the rim
 	local R = f.ring
@@ -260,6 +398,7 @@ function Icon:SetIconSize(size)
 	R.B:SetSize(size + 2 + 2 * th, th) R.B:ClearAllPoints() R.B:SetPoint("CENTER", f.holder, "CENTER", 0, -out + th / 2)
 	R.L:SetSize(th, size + 2) R.L:ClearAllPoints() R.L:SetPoint("CENTER", f.holder, "CENTER", -out + th / 2, 0)
 	R.R:SetSize(th, size + 2) R.R:ClearAllPoints() R.R:SetPoint("CENTER", f.holder, "CENTER", out - th / 2, 0)
+	if f.polished then SizePolish(f.polish, f.holder, size) end
 end
 
 function Icon:OnUpdate(elapsed)
@@ -272,7 +411,7 @@ function Icon:OnUpdate(elapsed)
 		-- placing the bar: loop a pretend proc so you can see where it sits
 		window = self.def.window
 		local cycle = window + 1
-		start = now - (now % cycle)
+		start = now - ((now + (self.def.ahead or 0)) % cycle)
 	end
 	-- a preview from "Preview all alerts" ends by itself
 	if f.previewUntil and now > f.previewUntil then
@@ -300,6 +439,13 @@ function Icon:OnUpdate(elapsed)
 	local t = now - start
 	local left = math.max(0, 1 - t / window)
 	local size = self:Setting(p, "size")
+	f.secondsLeft = math.max(0, window - t)
+	-- an icon can ask for another colour (the hawks turn red when their time runs low)
+	local tint = self.def.tint and self.def.tint(f.secondsLeft, p) or nil
+	if tint ~= f.tint then
+		f.tint = tint
+		self:StopLibGlow() -- (a borrowed glow takes its colour when it starts)
+	end
 
 	-- pop in, then the chosen pulse (a bit faster near the end of the window)
 	local k, iconAlpha, flash = 1, 1, 0
@@ -325,7 +471,7 @@ function Icon:OnUpdate(elapsed)
 		f.cdShade:SetShown(onCD)
 		f.cdText:SetShown(onCD)
 		if f.cd then
-			if onCD and f.cd.SetCooldown then
+			if onCD and f.cd.SetCooldown and not f.isRound then
 				f.cd:SetCooldown(f.cdStart, f.cdDur)
 				f.cd:Show()
 			else
@@ -364,14 +510,38 @@ function Icon:OnUpdate(elapsed)
 	end
 
 	f.timer:SetWidth(math.max(size * left, 0.01))
-	local c = (f.noMana and not preview) and NO_MANA or GOLD
+	local c = f.tint or ((f.noMana and not preview) and NO_MANA or GOLD)
 	f.timer:SetVertexColor(c[1], c[2], c[3])
 	f.border:SetVertexColor(c[1], c[2], c[3])
+	f.polish.frame:SetVertexColor(c[1], c[2], c[3])
+	-- round: the ring is the timer. The game's cooldown sweep draws it, so it runs down by itself;
+	-- it only needs to be told when the time (or the colour) changes
+	if f.isRound then
+		local R = f.round
+		if f.ringColor ~= c then
+			f.ringColor = c
+			TryCall(R.ring, "SetSwipeColor", c[1], c[2], c[3], 1)
+		end
+		if f.ringStart ~= start or f.ringDur ~= window then
+			f.ringStart, f.ringDur = start, window
+			TryCall(R.ring, "SetCooldown", start, window)
+			R.ring:Show()
+		end
+	end
+end
+
+-- the short sound an icon makes when it pops up (when its look says so)
+function Icon:Chime()
+	if self:Setting(YaHT.db.profile, "sound") and SOUNDKIT then
+		local kit = SOUNDKIT.UI_COPY_SUCCESSFUL or SOUNDKIT.IG_ABILITY_ICON_DROP or SOUNDKIT.RAID_WARNING
+		if kit then pcall(PlaySound, kit, "Master") end
+	end
 end
 
 -- The proc just started. startedAt/window come from the game when it says
 -- (a buff's real start and length), otherwise "now" and the default length.
-function Icon:Start(noMana, startedAt, window, texture)
+-- quiet: no sound (the hawks ring once per cast themselves).
+function Icon:Start(noMana, startedAt, window, texture, quiet)
 	local f = self.frame
 	f.proc, f.noMana = true, noMana
 	f.drawnCD, f.wasOnCD, f.readyAt, f.cdEnd = nil, false, nil, nil
@@ -380,10 +550,7 @@ function Icon:Start(noMana, startedAt, window, texture)
 	f.drawnK = nil
 	if texture then f.icon:SetTexture(texture) end
 	f:Show()
-	if self:Setting(YaHT.db.profile, "sound") and SOUNDKIT then
-		local kit = SOUNDKIT.UI_COPY_SUCCESSFUL or SOUNDKIT.IG_ABILITY_ICON_DROP or SOUNDKIT.RAID_WARNING
-		if kit then pcall(PlaySound, kit, "Master") end
-	end
+	if not quiet then self:Chime() end
 end
 
 function Icon:End()
@@ -400,7 +567,40 @@ function Icon:Apply()
 	f:SetScale(p.scale)
 	local size = self:Setting(p, "size")
 	f:SetSize(size + 2, size + 6)
-	PlaceAroundBar(f, p, self.key) -- icons on the same spot sit side by side
+	if self.def.place then
+		self.def.place(f, p)
+	else
+		PlaceAroundBar(f, p, self.key) -- icons on the same spot sit side by side
+	end
+	-- the polished look, or the standard one with its flat rim
+	local polished = self:Setting(p, "polish") and true or false
+	-- square, or round: the picture cut round inside a ring that is its timer
+	local R = f.round
+	local round = (self.def.shape or self:Setting(p, "shape")) == "CIRCLE" and R.ring ~= nil
+	f.isRound = round
+	f.halo:SetTexture(round and (MEDIA .. "Halo") or GLOW_TEX) -- (a round glow behind a round icon)
+	f.polished = polished and not round
+	ShowPolish(f.polish, f.polished)
+	f.border:SetShown(not polished and not round)
+	SetMasked(f.icon, R.mask, round)
+	SetMasked(f.flash, R.mask, round)
+	SetMasked(f.cdShade, R.mask, round)
+	R.back:SetShown(round)
+	R.track:SetShown(round)
+	R.shadow:SetShown(round and polished)
+	R.gloss:SetShown(round and polished)
+	R.line:SetShown(round and polished)
+	if round then
+		local ringTex = MEDIA .. (polished and "Ring" or "RingFlat")
+		R.track:SetTexture(ringTex)
+		R.track:SetVertexColor(ROUND_TRACK[1], ROUND_TRACK[2], ROUND_TRACK[3])
+		TryCall(R.ring, "SetSwipeTexture", ringTex)
+	elseif R.ring then
+		R.ring:Hide()
+	end
+	f.ringStart, f.ringDur, f.ringColor = nil, nil, nil
+	f.timer:SetShown(not round) -- (a round icon's ring is its timer: no line under it)
+	f.track:SetShown(not round)
 	f.holder:SetSize(size + 2, size + 2)
 	f.cdText:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", math.max(9, math.floor(size * 0.45)), "OUTLINE")
 	f.drawnK = nil
@@ -409,7 +609,9 @@ function Icon:Apply()
 	f.timer:SetWidth(size)
 	f.track:SetSize(size, 2)
 	self:StopLibGlow() -- restarts with the new color/style on the next frame
-	if not p[self.key] then
+	local on = p[self.key]
+	if self.def.on then on = self.def.on(p) end
+	if not on then
 		f.proc = false
 		self:HideGlows()
 		f.fade = 0 f:SetAlpha(0) f:Hide()
@@ -461,6 +663,50 @@ function Icon:Create()
 	f.flash:SetBlendMode("ADD")
 	f.flash:SetPoint("CENTER", holder, "CENTER", 0, 0)
 	f.flash:SetAlpha(0)
+	f.polish = AddPolish(holder, f.icon)
+	-- the round shape: a dark disc, the ring's dim track, the ring itself, and for the polished
+	-- look a shadow, a soft light and fine lines on the ring's edges
+	local R = {}
+	R.mask = AddMask(holder, f.icon)
+	R.shadow = holder:CreateTexture(nil, "BACKGROUND", nil, -3)
+	R.shadow:SetTexture(MEDIA .. "Halo")
+	R.shadow:SetVertexColor(0, 0, 0)
+	R.shadow:SetAlpha(0.75)
+	R.back = holder:CreateTexture(nil, "BACKGROUND")
+	R.back:SetTexture(MEDIA .. "Disc")
+	R.back:SetVertexColor(0.05, 0.045, 0.04)
+	R.back:SetPoint("CENTER", holder, "CENTER", 0, 0)
+	R.track = holder:CreateTexture(nil, "BORDER", nil, 1)
+	R.track:SetPoint("CENTER", holder, "CENTER", 0, 0)
+	R.gloss = holder:CreateTexture(nil, "ARTWORK", nil, 1)
+	R.gloss:SetTexture(MEDIA .. "Gloss")
+	R.gloss:SetBlendMode("ADD")
+	R.gloss:SetAllPoints(f.icon)
+	local okRing, ring = pcall(CreateFrame, "Cooldown", nil, holder, "CooldownFrameTemplate")
+	if okRing and ring then
+		ring:SetPoint("CENTER", holder, "CENTER", 0, 0)
+		TryCall(ring, "SetDrawEdge", false)
+		TryCall(ring, "SetDrawBling", false)
+		TryCall(ring, "SetHideCountdownNumbers", true)
+		TryCall(ring, "SetReverse", false)
+		ring.noCooldownCount = true -- (other addons' cooldown numbers stay off it)
+		ring:Hide()
+		R.ring = ring
+	end
+	R.top = CreateFrame("Frame", nil, holder)
+	R.top:SetAllPoints(holder)
+	TryCall(R.top, "SetFrameLevel", (holder:GetFrameLevel() or 1) + 4)
+	R.line = R.top:CreateTexture(nil, "ARTWORK")
+	R.line:SetTexture(MEDIA .. "RingLine")
+	R.line:SetVertexColor(0, 0, 0)
+	R.line:SetPoint("CENTER", holder, "CENTER", 0, 0)
+	-- the "bright ring" glow of a round icon (behind it: only what reaches past the icon shows)
+	R.glow = holder:CreateTexture(nil, "BACKGROUND", nil, -1)
+	R.glow:SetTexture(MEDIA .. "RingFlat")
+	R.glow:SetBlendMode("ADD")
+	R.glow:SetPoint("CENTER", holder, "CENTER", 0, 0)
+	R.shadow:Hide() R.back:Hide() R.track:Hide() R.gloss:Hide() R.line:Hide() R.glow:Hide()
+	f.round = R
 
 	-- cooldown look: dark shade, the game's clock sweep, and our own seconds
 	f.cdShade = holder:CreateTexture(nil, "OVERLAY", nil, 2)
@@ -1200,6 +1446,8 @@ local function BadgeUpdate(self, elapsed)
 	self.lastLevel = shown
 	local c = LEVEL_COLOR[shown]
 	self.rim:SetVertexColor(c[1], c[2], c[3])
+	self.polish.frame:SetVertexColor(c[1], c[2], c[3])
+	self.rpolish.frame:SetVertexColor(c[1], c[2], c[3])
 	if shown == "OK" then
 		self:SetAlpha(a * p.aspectalpha)
 		self.icon:SetAlpha(1)
@@ -1245,8 +1493,24 @@ local function ApplyAspect()
 	PlaceAroundBar(badge, p, "aspect")
 	badge.rim:SetAllPoints(badge)
 	badge.icon:SetSize(size, size)
+	local polished = p.aspectpolish and true or false
+	-- square or round: a round badge has a round rim, or (polished) a round frame
+	local round = p.aspectshape == "CIRCLE"
+	SizePolish(badge.polish, badge, size)
+	ShowPolish(badge.polish, polished and not round)
+	badge.rim:SetShown(not polished)
+	badge.rim:SetTexture(round and (MEDIA .. "Disc") or WHITE)
+	SetMasked(badge.icon, badge.mask, round)
+	local RP = badge.rpolish
+	for _, part in ipairs(ROUND_POLISH) do RP[part]:SetShown(round and polished) end
+	RP.frame:SetSize(size + 2, size + 2)
+	RP.shadow:SetSize((size + 2) * 1.62, (size + 2) * 1.62)
+	RP.shadow:ClearAllPoints()
+	RP.shadow:SetPoint("CENTER", badge, "CENTER", 0, -size * 0.06)
 	local pad = math.max(6, size * 0.45)
 	badge.halo:SetSize(size + 2 * pad, size + 2 * pad)
+	badge.halo:SetTexture(p.aspectshape == "CIRCLE" and (MEDIA .. "Halo") or GLOW_TEX)
+	if p.aspectshape == "CIRCLE" then badge.halo:SetSize((size + 2) * 1.7, (size + 2) * 1.7) end
 	badge.judge = 0
 	if not p.aspect then
 		badge.fade = 0 badge:SetAlpha(0) badge:Hide()
@@ -1269,6 +1533,9 @@ local function CreateBadge()
 	f.icon = f:CreateTexture(nil, "ARTWORK")
 	f.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 	f.icon:SetPoint("CENTER", f, "CENTER")
+	f.polish = AddPolish(f, f.icon)
+	f.mask = AddMask(f, f.icon)
+	f.rpolish = AddRoundPolish(f, f.icon)
 	f.fade = 0
 	f:SetAlpha(0)
 	f:Hide()
@@ -1314,6 +1581,7 @@ function YaHT:PreviewAlerts()
 	if self.TestFeignAlert then self:TestFeignAlert() end
 	if self.PreviewRange then self:PreviewRange(PREVIEW_TIME) end
 	if self.PreviewPet then self:PreviewPet(PREVIEW_TIME) end
+	if self.PreviewHawks then self:PreviewHawks(PREVIEW_TIME) end
 end
 
 ---------------------------------------------------------------------------

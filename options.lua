@@ -23,25 +23,37 @@ local function ResetKeys(keys)
 	AceConfigRegistry:NotifyChange(Addon)
 end
 
--- One-click looks. Only touch the "effects" settings, never size/position.
+-- The three looks. Each says what is on: Minimal is just the bar, Clean adds the icons, Flashy is
+-- everything with every effect. They never touch size, position, colours or the countdown.
+local LOOK_ICONS = {"mongoose", "quickshots", "rapidfire", "racial", "aspect", "hawk", "ammo", "feign"}
+local LOOK_WARNINGS = {"pet", "meleerange", "melee"}
+local LOOK_POLISH = {"procpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish",
+	"aspectpolish", "hawkpolish", "hawkiconpolish"}
+local function Look(t, icons, warnings, polish)
+	for _, key in ipairs(LOOK_ICONS) do t[key] = icons end
+	for _, key in ipairs(LOOK_WARNINGS) do t[key] = warnings end
+	for _, key in ipairs(LOOK_POLISH) do t[key] = polish end
+	return t
+end
 local PRESETS = {
-	MINIMAL = {
-		glow = false, sparkmode = "OFF", readypulse = true,
-		showtext = true, textpos = "OUTSIDE_RIGHT", textx = 0, texty = 0,
-	},
-	CLEAN = {
-		glow = true, glowlook = "OUTLINE", glowmode = "STAND", glowpulse = false,
-		glowstyle = "BUILTIN", glowkeepbuiltin = false, glowintensity = 0.9,
-		sparkmode = "STAND", readypulse = true, showtext = true,
-	},
-	FLASHY = {
+	MINIMAL = Look({glow = false, sparkmode = "OFF", readypulse = true}, false, false, false),
+	CLEAN = Look({glow = false, sparkmode = "OFF", readypulse = true, procglow = "NONE", procpulse = "NONE"}, true, false, false),
+	FLASHY = Look({
 		glow = true, glowlook = "SOFT", glowmode = "RAMP", glowpulse = true, glowramp = 0.7,
 		glowstyle = "SWEEP", glowkeepbuiltin = true, glowintensity = 1, glowsize = 14,
-		sparkmode = "STAND", readypulse = true, showtext = true,
-	},
+		sparkmode = "STAND", readypulse = true, procglow = "HALO", procpulse = "BREATHE",
+	}, true, true, true),
 }
 
 YaHT.presets = PRESETS
+
+-- what a look would set, for showing it in the options window before it is used
+function YaHT:LookValues(name)
+	local t = {}
+	for k, v in pairs(PRESETS[name] or {}) do t[k] = v end
+	if name == "FLASHY" and self:GetLCG() then t.glowstyle = "PIXEL" end
+	return t
+end
 
 local function ApplyPreset(name)
 	local profile = YaHT.db.profile
@@ -69,9 +81,12 @@ local TAB_KEYS = {
 		"feignpoint", "feignrelpoint", "feignx", "feigny"},
 	pet = {"pet", "petlow", "petlowat", "petwhen", "petdead", "petidle", "petsound", "petpulse", "pettextsize",
 		"petpoint", "petrelpoint", "petx", "pety"},
-	aspect = {"aspect", "aspectwhen", "aspectpos", "aspectsize", "aspectalpha", "aspectwarnspeed", "aspectspeedalways",
+	hawk = {"hawk", "hawkmode", "hawkpos", "hawksize", "hawkalpha", "hawknumbers", "hawknumpos", "hawkempty", "hawkpolish", "hawkwarn",
+		"hawkpoint", "hawkrelpoint", "hawkx", "hawky", "hawkshape", "hawkglowcolor", "hawkown", "hawkownset",
+		"hawkiconsize", "hawkiconalpha", "hawkiconglow", "hawkiconpulse", "hawkiconsound", "hawkiconpolish"},
+	aspect = {"aspect", "aspectwhen", "aspectpos", "aspectsize", "aspectalpha", "aspectpolish", "aspectshape", "aspectwarnspeed", "aspectspeedalways",
 		"aspectwarnnone", "aspecthint", "aspectsound", "aspectpoint", "aspectrelpoint", "aspectx", "aspecty"},
-	procs = {"procsize", "procalpha", "procglow", "procpulse", "procsound", "mongoosecooldown", "mongoose", "mongoosepos", "mongooseglowcolor", "mongoosepoint", "mongooserelpoint", "mongoosex", "mongoosey", "quickshots", "quickshotspos", "quickshotsglowcolor", "quickshotspoint", "quickshotsrelpoint", "quickshotsx", "quickshotsy", "rapidfire", "rapidfirepos", "rapidfireglowcolor", "rapidfirepoint", "rapidfirerelpoint", "rapidfirex", "rapidfirey", "racial", "racialpos", "racialglowcolor", "racialpoint", "racialrelpoint", "racialx", "racialy",
+	procs = {"procshape", "mongooseiconshape", "quickshotsiconshape", "rapidfireiconshape", "racialiconshape", "procpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish", "procsize", "procalpha", "procglow", "procpulse", "procsound", "mongoosecooldown", "mongoose", "mongoosepos", "mongooseglowcolor", "mongoosepoint", "mongooserelpoint", "mongoosex", "mongoosey", "quickshots", "quickshotspos", "quickshotsglowcolor", "quickshotspoint", "quickshotsrelpoint", "quickshotsx", "quickshotsy", "rapidfire", "rapidfirepos", "rapidfireglowcolor", "rapidfirepoint", "rapidfirerelpoint", "rapidfirex", "rapidfirey", "racial", "racialpos", "racialglowcolor", "racialpoint", "racialrelpoint", "racialx", "racialy",
 		"mongooseown", "mongooseownset", "mongooseiconsize", "mongooseiconalpha", "mongooseiconglow", "mongooseiconpulse", "mongooseiconsound", "quickshotsown", "quickshotsownset", "quickshotsiconsize", "quickshotsiconalpha", "quickshotsiconglow", "quickshotsiconpulse", "quickshotsiconsound", "rapidfireown", "rapidfireownset", "rapidfireiconsize", "rapidfireiconalpha", "rapidfireiconglow", "rapidfireiconpulse", "rapidfireiconsound", "racialown", "racialownset", "racialiconsize", "racialiconalpha", "racialiconglow", "racialiconpulse", "racialiconsound"},
 	range = {"meleerange", "meleerangewhen", "meleedeadstyle", "meleedeadcolor", "meleedeadheight", "meleedeadalpha", "meleefarcolor", "meleefarsize", "meleefaralpha",
 		"meleewarnspeed", "meleewarnboost", "meleewarnglow", "meleewarnglowsize", "meleewarnglowalpha"},
@@ -141,6 +156,13 @@ function YaHT:CreateConfig()
 	local function feignOff() return not YaHT.db.profile.feign end
 	local function petOff() return not YaHT.db.profile.pet end
 	local function petLowOff() local p = YaHT.db.profile return not p.pet or not p.petlow end
+	local function hawkOff() return not YaHT.db.profile.hawk end
+	local function hawkNumOff() local p = YaHT.db.profile return not p.hawk or not p.hawknumbers end
+	local function hawkEachOff() local p = YaHT.db.profile return not p.hawk or p.hawkmode == "COUNT" end
+	-- the hawks as circles have their own few settings; as squares they have a proc icon's
+	local function hawkSquare() return YaHT.db.profile.hawkshape == "SQUARE" end
+	local function hawkRound() return YaHT.db.profile.hawkshape ~= "SQUARE" end
+	local function hawkOwnOff() local p = YaHT.db.profile return p.hawkshape ~= "SQUARE" or not p.hawkown end
 
 	local rapidfire = YaHT.GetSpellName(3045) or "Rapid Fire"
 	local hasLCG = function() return LibStub and LibStub("LibCustomGlow-1.0", true) end
@@ -163,7 +185,17 @@ function YaHT:CreateConfig()
 	local PULSE_VALUES = {NONE = L["None"], BREATHE = L["Breathe (fades in and out)"], GROW = L["Grow and shrink"],
 		HEARTBEAT = L["Heartbeat"], FLASH = L["Flash"]}
 	local PULSE_SORTING = {"NONE", "BREATHE", "GROW", "HEARTBEAT", "FLASH"}
-	local OWN_LOOK = {"size", "alpha", "glow", "pulse", "sound"}
+	local OWN_LOOK = {"size", "alpha", "glow", "pulse", "sound", "polish", "shape"}
+	-- every "Shape" setting there is (the "Round icons" switch on the Home and Alerts pages sets them all)
+	YaHT.shapeKeys = {"procshape", "mongooseiconshape", "quickshotsiconshape", "rapidfireiconshape", "racialiconshape",
+		"aspectshape", "hawkshape"}
+	local SHAPE_VALUES = {SQUARE = L["Square"], CIRCLE = L["Circle"]}
+	local SHAPE_SORTING = {"SQUARE", "CIRCLE"}
+	local SHAPE_DESC = L["Square: the icon with a rim and a timer line under it. Circle: the icon cut round inside a ring, and the ring runs down as the timer."]
+	-- every "Polished look" setting there is (the one switch on the Home and Alerts pages sets them all)
+	YaHT.polishKeys = {"procpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish",
+		"aspectpolish", "hawkpolish", "hawkiconpolish"}
+	local SQUARE_POLISH = L["A bevelled frame with fine edges in place of the flat rim, a soft light on the icon and a shadow under it. Off: the standard look, a plain flat rim."]
 
 	-- one small page per proc icon: on/off, position, glow color (+ extras)
 	local function procPage(key, name, desc, order, extra)
@@ -212,11 +244,13 @@ function YaHT:CreateConfig()
 				end,
 				disabled = off,
 			},
+			[key .. "iconshape"] = {name = L["Shape"], desc = SHAPE_DESC, type = "select", order = 10.5, values = SHAPE_VALUES, sorting = SHAPE_SORTING, hidden = ownOff, disabled = off},
 			[key .. "iconsize"] = {name = L["Icon size"], type = "range", order = 11, min = 16, max = 64, step = 1, hidden = ownOff, disabled = off},
 			[key .. "iconalpha"] = {name = L["Opacity"], type = "range", order = 12, min = 0.2, max = 1, step = 0.05, isPercent = true, hidden = ownOff, disabled = off},
 			[key .. "iconglow"] = {name = L["Glow style"], type = "select", order = 13, values = glowValues, sorting = glowSorting, hidden = ownOff, disabled = off},
 			[key .. "iconpulse"] = {name = L["Pulse style"], type = "select", order = 14, values = PULSE_VALUES, sorting = PULSE_SORTING, hidden = ownOff, disabled = off},
 			[key .. "iconsound"] = {name = L["Play a sound when it pops up"], type = "toggle", width = "double", order = 15, hidden = ownOff, disabled = off},
+			[key .. "iconpolish"] = {name = L["Polished look"], desc = SQUARE_POLISH, type = "toggle", order = 16, hidden = ownOff, disabled = off},
 		}
 		for k, v in pairs(extra or {}) do args[k] = v end
 		return {name = name, type = "group", order = order, args = args}
@@ -234,8 +268,10 @@ function YaHT:CreateConfig()
 		rapidfire = {name = rapidfire, type = "toggle", order = 13},
 		racial = {name = L["Racial ability"], type = "toggle", order = 14},
 		lookheader = {name = L["Look of all proc icons"], type = "header", order = 20},
+		procshape = {name = L["Shape"], desc = SHAPE_DESC, type = "select", order = 20.5, values = SHAPE_VALUES, sorting = SHAPE_SORTING, disabled = procsOff},
 		procsize = {name = L["Icon size"], type = "range", order = 21, min = 16, max = 64, step = 1, disabled = procsOff},
 		procalpha = {name = L["Opacity"], type = "range", order = 22, min = 0.2, max = 1, step = 0.05, isPercent = true, disabled = procsOff},
+		procpolish = {name = L["Polished look"], desc = SQUARE_POLISH, type = "toggle", order = 25.5, disabled = procsOff},
 		procglow = {
 			name = L["Glow style"],
 			desc = L["Light around the icon while you can use it. Proc and Button are borrowed from LibCustomGlow and only appear when WeakAuras (or another addon that includes it) is installed."],
@@ -343,27 +379,27 @@ function YaHT:CreateConfig()
 						order = 10,
 					},
 					presetdesc = {
-						name = L["One click sets the countdown, glow and spark. Size, position and colors are kept."],
+						name = L["Click a look to see it in the live preview, then Use this look to keep it. Size, position, colors and the countdown stay as they are."],
 						type = "description",
 						order = 11,
 					},
 					presetminimal = {
 						name = L["Minimal"],
-						desc = L["Just the bar and the countdown, plus the ready pulse."],
+						desc = L["Just the bar. Every icon and warning is switched off."],
 						type = "execute",
 						order = 12,
 						func = function() ApplyPreset("MINIMAL") end,
 					},
 					presetclean = {
 						name = L["Clean"],
-						desc = L["Crisp outline glow while standing still, sparks from the middle."],
+						desc = L["The bar with its icons: procs, aspect, hawks, ammo and Feign Death. No glow."],
 						type = "execute",
 						order = 13,
 						func = function() ApplyPreset("CLEAN") end,
 					},
 					presetflashy = {
 						name = L["Flashy"],
-						desc = L["Soft glow that builds up, pulse, sparks and a light sweep (or a WeakAuras pixel glow if available)."],
+						desc = L["Everything on, with glow, sparks, a light sweep and glowing polished icons."],
 						type = "execute",
 						order = 14,
 						func = function() ApplyPreset("FLASHY") end,
@@ -940,6 +976,141 @@ function YaHT:CreateConfig()
 				},
 			},
 			------------------------------------------------------------------
+			hawk = {
+				name = L["Hawks"],
+				type = "group",
+				order = 5.746,
+				args = {
+					hawkdesc = {
+						name = L["Your Summon Hawk hawks as small round icons at the top left of the bar. The ring around each one runs down over the hawk's 18 seconds. Up to two hawks can be out at once."],
+						type = "description",
+						order = 1,
+					},
+					hawk = {
+						name = L["Show hawk circles"],
+						type = "toggle",
+						width = "double",
+						order = 2,
+					},
+					hawkshape = {
+						name = L["Shape"],
+						desc = L["Circle: a round icon whose ring runs down. Square: the hawks look like the other proc icons, a square icon with a gold timer line under it, and take the same settings: the shared look or their own, a glow, a pulse and a sound."],
+						type = "select",
+						order = 2.5,
+						values = {CIRCLE = L["Circle"], SQUARE = L["Square (like the other icons)"]},
+						sorting = {"CIRCLE", "SQUARE"},
+						disabled = hawkOff,
+					},
+					hawkmode = {
+						name = L["Layout"],
+						desc = L["One per hawk shows each hawk's own time. One with a count is smaller: it follows the hawk that ends first, and a number says how many are out."],
+						type = "select",
+						order = 3,
+						values = {EACH = L["One per hawk"], COUNT = L["One with a count"]},
+						sorting = {"EACH", "COUNT"},
+						disabled = hawkOff,
+					},
+					hawkpos = {
+						name = L["Position"],
+						desc = L["Anywhere: unlock the bar, then drag the circles where you want them."],
+						type = "select",
+						order = 4,
+						values = {TOPLEFT = L["Top left of the bar"], TOPRIGHT = L["Top right of the bar"],
+							ABOVE = L["Above the bar"], LEFT = L["Left of the bar"], RIGHT = L["Right of the bar"], FREE = L["Anywhere (drag it)"]},
+						sorting = {"TOPLEFT", "TOPRIGHT", "ABOVE", "LEFT", "RIGHT", "FREE"},
+						disabled = hawkOff,
+					},
+					hawkglowcolor = {
+						name = L["Glow color"],
+						type = "color",
+						order = 4.5,
+						get = getColor,
+						set = setColor,
+						hidden = hawkRound,
+						disabled = function()
+							local p = YaHT.db.profile
+							local glow = p.hawkown and p.hawkiconglow or p.procglow
+							return not p.hawk or glow == "NONE"
+						end,
+					},
+					lookheader = {name = L["Look"], type = "header", order = 10},
+					hawkpolish = {
+						name = L["Polished look"],
+						desc = L["A bevelled ring with fine edges, a soft light on the icon, a glow around the circle that breathes when the ring is red, and a shadow under it. Off: the standard look, a plain flat ring."],
+						type = "toggle",
+						order = 10.5,
+						hidden = hawkSquare,
+						disabled = hawkOff,
+					},
+					hawksize = {name = L["Size"], type = "range", order = 11, min = 16, max = 48, step = 1, hidden = hawkSquare, disabled = hawkOff},
+					hawkalpha = {name = L["Opacity"], type = "range", order = 12, min = 0.2, max = 1, step = 0.05, isPercent = true, hidden = hawkSquare, disabled = hawkOff},
+					-- as squares: the look all proc icons share, or their own (exactly as on a proc icon's page)
+					hawksharednote = {
+						name = L["In the square shape the hawks take the look all proc icons share (size, opacity, glow, pulse, sound and the polished look). Change it under the look of all proc icons, or give the hawks their own look here."],
+						type = "description",
+						order = 10.1,
+						hidden = function() local p = YaHT.db.profile return p.hawkshape ~= "SQUARE" or p.hawkown end,
+					},
+					hawkown = {
+						name = L["Its own look"],
+						desc = L["Give this icon its own size, opacity, glow, pulse and sound, instead of the look all proc icons share. It starts out as a copy of the shared look."],
+						type = "toggle",
+						width = "double",
+						order = 10.2,
+						set = function(info, value)
+							local p = YaHT.db.profile
+							if value and not p.hawkownset then
+								-- the first time: start from what the squares look like now
+								for _, part in ipairs(OWN_LOOK) do p["hawkicon" .. part] = p["proc" .. part] end
+								p.hawkownset = true
+							end
+							p.hawkown = value
+							YaHT:ApplySettings()
+						end,
+						hidden = hawkRound,
+						disabled = hawkOff,
+					},
+					hawkiconsize = {name = L["Icon size"], type = "range", order = 10.31, min = 16, max = 64, step = 1, hidden = hawkOwnOff, disabled = hawkOff},
+					hawkiconalpha = {name = L["Opacity"], type = "range", order = 10.32, min = 0.2, max = 1, step = 0.05, isPercent = true, hidden = hawkOwnOff, disabled = hawkOff},
+					hawkiconglow = {name = L["Glow style"], type = "select", order = 10.33, values = glowValues, sorting = glowSorting, hidden = hawkOwnOff, disabled = hawkOff},
+					hawkiconpulse = {name = L["Pulse style"], type = "select", order = 10.34, values = PULSE_VALUES, sorting = PULSE_SORTING, hidden = hawkOwnOff, disabled = hawkOff},
+					hawkiconsound = {name = L["Play a sound when it pops up"], type = "toggle", width = "double", order = 10.35, hidden = hawkOwnOff, disabled = hawkOff},
+					hawkiconpolish = {name = L["Polished look"], desc = SQUARE_POLISH, type = "toggle", order = 10.36, hidden = hawkOwnOff, disabled = hawkOff},
+					hawknumbers = {
+						name = L["Show seconds left"],
+						desc = L["The seconds each hawk has left, as a number by its circle."],
+						type = "toggle",
+						order = 13,
+						disabled = hawkOff,
+					},
+					hawknumpos = {
+						name = L["Number position"],
+						desc = L["Where the seconds are written: under the circle, in the middle of it over the icon, or above it."],
+						type = "select",
+						order = 13.5,
+						values = {BOTTOM = L["Under the icon"], MIDDLE = L["In the middle"], TOP = L["Above the icon"]},
+						sorting = {"BOTTOM", "MIDDLE", "TOP"},
+						disabled = hawkNumOff,
+					},
+					hawkempty = {
+						name = L["Show a free spot greyed out"],
+						desc = L["With one hawk out, the second circle shows greyed out, so you see there is room for another. Off: only the hawks that are out are shown."],
+						type = "toggle",
+						order = 13.7,
+						disabled = hawkEachOff,
+					},
+					hawkwarn = {
+						name = L["Turn red below (seconds)"],
+						desc = L["The ring and the number turn red when a hawk has fewer seconds left than this. Summon Hawk shares its cooldown with Arcane Shot, so a red ring means: summon again before you spend it. 0 switches the red off."],
+						type = "range",
+						order = 14,
+						min = 0, max = 12, step = 1,
+						disabled = hawkOff,
+					},
+					reset = resetButton("hawk"),
+				},
+			},
+			------------------------------------------------------------------
 			feign = {
 				name = L["Feign Death"],
 				type = "group",
@@ -1031,6 +1202,8 @@ function YaHT:CreateConfig()
 						disabled = aspectOff,
 					},
 					aspectsize = {name = L["Icon size"], type = "range", order = 5, min = 14, max = 48, step = 1, disabled = aspectOff},
+					aspectpolish = {name = L["Polished look"], desc = SQUARE_POLISH, type = "toggle", order = 6.5, disabled = aspectOff},
+					aspectshape = {name = L["Shape"], type = "select", order = 4.5, values = SHAPE_VALUES, sorting = SHAPE_SORTING, disabled = aspectOff},
 					aspectalpha = {
 						name = L["Opacity while it's fine"],
 						desc = L["Warnings always show at full strength."],
@@ -1494,10 +1667,51 @@ function YaHT:CreateConfig()
 				order = 2,
 				func = function() YaHT:PreviewAlerts() end,
 			},
+			-- one switch for every icon's shape (each also has its own Shape setting, on its page)
+			roundall = {
+				name = L["Round icons"],
+				desc = L["One switch for the shape of every icon at once: the proc icons, the aspect badge and the hawks. On: round icons inside a ring. Off: square icons. Each icon also has its own Shape setting on its page."],
+				type = "toggle",
+				width = "double",
+				order = 2.9,
+				get = function()
+					local p = YaHT.db.profile
+					for _, key in ipairs(YaHT.shapeKeys) do
+						if p[key] ~= "CIRCLE" then return false end
+					end
+					return true
+				end,
+				set = function(info, value)
+					local p = YaHT.db.profile
+					for _, key in ipairs(YaHT.shapeKeys) do p[key] = value and "CIRCLE" or "SQUARE" end
+					YaHT:ApplySettings()
+				end,
+			},
+			-- one switch for every icon's polished look (each also has its own, on its page)
+			polishall = {
+				name = L["Polished look on every icon"],
+				desc = L["One switch for the polished look of every icon at once: the proc icons (their shared look and each one's own look), the aspect badge and the hawks. On: bevelled frames and rings with fine edges, a soft light on the icon and a shadow under it. Off: the standard flat look. Each icon also has its own switch on its page."],
+				type = "toggle",
+				width = "double",
+				order = 3,
+				get = function()
+					local p = YaHT.db.profile
+					for _, key in ipairs(YaHT.polishKeys) do
+						if not p[key] then return false end
+					end
+					return true
+				end,
+				set = function(info, value)
+					local p = YaHT.db.profile
+					for _, key in ipairs(YaHT.polishKeys) do p[key] = value and true or false end
+					YaHT:ApplySettings()
+				end,
+			},
 			onheader = {name = L["Turn alerts on or off"], type = "header", order = 10},
 			aspect = {name = L["Aspect badge"], type = "toggle", order = 11},
 			feign = {name = L["Feign Death resist"], type = "toggle", order = 12},
 			pet = {name = L["Pet alerts"], type = "toggle", order = 12.5},
+			hawk = {name = L["Hawk circles"], type = "toggle", order = 12.7},
 			meleerange = {name = L["Range warnings"], type = "toggle", order = 13},
 			melee = {name = L["Melee swing line"], type = "toggle", order = 14},
 			ammo = {name = L["Ammo counter"], type = "toggle", order = 15},
@@ -1506,12 +1720,13 @@ function YaHT:CreateConfig()
 			aspectpage = A.aspect,
 			feignpage = A.feign,
 			petpage = A.pet,
+			hawkpage = A.hawk,
 			rangepage = A.range,
 			meleepage = A.melee,
 			ammopage = A.ammo,
 		},
 	}
-	A.procs.order, A.aspect.order, A.feign.order, A.pet.order, A.range.order, A.melee.order, A.ammo.order = 1, 2, 3, 4, 5, 6, 7
+	A.procs.order, A.aspect.order, A.feign.order, A.pet.order, A.hawk.order, A.range.order, A.melee.order, A.ammo.order = 1, 2, 3, 4, 5, 6, 7, 8
 	A.melee.name = L["Melee line"]
 
 	local advanced = {

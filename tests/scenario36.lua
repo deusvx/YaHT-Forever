@@ -45,29 +45,82 @@ assert(hr.plate and hr.plate.shaped and hr.plate.tex:find("YaHT\\media\\Round", 
 assert(hr.widget.knob.tex:find("media\\Dot", 1, true), "the switch knob should be round")
 local shownBoxes = 0 for _, b in ipairs(f.boxes) do if b.shown then shownBoxes = shownBoxes + 1 end end
 assert(shownBoxes == 2, "Home should have two section boxes (quick looks, main switches), got "..shownBoxes)
-for _, key in ipairs({"aspect", "feign", "pet", "meleerange", "melee", "ammo", "preview"}) do
+for _, key in ipairs({"aspect", "feign", "pet", "meleerange", "melee", "ammo", "roundall", "polishall", "preview"}) do
   assert(row(key), "Home is missing "..key)
 end
+-- the main switches carry a small picture: in colour while the switch is on, grey while it is off
+local ar = row("aspect")
+assert(ar.pic and ar.pic.shown and ar.pic.tex and ar.pic.desat == false and ar.picRim.shown and not ar.picFrame.shown, "the aspect switch should carry its picture")
+db.aspect = false M.Render()
+assert(row("aspect").pic.desat == true, "a switch that is off should show its picture in grey")
+db.aspect = true M.Render()
+-- the switch for every icon's shape shows what it does: its picture is round while it is on
+local rr = row("roundall")
+assert(rr.pic.shown and rr.picRim.shown and not rr.picRing.shown and rr.pic.desat == false, "round icons off: a square picture, in colour")
+click(rr.widget) rr = row("roundall")
+assert(db.procshape == "CIRCLE" and db.aspectshape == "CIRCLE" and db.hawkshape == "CIRCLE" and rr.picRing.shown and not rr.picRim.shown, "round icons on (from the Home page): a round picture")
+click(rr.widget)
+assert(db.procshape == "SQUARE" and db.hawkshape == "SQUARE" and not row("roundall").picRing.shown, "and square again")
+db.hawkshape = "CIRCLE" M.Render() -- (the hawks start out as circles; the rest of this test expects that)
+-- the switch for all polish shows what it does: its picture wears the polished frame while it is on
+local pr = row("polishall")
+assert(pr.pic.shown and pr.picRim.shown and not pr.picFrame.shown and pr.pic.desat == false and pr.pic.alpha == 1, "polish off: the picture in the flat look, still in colour")
+click(pr.widget)
+pr = row("polishall")
+assert(db.procpolish and db.hawkpolish and pr.picFrame.shown and pr.picGloss.shown and not pr.picRim.shown, "polish on (from the Home page): the picture in the polished look")
+click(pr.widget)
+assert(not db.procpolish and not db.aspectpolish and not row("polishall").picFrame.shown, "and off again")
 db.glow = false
 local cards = ofKind("cards")
 assert(cards.cards[3].name.txt == "Flashy", "third card should be Flashy")
-click(cards.cards[3])
-assert(db.glow == true and db.glowlook == "SOFT", "the Flashy card didn't apply its look")
--- each card shows its look live: nothing extra for Minimal, an outline and sparks for Clean,
--- a soft glow, a light sweep and sparks for Flashy; the one in use is marked
+-- a click on a card only SHOWS that look, in the live preview; nothing changes until "Use this look"
+click(cards.cards[1]) cards = ofKind("cards")
+assert(M.viewing == "MINIMAL" and db.mongoose == true and db.pet == true, "viewing a look must not change anything")
+assert(cards.viewBar.shown and cards.cards[1].viewing and cards.cards[1].tag.shown and cards.cards[1].tag.txt == "Viewing", "the viewed look isn't marked")
+assert(cards.viewText.txt:find("Minimal", 1, true), "the line under the cards should name the look: "..tostring(cards.viewText.txt))
+assert(f.preview.icons[1].on == false and f.preview.box.caption.txt == "Preview of the look", "the live preview should show the viewed look (Minimal: no icons)")
+click(cards.cancel) cards = ofKind("cards")
+assert(M.viewing == nil and not cards.viewBar.shown and db.mongoose == true and f.preview.icons[1].on == true, "Cancel should leave everything as it was")
+assert(f.preview.box.caption.txt == "Live preview", "the preview's caption should be back")
+click(cards.cards[3]) cards = ofKind("cards")
+assert(M.viewing == "FLASHY" and db.glow == false, "the Flashy card should only be viewed at first")
+click(cards.use)
+assert(M.viewing == nil and db.glow == true and db.glowlook == "SOFT", "Use this look didn't apply Flashy")
+assert(db.procpolish == true and db.hawkpolish == true and db.pet == true and db.meleerange == true and db.procglow == "HALO", "Flashy is everything: every icon and warning, glow, the polished look")
+-- each card shows its look live: just the bar for Minimal, small icons for Clean, and for Flashy
+-- glowing icons, a soft glow, a light sweep and sparks; the one in use is marked
 cards = ofKind("cards")
 local c1, c2, c3 = cards.cards[1], cards.cards[2], cards.cards[3]
 assert(c3.current and c3.tag.shown and not c1.current and not c2.current and not c1.tag.shown, "the look in use isn't marked")
-cards.t = 0 cards.scripts.OnUpdate(cards, 1.0) -- reloading
-assert(not c2.rim[1].shown and not c3.shine.shown and not c3.sparks[1].shown, "wind-up effects showed while reloading")
-assert(c1.fill.width > 1 and c1.num.txt == "1.6", "the cards' bars aren't running")
-cards.scripts.OnUpdate(cards, 1.35) -- into the wind-up
-assert(not c1.rim[1].shown and not c1.glow.shown and not c1.shine.shown and not c1.sparks[1].shown, "Minimal should show the bar only")
-assert(c2.rim[1].shown and c2.sparks[1].shown and c2.sparks[2].shown and not c2.glow.shown and not c2.shine.shown, "Clean should show an outline and sparks")
-assert(c3.glow.shown and c3.shine.shown and c3.sparks[1].shown and not c3.rim[1].shown, "Flashy should show a glow, a sweep and sparks")
-click(c1) cards = ofKind("cards")
-assert(cards.cards[1].current and not cards.cards[3].current, "the mark didn't move to Minimal")
-click(cards.cards[3])
+-- each card holds a true small copy of the live preview, drawn from that look laid over your settings
+assert(c1.pv and c2.pv and c3.pv and c1.pv ~= f.preview and c1.strip.scale < 1, "each card should hold its own small preview")
+assert(c1.pv.icons[1].on == false and c1.pv.soft == false and not c1.pv.hawks[1].back.shown, "Minimal should show the bar only")
+assert(c2.pv.icons[1].on == true and c2.pv.soft == false and c2.pv.hawks[1].back.shown, "Clean should show the bar with its icons and hawks, without a glow")
+assert(c3.pv.icons[1].on == true and c3.pv.soft == true and c3.pv.icons[1].frame.shown, "Flashy should show the glow and polished icons")
+-- the icons stand on a card where they stand on your bar: Mongoose Bite centred over it, as in the game...
+assert(db.mongoosepos == "ABOVE" and c2.pv.icons[1].tex.point[1] == "BOTTOM" and c2.pv.icons[1].tex.point[4] == 0, "a card's icons should stand where yours do: "..tostring(db.mongoosepos))
+-- ...and to its left once you put it there
+db.mongoosepos = "LEFT" M.Render() cards = ofKind("cards")
+assert(cards.cards[2].pv.icons[1].tex.point[1] == "RIGHT" and cards.cards[2].pv.icons[1].tex.point[3] == "LEFT", "the cards should follow where you place an icon")
+db.mongoosepos = "ABOVE" M.Render() cards = ofKind("cards") c1, c2, c3 = cards.cards[1], cards.cards[2], cards.cards[3]
+-- the small previews run like the big one, and a card says in one line what it is
+c3.pv.t = 0 c3.pv.scripts.OnUpdate(c3.pv, 2.4)
+assert(c3.pv.fill.width > 1 and not c1.pv.phase.shown and not c1.pv.freeNote.shown, "the cards' previews should run, without the big preview's labels")
+assert(c1.desc.txt == "Just the bar." and c2.desc.txt == "The bar with its icons." and c3.desc.txt == "Everything, with every effect.", "a card should say in one line what it is")
+c2.scripts.OnEnter(c2)
+assert(f.help.title.txt == "Clean" and f.help.text.txt:find("Feign Death", 1, true), "pointing at a card should explain it in the help column: "..tostring(f.help.text.txt))
+c2.scripts.OnLeave(c2)
+-- Clean: the bar with its icons, the warnings off, no glow
+click(c2) click(ofKind("cards").use)
+assert(db.mongoose == true and db.aspect == true and db.hawk == true and db.feign == true and db.pet == false and db.meleerange == false and db.glow == false and db.procglow == "NONE" and db.procpolish == false, "Clean: the bar with its icons")
+-- Minimal: just the bar
+click(ofKind("cards").cards[1]) click(ofKind("cards").use) cards = ofKind("cards")
+assert(cards.cards[1].current and not cards.cards[3].current and not cards.viewBar.shown, "the mark didn't move to Minimal")
+assert(db.mongoose == false and db.aspect == false and db.hawk == false and db.ammo == false and db.pet == false and db.melee == false and db.glow == false, "Minimal: just the bar")
+-- (back to everything for the rest of this test, in the standard look)
+click(cards.cards[3]) click(ofKind("cards").use)
+for _, key in ipairs(YaHT.polishKeys) do db[key] = false end
+M.Render()
 -- Lock bar sits in the header (on every page), not in the Home list
 assert(f.lock and f.lock.shown and f.lock.label.txt == "Lock bar" and not row("lock"), "Lock bar should be in the header")
 local was = db.lock
@@ -259,6 +312,78 @@ assert(not pv.rim[1].shown, "a stand-still-only glow showed while reloading")
 db.glow = false db.sparkmode = "OFF" db.procglow = "NONE" M.Render() pv.t = 0 pv.scripts.OnUpdate(pv, 2.4)
 assert(not pv.glow.shown and not pv.rim[1].shown and not pv.shine.shown and not pv.sparks[1].shown and not mg.halo.shown, "effects that are switched off still showed")
 db.glow = true db.sparkmode = "STAND" db.procglow = "HALO" db.glowlook = "SOFT" db.glowmode = "RAMP" M.Render()
+-- the box has room for what stands above the bar, and shows it where the game does: Mongoose Bite centred
+-- over the bar with the next icon to its right, and the hawk circles at the bar's top left
+assert(f.previewBox.h >= 170, "the preview box is too low for the icons and hawk circles above the bar")
+db.mongoosepos = "ABOVE" db.quickshots = true db.quickshotspos = "ABOVE"
+db.hawkpolish = true -- (off to start with)
+db.hawk = true db.hawkpos = "TOPLEFT" db.hawkmode = "EACH" db.hawknumbers = true db.hawknumpos = "BOTTOM" db.hawkwarn = 6 M.Render()
+local qs for _, ic in ipairs(pv.icons) do if ic.key == "quickshots" then qs = ic end end
+assert(mg.tex.point[1] == "BOTTOM" and mg.tex.point[3] == "TOP" and mg.tex.point[4] == 0, "Mongoose Bite should stand centred over the bar, as in the game")
+assert(qs.on and qs.tex.point[4] > 0, "the next icon should stand to its right")
+local hk = pv.hawks
+assert(hk[1].back.shown and hk[2].back.shown and hk[1].icon.shown and hk[1].ring.shown, "no hawk circles in the preview")
+assert(hk[1].back.point[1] == "BOTTOMLEFT" and hk[1].back.point[3] == "TOPLEFT" and hk[1].back.point[4] == 0 and hk[2].back.point[4] > 0, "hawk circles should stand at the bar's top left")
+assert(hk[1].num.txt == "14" and hk[2].num.txt == "5" and hk[2].ring.color[2] < 0.5 and hk[1].ring.color[2] > 0.5, "sample hawks: 14 seconds in gold, 5 in red")
+assert(hk[1].num.point[1] == "TOP", "the seconds should be under the circle")
+assert(hk[1].line.shown and hk[1].halo.shown, "the preview should show the polished look")
+db.hawkpolish = false M.Render()
+assert(not hk[1].line.shown and not hk[1].halo.shown and not hk[1].gloss.shown and hk[1].ring.tex:find("RingFlat", 1, true), "the preview should follow the plain look")
+db.hawkpolish = true M.Render()
+db.hawknumpos = "MIDDLE" M.Render()
+assert(hk[1].num.point[1] == "CENTER", "the preview should follow the number position")
+db.hawkpos = "TOPRIGHT" M.Render()
+assert(hk[2].back.point[1] == "BOTTOMRIGHT" and hk[2].back.point[4] == 0 and hk[1].back.point[4] < 0, "top right: the circles end at the bar's right edge")
+db.hawkmode = "COUNT" M.Render()
+assert(hk[1].back.shown and not hk[2].back.shown and pv.hawkCount.shown and pv.hawkCount.txt == "2" and hk[1].num.txt == "5", "one circle with a count")
+db.hawknumbers = false M.Render()
+assert(not hk[1].num.shown, "numbers switched off still show in the preview")
+db.hawk = false M.Render()
+assert(not hk[1].back.shown and not pv.hawkCount.shown and not pv.hawkBadge.shown, "hawk circles switched off still show in the preview")
+-- the hawks as squares: drawn like the proc icons (polished frame or flat rim, timer line), where Position puts them
+assert(mg.rim.shown and not mg.frame.shown, "the polished look is off to start with: the proc icons should show their flat rim")
+-- round proc icons in the preview: a ring instead of the rim and the timer line
+db.procshape = "CIRCLE" M.Render()
+assert(mg.rring.shown and mg.rback.shown and not mg.rim.shown and not mg.bar.shown and not mg.frame.shown and mg.rring.tex:find("RingFlat", 1, true), "round proc icons should show in the preview")
+assert(mg.halo.tex:find("Halo", 1, true), "a round icon's glow should be round in the preview too")
+db.procshape = "SQUARE" M.Render()
+assert(not mg.rring.shown and not mg.rback.shown and mg.rim.shown and mg.bar.shown, "and square again")
+db.procpolish = true
+db.hawk, db.hawkmode, db.hawkpos, db.hawknumbers, db.hawknumpos, db.hawkshape = true, "EACH", "TOPLEFT", true, "BOTTOM", "SQUARE" M.Render()
+local sq1, sq2 = hk[1].sq, hk[2].sq
+assert(sq1.tex.shown and sq2.tex.shown and not hk[1].back.shown and not hk[1].ring.shown and not hk[1].halo.shown, "square hawks should take the circles' place in the preview")
+assert(sq1.frame.shown and not sq1.rim.shown and sq1.bar.shown, "a square hawk should show the polished frame and its timer line")
+assert(sq2.frame.color[2] < 0.5 and sq1.frame.color[2] > 0.5 and hk[1].num.txt == "14" and hk[2].num.txt == "5", "square sample hawks: gold above 6 seconds, red under")
+assert(sq1.tex.point[1] == "BOTTOMLEFT" and sq1.tex.point[4] == 0 and sq2.tex.point[4] > 0, "square hawks at the bar's top left")
+assert(mg.frame.shown and not mg.rim.shown, "the proc icons should show the polished look in the preview")
+db.procpolish = false M.Render()
+assert(sq1.rim.shown and not sq1.frame.shown and mg.rim.shown and not mg.frame.shown and not mg.gloss.shown, "the standard look: the flat rim, on every square icon")
+db.hawkown, db.hawkiconpolish, db.hawkiconglow, db.hawkiconsize = true, true, "HALO", 30 M.Render()
+assert(sq1.frame.shown and not mg.frame.shown, "the hawks' own look should not change the other icons")
+db.hawkown, db.procpolish = false, true M.Render()
+assert(mg.frame.shown and not mg.rim.shown, "the polished look should come back")
+db.hawkpos = "RIGHT" M.Render()
+assert(sq1.tex.point[1] == "LEFT" and sq1.tex.point[3] == "RIGHT" and sq2.tex.point[4] > sq1.tex.point[4], "right of the bar: in the row, one after the other")
+db.hawkpos = "ABOVE" M.Render()
+assert(sq1.tex.point[1] == "BOTTOM" and sq1.tex.point[3] == "TOP" and sq1.tex.point[4] > 0, "above the bar: after the icons that stand there")
+db.hawkmode = "COUNT" M.Render()
+assert(sq1.tex.shown and not sq2.tex.shown and pv.hawkBadgeSq.shown and not pv.hawkBadge.shown and pv.hawkCount.txt == "2", "one square with a count")
+db.hawkshape, db.hawkmode, db.hawkpos = "CIRCLE", "EACH", "TOPLEFT" M.Render()
+db.procpolish, db.hawkpolish, db.hawkiconpolish = false, false, false M.Render()
+assert(hk[1].back.shown and not sq1.tex.shown and not sq1.frame.shown and not sq1.bar.shown and not pv.hawkBadgeSq.shown, "back to circles")
+-- what was dragged anywhere on the screen still shows: apart, in the corner of the preview box
+local asp for _, ic in ipairs(pv.icons) do if ic.key == "aspect" then asp = ic end end
+local wasAspect, wasAspectPos = db.aspect, db.aspectpos
+db.aspect, db.aspectpos, db.hawk, db.hawkpos = true, "FREE", true, "TOPLEFT" M.Render()
+assert(asp.on and asp.tex.shown and asp.tex.point[1] == "TOPRIGHT" and asp.tex.point[2] == pv.box, "an aspect badge placed by hand should show in the preview's corner")
+assert(pv.freeNote.shown and pv.freeNote.txt == "Placed by hand", "and say why it stands apart")
+db.hawkpos = "FREE" M.Render()
+assert(hk[1].back.shown and hk[2].back.shown and hk[2].back.point[1] == "TOPRIGHT" and hk[2].back.point[2] == pv.box and hk[2].back.point[4] < asp.tex.point[4], "hawks placed by hand should show in the corner too, after the badge")
+db.aspectpos, db.hawkpos = "LEFT", "TOPLEFT" M.Render()
+assert(asp.tex.point[1] == "RIGHT" and hk[1].back.point[1] == "BOTTOMLEFT" and not pv.freeNote.shown, "back beside the bar: nothing in the corner")
+db.aspect, db.aspectpos = wasAspect, wasAspectPos
+db.hawk, db.hawkmode, db.hawkpos, db.hawknumbers, db.hawknumpos = true, "EACH", "TOPLEFT", true, "BOTTOM"
+db.mongoosepos = "LEFT" db.quickshots = false M.Render()
 
 -- profiles: make one from the window
 M.Show("profile")

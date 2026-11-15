@@ -108,17 +108,17 @@ local PARTS = {
 	{"mainFrame", "the Auto Shot bar"}, {"ammoFrame", "ammo counter"}, {"meleeFrame", "melee line and range warnings"},
 	{"mongooseFrame", "Mongoose Bite icon"}, {"quickShotsFrame", "Quick Shots icon"}, {"rapidFireFrame", "Rapid Fire icon"},
 	{"racialFrame", "racial icon"}, {"aspectFrame", "aspect badge"}, {"feignFrame", "Feign Death alert"},
-	{"petFrame", "pet alerts"}, {"minimapButton", "minimap button"},
+	{"petFrame", "pet alerts"}, {"hawkFrame", "hawk circles"}, {"minimapButton", "minimap button"},
 }
 
 -- the alerts "Preview all alerts" brings up: setting, frame, name
 local ALERTS = {
 	{"mongoose", "mongooseFrame", "Mongoose Bite"}, {"quickshots", "quickShotsFrame", "Quick Shots"},
 	{"rapidfire", "rapidFireFrame", "Rapid Fire"}, {"racial", "racialFrame", "racial"},
-	{"aspect", "aspectFrame", "aspect badge"}, {"feign", "feignFrame", "Feign Death"}, {"pet", "petFrame", "pet"},
+	{"aspect", "aspectFrame", "aspect badge"}, {"feign", "feignFrame", "Feign Death"}, {"pet", "petFrame", "pet"}, {"hawk", "hawkFrame", "hawks"},
 }
 
-local MEDIA = {"Bar", "Glow", "Spark", "Shine", "Stripes", "Chevron", "Round", "RoundEdge", "Dot", "Arrow", "Stage"}
+local MEDIA = {"Bar", "Glow", "Spark", "Shine", "Stripes", "Chevron", "Round", "RoundEdge", "Dot", "Arrow", "Stage", "Disc", "Ring", "RingFlat", "RingLine", "Gloss", "Halo", "SquareRing", "SquareLine", "SquareGloss", "SquareHalo"}
 local MEDIA_PATH = "Interface\\AddOns\\YaHT\\media\\"
 
 local report -- the test being written
