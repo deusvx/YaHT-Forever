@@ -78,9 +78,9 @@ click(cards.cards[1]) cards = ofKind("cards")
 assert(M.viewing == "MINIMAL" and db.mongoose == true and db.pet == true, "viewing a look must not change anything")
 assert(cards.viewBar.shown and cards.cards[1].viewing and cards.cards[1].tag.shown and cards.cards[1].tag.txt == "Viewing", "the viewed look isn't marked")
 assert(cards.viewText.txt:find("Minimal", 1, true), "the line under the cards should name the look: "..tostring(cards.viewText.txt))
-assert(f.preview.icons[1].on == false and f.preview.box.caption.txt == "Preview of the look", "the live preview should show the viewed look (Minimal: no icons)")
+assert(f.preview.icons[2].on == false and f.preview.box.caption.txt == "Preview of the look", "the live preview should show the viewed look (Minimal: no icons)")
 click(cards.cancel) cards = ofKind("cards")
-assert(M.viewing == nil and not cards.viewBar.shown and db.mongoose == true and f.preview.icons[1].on == true, "Cancel should leave everything as it was")
+assert(M.viewing == nil and not cards.viewBar.shown and db.mongoose == true and f.preview.icons[2].on == true, "Cancel should leave everything as it was")
 assert(f.preview.box.caption.txt == "Live preview", "the preview's caption should be back")
 click(cards.cards[3]) cards = ofKind("cards")
 assert(M.viewing == "FLASHY" and db.glow == false, "the Flashy card should only be viewed at first")
@@ -94,14 +94,14 @@ local c1, c2, c3 = cards.cards[1], cards.cards[2], cards.cards[3]
 assert(c3.current and c3.tag.shown and not c1.current and not c2.current and not c1.tag.shown, "the look in use isn't marked")
 -- each card holds a true small copy of the live preview, drawn from that look laid over your settings
 assert(c1.pv and c2.pv and c3.pv and c1.pv ~= f.preview and c1.strip.scale < 1, "each card should hold its own small preview")
-assert(c1.pv.icons[1].on == false and c1.pv.soft == false and not c1.pv.hawks[1].back.shown, "Minimal should show the bar only")
-assert(c2.pv.icons[1].on == true and c2.pv.soft == false and c2.pv.hawks[1].back.shown, "Clean should show the bar with its icons and hawks, without a glow")
-assert(c3.pv.icons[1].on == true and c3.pv.soft == true and c3.pv.icons[1].frame.shown, "Flashy should show the glow and polished icons")
+assert(c1.pv.icons[2].on == false and c1.pv.soft == false and not c1.pv.hawks[1].back.shown, "Minimal should show the bar only")
+assert(c2.pv.icons[2].on == true and c2.pv.soft == false and c2.pv.hawks[1].back.shown, "Clean should show the bar with its icons and hawks, without a glow")
+assert(c3.pv.icons[2].on == true and c3.pv.soft == true and c3.pv.icons[2].frame.shown, "Flashy should show the glow and polished icons")
 -- the icons stand on a card where they stand on your bar: Mongoose Bite centred over it, as in the game...
-assert(db.mongoosepos == "ABOVE" and c2.pv.icons[1].tex.point[1] == "BOTTOM" and c2.pv.icons[1].tex.point[4] == 0, "a card's icons should stand where yours do: "..tostring(db.mongoosepos))
+assert(db.mongoosepos == "ABOVE" and c2.pv.icons[2].tex.point[1] == "BOTTOM" and c2.pv.icons[2].tex.point[4] == 0, "a card's icons should stand where yours do: "..tostring(db.mongoosepos))
 -- ...and to its left once you put it there
 db.mongoosepos = "LEFT" M.Render() cards = ofKind("cards")
-assert(cards.cards[2].pv.icons[1].tex.point[1] == "RIGHT" and cards.cards[2].pv.icons[1].tex.point[3] == "LEFT", "the cards should follow where you place an icon")
+assert(cards.cards[2].pv.icons[2].tex.point[1] == "RIGHT" and cards.cards[2].pv.icons[2].tex.point[3] == "LEFT", "the cards should follow where you place an icon")
 db.mongoosepos = "ABOVE" M.Render() cards = ofKind("cards") c1, c2, c3 = cards.cards[1], cards.cards[2], cards.cards[3]
 -- the small previews run like the big one, and a card says in one line what it is
 c3.pv.t = 0 c3.pv.scripts.OnUpdate(c3.pv, 2.4)
@@ -152,8 +152,12 @@ M.Show("advanced/announcepage") local few = 0 for _, b in ipairs(f.boxes) do if 
 M.Show("alerts/rangepage") local many = 0 for _, b in ipairs(f.boxes) do if b.shown then many = many + 1 end end
 assert(many > few and few >= 1, "section boxes not counted per page: "..few.." / "..many)
 M.Show("bar")
-assert(ofKind("cards") and not row("presetminimal") and not row("presetclean") and not row("presetflashy"), "The bar page should show the quick looks as cards")
-assert(row("presetdesc") or ofKind("description"), "the quick looks lost their explanation")
+assert(not ofKind("cards") and not row("presetminimal") and not row("lock") and not row("minimap") and row("width"), "The bar page should not repeat Home's quick looks, the lock or the minimap switch")
+M.Show("alerts") assert(not row("roundall") and not row("polishall") and not row("preview") and row("aspect"), "the Alerts page should not repeat Home's switches for every icon")
+M.Show("home") assert(ofKind("cards") and row("minimap") and row("roundall") and row("polishall") and row("preview") and row("hawk"), "Home keeps them")
+M.Show("alerts/aspectpage") assert(row("aspect") and row("aspectpos") and row("aspectmore") and not row("aspectalpha"), "the Aspect page: basics, and More options")
+M.Show("bar")
+assert(not row("presetdesc"), "the quick looks and their explanation are on Home only")
 
 -- slider (a percent one with its own get/set), and greying out
 M.Show("alerts/petpage")
@@ -245,28 +249,83 @@ local function procChildren() local n = 0
   for _, b in ipairs(f.nav) do if b.shown and b.page:find("alerts/procspage/", 1, true) then n = n + 1 end end return n end
 M.Show("alerts") assert(procChildren() == 0, "proc pages listed outside their section")
 assert(f.lock.shown, "Lock bar should stay in view on other pages")
-M.Show("alerts/procspage") assert(procChildren() == 4, "proc pages not listed inside their section")
+M.Show("alerts/procspage") assert(procChildren() == 5, "proc pages not listed inside their section")
 
 -- a dropdown whose order is worked out by a function (the glow styles)
 click(row("procglow").widget)
 assert(M.List().shown and M.List().keys[1] == "NONE" and #M.List().keys == 5, "the glow dropdown didn't list its styles in order")
 M.CloseList()
 
--- one icon can have its own look; the others keep the shared one
+-- an icon's page shows the basics, the same on every icon (Show, Shape, Position, Size, Show seconds left);
+-- the fine settings are under "More options", which starts closed
 db.procsize = 40 YaHT:ApplySettings()
 M.Show("alerts/procspage/mongoosepage")
-assert(row("mongooseown") and not row("mongooseiconsize"), "own-look settings should stay hidden until switched on")
+for _, key in ipairs({"mongoose", "mongooseshape", "mongoosepos", "mongoosesize", "mongoosenumbers", "mongoosecooldown", "mongoosemore"}) do
+  assert(row(key), "Mongoose Bite's page is missing a basic: "..key)
+end
+assert(not row("mongooseown") and not row("mongooseiconglow") and not row("mongooseglowcolor") and not row("mongooseiconsize") and not row("mongooseiconshape"), "the fine settings should be tucked away")
 local sharedW = YaHT.quickShotsFrame.w
-click(row("mongooseown").widget)
-assert(db.mongooseown == true and db.mongooseiconsize == 40 and db.mongooseiconglow == db.procglow, "its own look should start as a copy of the shared one")
-assert(row("mongooseiconsize") and row("mongooseiconglow") and row("mongooseiconpulse") and row("mongooseiconalpha") and row("mongooseiconsound"), "own-look settings not shown")
-r = row("mongooseiconsize") r.valueBtn.scripts.OnDoubleClick(r.valueBtn) r.edit.txt = "56" r.edit.scripts.OnEnterPressed(r.edit)
-assert(db.mongooseiconsize == 56 and YaHT.mongooseFrame.w == 58, "Mongoose Bite didn't take its own size")
+-- its size, among the basics: changing it gives this icon its own size, the others keep theirs
+r = row("mongoosesize") r.valueBtn.scripts.OnDoubleClick(r.valueBtn) r.edit.txt = "56" r.edit.scripts.OnEnterPressed(r.edit)
+assert(db.mongooseown == true and db.mongooseiconsize == 56 and db.mongooseiconglow == db.procglow and YaHT.mongooseFrame.w == 58, "Mongoose Bite didn't take its own size")
 assert(db.procsize == 40 and YaHT.quickShotsFrame.w == sharedW, "the other icons should keep the shared size")
+-- its shape, among the basics too
+local pageArgs = YaHT.optionsTable.args.alerts.args.procspage.args.mongoosepage.args
+assert(pageArgs.mongooseshape.get() == "SQUARE", "its shape should read square")
+pageArgs.mongooseshape.set(nil, "CIRCLE")
+assert(db.mongooseiconshape == "CIRCLE" and db.procshape == "SQUARE" and YaHT.mongooseFrame.isRound, "changing the shape here should change this icon only")
+pageArgs.mongooseshape.set(nil, "SQUARE")
+-- "Show seconds left" on every icon's page
+click(row("mongoosenumbers").widget) assert(db.mongoosenumbers == true, "the seconds switch") click(row("mongoosenumbers").widget)
+-- More options opens the rest
+click(row("mongoosemore").widget)
+assert(row("mongooseown") and row("mongooseiconglow") and row("mongooseiconpulse") and row("mongooseiconalpha") and row("mongooseiconsound") and row("mongooseglowcolor"), "More options should show the fine settings")
 click(row("mongooseown").widget)
-assert(db.mongooseown == false and YaHT.mongooseFrame.w == 42 and not row("mongooseiconsize"), "switching it off should go back to the shared look")
+assert(db.mongooseown == false and YaHT.mongooseFrame.w == 42, "switching its own look off should go back to the shared look")
 click(row("mongooseown").widget)
 assert(db.mongooseiconsize == 56, "switching it back on should keep its own values")
+click(row("mongoosemore").widget)
+assert(not row("mongooseown") and row("mongoosesize"), "More options should close again")
+-- the page is grouped in cards: the icon, its time, the fine tuning
+local cardsShown = 0 for _, bx in ipairs(f.boxes) do if bx.shown then cardsShown = cardsShown + 1 end end
+assert(cardsShown == 3, "an icon's page should be grouped in three cards, got "..cardsShown)
+-- the preview shows an icon's size to scale: a bigger icon is bigger in the preview
+do
+  local keepSize, keepOwn = db.procsize, db.mongooseown
+  db.mongooseown = false db.procsize = 20 YaHT:ApplySettings() M.Render()
+  local small
+  for _, ic in ipairs(M.previewIcons or {}) do if ic.key == "quickshots" then small = ic.size end end
+  db.procsize = 60 YaHT:ApplySettings() M.Render()
+  local big
+  for _, ic in ipairs(M.previewIcons or {}) do if ic.key == "quickshots" then big = ic.size end end
+  assert(small and big and big > small * 1.6, "the preview should show icon sizes to scale: "..tostring(small).." / "..tostring(big))
+  db.procsize, db.mongooseown = keepSize, keepOwn YaHT:ApplySettings() M.Render()
+end
+-- "Edit" beside a switch that has a page of its own: Home, the Alerts page, the Procs page
+assert(not row("mongoose").edit.shown, "no Edit button on the page it would lead to")
+M.Show("home")
+assert(row("aspect").edit.shown and row("feign").edit.shown and row("meleerange").edit.shown, "Home's main switches should have an Edit button")
+assert(not row("polishall").edit.shown and not row("minimap").edit.shown, "a switch without a page of its own has no Edit button")
+click(row("meleerange").edit) assert(M.current == "alerts/rangepage", "Edit should open the feature's page: "..tostring(M.current))
+M.Show("home") click(row("aspect").edit) assert(M.current == "alerts/aspectpage", "Edit on Aspect: "..tostring(M.current))
+M.Show("alerts")
+assert(row("feign").edit.shown, "the Alerts page's switches should have an Edit button")
+click(row("feign").edit) assert(M.current == "alerts/feignpage", "Edit on Feign Death: "..tostring(M.current))
+M.Show("alerts/procspage")
+assert(row("mongoose").edit.shown and row("bestial").edit.shown, "the Procs page's switches should have an Edit button")
+click(row("mongoose").edit) assert(M.current == "alerts/procspage/mongoosepage", "Edit on Mongoose Bite: "..tostring(M.current))
+-- every proc icon's page has the same basics
+for _, key in ipairs({"bestial", "quickshots", "rapidfire", "racial"}) do
+  M.Show("alerts/procspage/"..key.."page")
+  assert(row(key) and row(key.."shape") and row(key.."pos") and row(key.."size") and row(key.."numbers") and row(key.."more") and not row(key.."own"), key.."'s page should show the same basics")
+end
+-- the Hawks page too: basics, and More options for the rest
+M.Show("alerts/hawkpage")
+assert(row("hawk") and row("hawkshape") and row("hawkmode") and row("hawkpos") and row("hawksize") and row("hawknumbers") and row("hawkmore"), "the Hawks page's basics")
+assert(not row("hawkwarn") and not row("hawkpolish") and not row("hawkempty"), "the Hawks page's fine settings should be tucked away")
+click(row("hawkmore").widget)
+assert(row("hawkwarn") and row("hawkpolish") and row("hawkempty") and row("hawkalpha"), "More options on the Hawks page")
+click(row("hawkmore").widget)
 -- the Procs page's Reset also puts every icon back on the shared look
 M.Show("alerts/procspage") popups = {} click(row("reset").widget) popups[1].data()
 assert(db.mongooseown == false and db.mongooseownset == nil and db.procsize == 30 and YaHT.mongooseFrame.w == 32, "Reset didn't clear an icon's own look")

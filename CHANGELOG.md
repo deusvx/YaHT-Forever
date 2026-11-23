@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.5.0
+- New: a Bestial Wrath icon. It shows for its 18 seconds from the moment you cast it, then stays grey
+  with a countdown until you can cast it again (both can be switched off). It has the prime spot:
+  first in the row, so above the bar it stands centered and the other icons line up to its right.
+  That place is only kept for hunters who have Bestial Wrath; for everyone else nothing moves.
+- New: Multi-Shot's cast. Multi-Shot does not leave right away, and the game shows no cast bar for
+  it. A thin line under the bar now fills while it casts, so you see the moment it goes out. It
+  times your real casts and adjusts itself. Its own page (Alerts, "Multi-Shot cast"): under or over
+  the bar, thickness, width, color, opacity, and a Test button.
+- New: the deadzone and too-far warnings as text ("DEADZONE" / "TOO FAR"), under the bar, over it,
+  or anywhere you drag it, with your own wording, size and color. Each warning has one "Show as"
+  choice: off, stripes or arrows, text, or both.
+- New: the distance to your target, as a band of yards ("20-28 yd"), green when you can shoot. As a
+  number, a ruler of the zones, or both. The game gives addons no exact distance, so it is the
+  narrowest band its range checks allow. (Alerts, Range, "Distance"; off to start with.)
+- New: Pack or Cheetah on in a fight gets your attention, until you switch aspect. Each has its own
+  choice on the Aspect page: bouncing words ("Pack On!" / "Cheetah On!", movable), the icon itself
+  bouncing and glowing, both, or nothing extra. Pack starts on words, Cheetah on the icon. Each time
+  you take a hit in that state, the warning doubles in size and flashes for a moment.
+- New: "Sound at seconds left" on every timed icon and the hawks. Set a number of seconds and a
+  warning sound plays once when that much time is left (for example hawks at 6 seconds). 0 = never.
+- New: "Show seconds left" on every proc icon: the time left as a number on the icon.
+- Simpler option pages. Every icon's page has the same short layout in cards (Icon, Time, Fine
+  tuning); the fine settings are under "More options", which starts closed. The Range, Aspect and
+  Profiles pages are shorter, every card has a title, and no setting appears on two pages.
+- A small gear beside every switch that has a page of its own: one click takes you to that feature's
+  settings.
+- The live preview shows more: icon sizes to scale, Multi-Shot's cast line on its page, and the
+  deadzone and too-far warnings on the Range page, each as you have set it.
+- Fixed: the bar could keep coming up each time you stopped moving, with no target and out of a
+  fight (after a loading screen cut an Auto Shot run short). It now puts itself away.
+- Feign Death resist alert: a check that was left open can no longer hold back the next alert.
+
 ## 1.4.0
 - New: hawk icons for Summon Hawk. Each hawk that is out shows by the bar with its 18 seconds running
   down and the seconds left as a number. Under 6 seconds it turns red: Summon Hawk shares its cooldown

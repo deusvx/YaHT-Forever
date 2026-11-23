@@ -352,8 +352,35 @@ local function IsFeign(spellID)
 	return spellID ~= nil and feignName ~= nil and YaHT.GetSpellName(spellID) == feignName
 end
 
+-- Other things the game may say at the moment of a resist. Nothing is decided from them yet: during
+-- the few seconds after a feign each is written down once, to find a signal that is there every time
+-- (the "Resisted" message is not: some resists come without it, and the alert then waits for the
+-- threat check).
+local PROBE_EVENTS = {"COMBAT_TEXT_UPDATE", "UI_ERROR_POPUP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_FAILED_QUIET",
+	"UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_STOP", "PLAYER_TARGET_CHANGED", "UNIT_FLAGS", "UNIT_AURA"}
+local IS_PROBE = {}
+for _, e in ipairs(PROBE_EVENTS) do IS_PROBE[e] = true end
+
 local function OnEvent(self, event, ...)
 	if not YaHT.db then return end
+	-- a watch that was never closed (its few seconds are long over) must not swallow the next resist
+	if self.active and self.at and GetTime() - self.at > WATCH + 1 then
+		Log("an old watch was still open: closed")
+		self.active = false
+		self:Hide()
+	end
+	if IS_PROBE[event] then
+		if not self.active then return end
+		local a, b, c = ...
+		if (event == "UNIT_FLAGS" or event == "UNIT_AURA" or event:find("^UNIT_SPELLCAST")) and Plain(a) ~= "player" then return end
+		local text = string.format("%s %s %s %s", event, tostring(Plain(a)), tostring(Plain(b)), tostring(Plain(c)))
+		self.seenMsg = self.seenMsg or {}
+		if not self.seenMsg[text] then
+			self.seenMsg[text] = true
+			Log(string.format("heard: %s at %.2fs", text, GetTime() - self.at))
+		end
+		return
+	end
 	if event == "UNIT_SPELLCAST_SUCCEEDED" then
 		local unit, _, spellID = ...
 		if unit ~= "player" then return end
@@ -426,6 +453,7 @@ function YaHT:InitFeign()
 	pcall(watch.RegisterUnitEvent, watch, "UNIT_SPELLCAST_SENT", "player")
 	pcall(watch.RegisterUnitEvent, watch, "UNIT_COMBAT", "player")
 	pcall(watch.RegisterUnitEvent, watch, "UNIT_HEALTH", "player")
+	for _, e in ipairs(PROBE_EVENTS) do pcall(watch.RegisterEvent, watch, e) end
 	watch:SetScript("OnEvent", function(self, event, ...)
 		local ok, err = pcall(OnEvent, self, event, ...)
 		if not ok and YaHT.ReportError then YaHT.ReportError("FeignEvent", err) end

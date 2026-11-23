@@ -23,7 +23,10 @@ wrong aspect, and a pet that is low or dead, and it times your procs and your Su
   Click one to see it in the live preview, then keep it with one more click.
 
 **Warnings**
-- **Deadzone and too far:** yellow caution stripes in the deadzone, red arrows when out of range.
+- **Deadzone and too far:** yellow caution stripes in the deadzone, red arrows when out of range,
+  or as text with your own wording, or both.
+- **Distance to your target:** a band of yards ("20-28 yd"), green when you can shoot, as a number
+  or a ruler of the zones.
 - **Feign Death resist:** a movable icon with RESIST and a warning sound. It reads the game's
   "Resisted" message, and when there is none it notices from the mob's threat list in a little
   over a second.
@@ -34,7 +37,10 @@ wrong aspect, and a pet that is low or dead, and it times your procs and your Su
   and red with a warning sound.
 
 **Proc and cooldown icons**
-- **Mongoose Bite** (with its cooldown), **Quick Shots**, **Rapid Fire** and your **racial**.
+- **Bestial Wrath** (its 18 seconds, then its cooldown), **Mongoose Bite** (with its cooldown),
+  **Quick Shots**, **Rapid Fire** and your **racial**.
+- **Multi-Shot cast line:** a thin line under the bar that fills while Multi-Shot casts.
+- **Sound at seconds left** and **seconds on the icon** for any timed icon and the hawks.
 - **Summon Hawk:** each hawk that is out, with its 18 seconds running down. It turns red under 6
   seconds, when it is time to summon again before you spend the shared cooldown on Arcane Shot.
   One icon per hawk, or one with a count.
@@ -46,8 +52,9 @@ wrong aspect, and a pet that is low or dead, and it times your procs and your Su
 
 **Options**
 - YaHT's own options window: pages on the left, a live preview and a help panel on the right,
-  search, a Home page with the main switches (each with a small picture), exact X / Y placement
-  with an alignment grid.
+  search, a Home page with the main switches (each with a small picture and a gear that opens its
+  page), short pages in titled cards with the fine settings under "More options", exact X / Y
+  placement with an alignment grid.
 - A minimap button with a quick menu, profiles, and a reset button on every page.
 - **Tranquilizing Shot announce** to Say, Party, Raid, Raid Warning, Whisper or a channel.
 

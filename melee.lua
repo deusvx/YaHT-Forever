@@ -202,13 +202,286 @@ local function ReadPosition()
 	return near and "DEAD" or "FAR"
 end
 
+---------------------------------------------------------------------------
+-- The distance to your target, as a band ("20-28 yd")
+---------------------------------------------------------------------------
+-- The game never gives the distance itself, only "is this in reach?". Every yes puts the target within
+-- that reach and every no beyond it; together they close in on a band. Spells you know are asked first
+-- (their reach is read from the game). Items with a fixed reach narrow it further where the game
+-- answers for them; an item's answer that disagrees with the spells is left out.
+local L = YaHT.L
+local SCATTER_SHOT = 19503
+local RANGE_ITEMS = {{10645, 20}, {835, 30}, {7734, 30}, {18904, 35}} -- (item, yards)
+local reachOf = {}
+
+local function Reach(spellID, fallbackMin, fallbackMax)
+	local known = reachOf[spellID]
+	if known then return known[1], known[2] end
+	local lo, hi = fallbackMin, fallbackMax
+	if C_Spell and C_Spell.GetSpellInfo then
+		local ok, info = pcall(C_Spell.GetSpellInfo, spellID)
+		if ok and type(info) == "table" and not IsSecret(info) then
+			local mn, mx = info.minRange, info.maxRange
+			if type(mx) == "number" and not IsSecret(mx) and mx > 0 then
+				hi = mx
+				if type(mn) == "number" and not IsSecret(mn) then lo = mn end
+				reachOf[spellID] = {lo, hi}
+			end
+		end
+	end
+	return lo, hi
+end
+
+local function ItemInRange(itemID)
+	local fn = (C_Item and C_Item.IsItemInRange) or IsItemInRange
+	if not fn then return nil end
+	local ok, v = pcall(fn, itemID, "target")
+	if not ok or IsSecret(v) or v == nil then return nil end
+	return v == true or v == 1
+end
+
+-- lo, hi, zone: the target is more than lo and at most hi yards away (hi nil = beyond everything asked);
+-- zone "MELEE" / "DEAD" / "OK" / "FAR" or nil. Nothing at all when there is no enemy target or the
+-- game won't say.
+local function ReadRange()
+	if not UnitExists or not UnitCanAttack then return nil end
+	local exists, hostile = UnitExists("target"), UnitCanAttack("player", "target")
+	if IsSecret(exists) or IsSecret(hostile) or not exists or not hostile then return nil end
+	if UnitIsDead then
+		local dead = UnitIsDead("target")
+		if IsSecret(dead) or dead then return nil end
+	end
+	local melee, auto = SpellInRange(WING_CLIP), SpellInRange(AUTO_SHOT)
+	if melee == nil and auto == nil then return nil end
+	local _, meleeMax = Reach(WING_CLIP, 0, 5)
+	local autoMin, autoMax = Reach(AUTO_SHOT, 8, 35)
+	if not autoMin or autoMin <= meleeMax then autoMin = 8 end
+	local lo, hi = 0, nil
+	local function within(r) if not hi or r < hi then hi = r end end
+	local function beyond(r) if r > lo then lo = r end end
+	local near
+	if CheckInteractDistance then
+		local ok, v = pcall(CheckInteractDistance, "target", FOLLOW_RANGE)
+		if ok and not IsSecret(v) and v ~= nil then near = v and true or false end
+	end
+	local zone
+	if melee then
+		within(meleeMax) zone = "MELEE"
+	else
+		if melee == false then beyond(meleeMax) end
+		if auto then
+			beyond(autoMin) within(autoMax) zone = "OK"
+		elseif auto == false and melee == false then
+			-- neither: too close to shoot, or too far (the 28-yard check tells which)
+			if near == true then within(autoMin) zone = "DEAD"
+			elseif near == false then beyond(autoMax) zone = "FAR" end
+		end
+	end
+	if zone == "OK" or zone == nil then
+		if near == true then within(28) elseif near == false then beyond(28) end
+		local scatter = SpellInRange(SCATTER_SHOT)
+		if scatter ~= nil then
+			local _, r = Reach(SCATTER_SHOT, 0, 15)
+			if scatter then within(r) else beyond(r) end
+		end
+		if hi and lo >= hi then lo, hi = autoMin, autoMax end -- (they disagree: the certain band)
+	end
+	-- items: only what agrees with the above
+	for i = 1, #RANGE_ITEMS do
+		local r = RANGE_ITEMS[i][2]
+		local v = ItemInRange(RANGE_ITEMS[i][1])
+		if v == true and r > lo then within(r)
+		elseif v == false and (not hi or r < hi) then beyond(r) end
+	end
+	return lo, hi, zone, autoMin, autoMax, meleeMax
+end
+
+local yards -- the frame that shows it
+local RULER_AT = {0, 0.12, 0.24, 0.84, 1} -- where each zone starts on the ruler (melee, deadzone, shooting, too far)
+local OK_GREEN = {r = 0.40, g = 0.86, b = 0.45}
+local UNKNOWN_GREY = {r = 0.8, g = 0.8, b = 0.8}
+local SAMPLE = {20, 28, "OK", 8, 35, 5}
+
+local function ZoneColor(p, zone)
+	if zone == "OK" then return OK_GREEN end
+	if zone == "DEAD" then return p.meleedeadcolor end
+	if zone == "FAR" then return p.meleefarcolor end
+	if zone == "MELEE" then return p.meleecolor end
+	return UNKNOWN_GREY
+end
+
+local function YardsUpdate()
+	local f = yards
+	if not f then return end
+	local p = YaHT.db.profile
+	if not p.rangeyards then f:Hide() return end
+	local lo, hi, zone, autoMin, autoMax, meleeMax
+	local sample = not p.lock
+	if sample then
+		lo, hi, zone, autoMin, autoMax, meleeMax = SAMPLE[1], SAMPLE[2], SAMPLE[3], SAMPLE[4], SAMPLE[5], SAMPLE[6]
+		-- (while placing things the warning's words show "Deadzone" as their sample: the distance agrees)
+		if p.meleerange and p.rangetext then lo, hi, zone = meleeMax, autoMin, "DEAD" end
+	else
+		local fighting = (InCombatLockdown and InCombatLockdown()) or (YaHT.mainFrame and YaHT.mainFrame.shooting)
+		if p.rangeyardswhen ~= "COMBAT" or fighting then
+			lo, hi, zone, autoMin, autoMax, meleeMax = ReadRange()
+		end
+	end
+	f.lo, f.hi, f.zone = lo, hi, zone
+	if not lo then f:Hide() return end
+	local c = ZoneColor(p, zone)
+	local style = p.rangeyardsstyle or "NUMBER"
+	local showNum, showRuler = style ~= "RULER", style ~= "NUMBER"
+	if showNum then
+		local text = hi and string.format(L["%d-%d yd"], lo, hi) or string.format(L["%d+ yd"], lo)
+		if f.shownText ~= text then f.shownText = text f.text:SetText(text) end
+		f.text:SetTextColor(c.r, c.g, c.b)
+	end
+	f.text:SetShown(showNum)
+	f.ruler:SetShown(showRuler)
+	if showRuler then
+		-- The zones as a strip (melee, deadzone, shooting, too far) and a bright block over the band the
+		-- target is in. Not to scale: the two short zones are drawn wide enough to see (RULER_AT), with
+		-- the yards spread evenly inside each zone.
+		local span = autoMax + 10
+		local w = f.rulerW
+		local edges = {0, meleeMax, autoMin, autoMax, span}
+		local function X(d)
+			d = math.max(0, math.min(d, span))
+			for i = 1, 4 do
+				if d <= edges[i + 1] or i == 4 then
+					local part = (d - edges[i]) / math.max(0.001, edges[i + 1] - edges[i])
+					return (RULER_AT[i] + (RULER_AT[i + 1] - RULER_AT[i]) * part) * w
+				end
+			end
+		end
+		local cols = {p.meleecolor, p.meleedeadcolor, OK_GREEN, p.meleefarcolor}
+		for i = 1, 4 do
+			local seg = f.segs[i]
+			local x0, x1 = RULER_AT[i] * w, RULER_AT[i + 1] * w
+			seg:ClearAllPoints()
+			seg:SetPoint("LEFT", f.ruler, "LEFT", x0, 0)
+			seg:SetSize(math.max(1, x1 - x0 - 1), f.rulerH)
+			seg:SetVertexColor(cols[i].r, cols[i].g, cols[i].b, 0.7)
+		end
+		local m0, m1 = X(lo), X(hi or span)
+		f.mark:ClearAllPoints()
+		f.mark:SetPoint("LEFT", f.ruler, "LEFT", m0, 0)
+		f.mark:SetSize(math.max(3, m1 - m0), f.rulerH + 6)
+		-- (the band in its own color, lightened: it has to stand out from the zone under it)
+		f.mark:SetVertexColor(c.r + (1 - c.r) * 0.55, c.g + (1 - c.g) * 0.55, c.b + (1 - c.b) * 0.55, 1)
+		-- the two numbers that matter, under their edges: where shooting starts and where it ends
+		if f.tickMin.shownN ~= autoMin then f.tickMin.shownN = autoMin f.tickMin:SetText(string.format("%d", autoMin)) end
+		if f.tickMax.shownN ~= autoMax then f.tickMax.shownN = autoMax f.tickMax:SetText(string.format("%d", autoMax)) end
+		f.tickMin:ClearAllPoints()
+		f.tickMin:SetPoint("TOP", f.ruler, "BOTTOMLEFT", RULER_AT[3] * w, -2)
+		f.tickMax:ClearAllPoints()
+		f.tickMax:SetPoint("TOP", f.ruler, "BOTTOMLEFT", RULER_AT[4] * w, -2)
+	end
+	f.dragHint:SetShown(sample and f.free and true or false)
+	f:Show()
+end
+YaHT.RangeYardsUpdate = YardsUpdate
+YaHT.ReadRange = ReadRange
+
+local function LayoutYards(p)
+	local f = yards
+	if not f then
+		f = CreateFrame("Frame", "YaHTRangeYardsFrame", UIParent)
+		yards = f
+		YaHT.rangeYardsFrame = f
+		f:SetFrameStrata("HIGH")
+		f:SetClampedToScreen(true)
+		f:SetMovable(true)
+		f:RegisterForDrag("LeftButton")
+		f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+		f:SetScript("OnDragStop", function(self)
+			self:StopMovingOrSizing()
+			local q = YaHT.db.profile
+			local _
+			q.rangeyardspoint, _, q.rangeyardsrelpoint, q.rangeyardsx, q.rangeyardsy = self:GetPoint()
+		end)
+		local font = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+		f.text = f:CreateFontString(nil, "OVERLAY")
+		f.text:SetFont(font, 14, "OUTLINE")
+		f.ruler = CreateFrame("Frame", nil, f)
+		-- a dark plate behind the strip, so it reads on any ground
+		f.plate = f.ruler:CreateTexture(nil, "BACKGROUND")
+		f.plate:SetTexture(WHITE)
+		f.plate:SetVertexColor(0, 0, 0, 0.75)
+		f.plate:SetPoint("TOPLEFT", f.ruler, "TOPLEFT", -2, 2)
+		f.plate:SetPoint("BOTTOMRIGHT", f.ruler, "BOTTOMRIGHT", 2, -2)
+		f.tickMin = f.ruler:CreateFontString(nil, "OVERLAY")
+		f.tickMin:SetFont(font, 9, "OUTLINE")
+		f.tickMin:SetTextColor(0.85, 0.85, 0.85)
+		f.tickMax = f.ruler:CreateFontString(nil, "OVERLAY")
+		f.tickMax:SetFont(font, 9, "OUTLINE")
+		f.tickMax:SetTextColor(0.85, 0.85, 0.85)
+		f.segs = {}
+		for i = 1, 4 do
+			f.segs[i] = f.ruler:CreateTexture(nil, "ARTWORK")
+			f.segs[i]:SetTexture(WHITE)
+		end
+		f.mark = f.ruler:CreateTexture(nil, "OVERLAY")
+		f.mark:SetTexture(WHITE)
+		f.dragHint = f:CreateFontString(nil, "OVERLAY")
+		f.dragHint:SetPoint("TOP", f, "BOTTOM", 0, -2)
+		f.dragHint:SetFont(font, 11, "OUTLINE")
+		f.dragHint:SetTextColor(0.8, 0.8, 0.8)
+		f.dragHint:SetText(L["Distance (drag me)"])
+		f.dragHint:Hide()
+		f:Hide()
+	end
+	local size = p.rangeyardssize or 14
+	local style = p.rangeyardsstyle or "NUMBER"
+	local font = YaHT:GetMedia("font", p.font) or STANDARD_TEXT_FONT
+	if not f.text:SetFont(font, size, "OUTLINE") then f.text:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE") end
+	local where = p.rangeyardspos or "UNDER"
+	local main = YaHT.mainFrame
+	f.free = where == "FREE"
+	-- the ruler is as wide as the bar (its zones then line up with something you already look at)
+	local barW = (p.width or 200) * (p.scale or 1)
+	f.rulerW, f.rulerH = math.max(size * 9, barW), math.max(5, math.floor(size * 0.55))
+	local tick = math.max(8, math.floor(size * 0.7))
+	if not f.tickMin:SetFont(font, tick, "OUTLINE") then f.tickMin:SetFont(STANDARD_TEXT_FONT, tick, "OUTLINE") end
+	if not f.tickMax:SetFont(font, tick, "OUTLINE") then f.tickMax:SetFont(STANDARD_TEXT_FONT, tick, "OUTLINE") end
+	local textH = style ~= "RULER" and (size + 4) or 0
+	local rulerH = style ~= "NUMBER" and (f.rulerH + 8 + tick) or 0
+	f:SetSize(f.rulerW, textH + rulerH)
+	-- (the ruler on top, next to the bar; the number under it)
+	f.ruler:ClearAllPoints()
+	f.ruler:SetPoint("TOP", f, "TOP", 0, -3)
+	f.ruler:SetSize(f.rulerW, f.rulerH)
+	f.text:ClearAllPoints()
+	f.text:SetPoint("BOTTOM", f, "BOTTOM", 0, 0)
+	f:ClearAllPoints()
+	if f.free or not main then
+		if p.rangeyardspoint then
+			f:SetPoint(p.rangeyardspoint, UIParent, p.rangeyardsrelpoint, p.rangeyardsx, p.rangeyardsy)
+		else
+			f:SetPoint("CENTER", UIParent, "CENTER", 0, 160)
+		end
+	elseif where == "ABOVE" then
+		f:SetPoint("BOTTOM", main, "TOP", 0, 4)
+	else
+		-- under the bar, below the warning line and (when they sit there too) the warning's words
+		local s = p.scale or 1
+		local gap = p.enableborder and 5 or 2
+		local pics = math.max((p.meleedeadheight or 5) + 1, p.meleefarsize or 8)
+		local words = (p.rangetext and (p.rangetextpos or "UNDER") == "UNDER") and ((p.rangetextsize or 14) + 6) or 0
+		f:SetPoint("TOP", main, "BOTTOM", 0, -((gap + pics + 5) * s + words))
+	end
+	f:EnableMouse((f.free and not p.lock and p.rangeyards) and true or false)
+	YardsUpdate()
+end
+
 -- How visible the line should be right now (0..1).
 local function TargetAlpha(self, p, now)
 	if not p.melee and not p.meleerange then return 0 end
 	if not p.lock then return p.melee and 1 or 0 end -- unlocked: preview the swing line
-	if p.meleerange then
-		if self.position == "FAR" then return 1 end
-		if self.position == "DEAD" and not DeadOnBar(p) then return 1 end
+	if p.meleerange and p.rangepics ~= false then
+		if self.position == "FAR" and p.rangefarpics ~= false then return 1 end
+		if self.position == "DEAD" and p.rangedeadpics ~= false and not DeadOnBar(p) then return 1 end
 	end
 	if not p.melee then return 0 end
 	if self.position == "MELEE" then return 1 end
@@ -248,7 +521,8 @@ local function OnUpdate(self, elapsed)
 	-- nothing else needs the line, keep drawing it while it fades out, so the
 	-- melee line doesn't flash up underneath for a moment.
 	local pos = self.position
-	local live = p.lock and p.meleerange and ((pos == "DEAD" and not DeadOnBar(p)) or pos == "FAR")
+	local live = p.lock and p.meleerange and p.rangepics ~= false
+		and ((pos == "DEAD" and p.rangedeadpics ~= false and not DeadOnBar(p)) or (pos == "FAR" and p.rangefarpics ~= false))
 	if live then
 		self.fadingWarn = pos
 	elseif want > 0 then
@@ -344,10 +618,13 @@ local function OnUpdate(self, elapsed)
 	end
 end
 
+local LayoutRangeText -- (the warning text, further down)
 function YaHT:ApplyMeleeSettings()
 	if not frame then return end
 	local p = self.db.profile
 	local f = self.mainFrame
+	LayoutRangeText(p)
+	LayoutYards(p)
 	frame:SetScale(p.scale)
 	frame:ClearAllPoints()
 	-- sit just under the bar, clear of its border when that is shown
@@ -415,11 +692,100 @@ local function OnEvent(_, event, ...)
 end
 
 local POSITION_NAMES = {MELEE = "melee", OK = "shooting range", DEAD = "deadzone", FAR = "too far"}
+
+---------------------------------------------------------------------------
+-- The warnings as words: "DEADZONE" / "TOO FAR", small text you can drag anywhere
+---------------------------------------------------------------------------
+local rangeText
+local L = YaHT.L
+
+local function RangeTextUpdate()
+	local f = rangeText
+	if not f then return end
+	local p = YaHT.db.profile
+	local which
+	if p.meleerange and p.rangetext then
+		local pos = frame and frame.position
+		if not p.lock then
+			which = "DEAD" -- unlocked: a sample to drag
+		elseif pos == "DEAD" and p.rangetextdead then
+			which = "DEAD"
+		elseif pos == "FAR" and p.rangetextfar then
+			which = "FAR"
+		end
+	end
+	f.which = which
+	if not which then f:Hide() return end
+	local msg = which == "DEAD" and p.rangetextdeadmsg or p.rangetextfarmsg
+	if type(msg) ~= "string" or msg:gsub("%s", "") == "" then msg = which == "DEAD" and L["DEADZONE"] or L["TOO FAR"] end
+	local c = (which == "DEAD" and p.rangetextdeadcolor or p.rangetextfarcolor) or {r = 1, g = 1, b = 1}
+	f.text:SetText(msg)
+	f.text:SetTextColor(c.r, c.g, c.b)
+	f.dragHint:SetShown(not p.lock and f.free and true or false)
+	f:Show()
+end
+YaHT.RangeTextUpdate = RangeTextUpdate
+
+LayoutRangeText = function(p)
+	local f = rangeText
+	if not f then
+		f = CreateFrame("Frame", "YaHTRangeTextFrame", UIParent)
+		rangeText = f
+		YaHT.rangeTextFrame = f
+		f:SetFrameStrata("HIGH")
+		f:SetClampedToScreen(true)
+		f:SetMovable(true)
+		f:RegisterForDrag("LeftButton")
+		f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+		f:SetScript("OnDragStop", function(self)
+			self:StopMovingOrSizing()
+			local q = YaHT.db.profile
+			local _
+			q.rangetextpoint, _, q.rangetextrelpoint, q.rangetextx, q.rangetexty = self:GetPoint()
+		end)
+		local font = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+		f.text = f:CreateFontString(nil, "OVERLAY")
+		f.text:SetFont(font, 14, "OUTLINE")
+		f.text:SetPoint("CENTER", f, "CENTER", 0, 0)
+		f.dragHint = f:CreateFontString(nil, "OVERLAY")
+		f.dragHint:SetPoint("TOP", f, "BOTTOM", 0, -2)
+		f.dragHint:SetFont(font, 11, "OUTLINE")
+		f.dragHint:SetTextColor(0.8, 0.8, 0.8)
+		f.dragHint:SetText(L["Range text (drag me)"])
+		f.dragHint:Hide()
+		f:Hide()
+	end
+	local size = p.rangetextsize or 14
+	local where = p.rangetextpos or "UNDER"
+	local main = YaHT.mainFrame
+	f:ClearAllPoints()
+	if where == "FREE" or not main then
+		if p.rangetextpoint then
+			f:SetPoint(p.rangetextpoint, UIParent, p.rangetextrelpoint, p.rangetextx, p.rangetexty)
+		else
+			f:SetPoint("CENTER", UIParent, "CENTER", 0, 130)
+		end
+	elseif where == "ABOVE" then
+		f:SetPoint("BOTTOM", main, "TOP", 0, 4)
+	else
+		-- under the bar, clear of the warning line with its stripes or arrows (as the live preview shows it)
+		local s = p.scale or 1
+		local gap = p.enableborder and 5 or 2
+		local pics = math.max((p.meleedeadheight or 5) + 1, p.meleefarsize or 8)
+		f:SetPoint("TOP", main, "BOTTOM", 0, -(gap + pics + 5) * s)
+	end
+	local font = YaHT:GetMedia("font", p.font) or STANDARD_TEXT_FONT
+	if not f.text:SetFont(font, size, "OUTLINE") then f.text:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE") end
+	f:SetSize(size * 14, size + 4)
+	f.free = where == "FREE"
+	f:EnableMouse((f.free and not p.lock and p.meleerange and p.rangetext) and true or false)
+	RangeTextUpdate()
+end
 local pollSum = 0
 
 -- Deadzone shown on the Auto Shot bar: caution-tape stripes over the whole bar.
 local function UpdateOverlay(p, elapsed)
-	local dead = p.lock and p.meleerange and frame.position == "DEAD"
+	local dead = p.lock and p.meleerange and p.rangepics ~= false and p.rangedeadpics ~= false and frame.position == "DEAD"
 	local onBar = dead and DeadOnBar(p)
 	-- the bar went away while you're in the deadzone: the line takes over
 	if dead and not onBar and not frame:IsShown() then frame:Show() end
@@ -457,6 +823,7 @@ local function Poll(_, elapsed)
 	pollSum = pollSum + elapsed
 	if pollSum < POSITION_EVERY then return end
 	pollSum = 0
+	if p.rangeyards then YardsUpdate() end
 	local engaged = p.meleerangewhen == "ALWAYS" or (InCombatLockdown and InCombatLockdown())
 		or (YaHT.mainFrame and YaHT.mainFrame.shooting)
 	local position
@@ -467,19 +834,23 @@ local function Poll(_, elapsed)
 		if left <= 0 then
 			frame.previewUntil = nil
 		elseif p.meleerange then
-			position = left > frame.previewHalf and "DEAD" or "FAR"
+			position = frame.previewWhich or (left > frame.previewHalf and "DEAD" or "FAR")
 		end
 	end
+	-- each warning has a switch of its own: one that is off counts as nothing to say
+	if (position == "DEAD" and p.rangedead == false) or (position == "FAR" and p.rangefar == false) then position = "OK" end
 	if position ~= frame.position then
 		frame.position = position
 		if YaHT.debug then YaHT:Print("position: "..(POSITION_NAMES[position] or "unknown")) end
 		if position and position ~= "OK" then frame:Show() end
+		RangeTextUpdate()
 	end
 end
 
 -- "Preview all alerts": show the deadzone, then the too-far warning
-function YaHT:PreviewRange(seconds)
+function YaHT:PreviewRange(seconds, which)
 	if not frame then return end
+	frame.previewWhich = which -- ("DEAD" or "FAR": that one alone, for its Test button)
 	frame.previewUntil = GetTime() + seconds
 	frame.previewHalf = seconds / 2
 	frame:Show()

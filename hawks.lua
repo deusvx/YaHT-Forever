@@ -288,6 +288,22 @@ local function Draw()
 	end
 	if holder.previewUntil and now >= holder.previewUntil then holder.previewUntil, holder.previewAt = nil, nil end
 	local out = Count()
+	-- "Sound at seconds left": once per hawk, as its time passes that mark (real hawks only)
+	local at = p.hawk and p.hawksoundat or 0
+	holder.sounded = holder.sounded or {}
+	if at > 0 then
+		for i = 1, MAX_HAWKS do
+			local h = slots[i]
+			if h and h.dur > at then
+				local left = h.start + h.dur - now
+				local id = math.floor(h.start * 10 + 0.5)
+				if left > 0 and left <= at and holder.sounded[i] ~= id then
+					holder.sounded[i] = id
+					if YaHT.LowSound then YaHT.LowSound() end
+				end
+			end
+		end
+	end
 	-- nothing out, but you are placing things (unlocked) or asked for a preview: two samples
 	local show, sample = {slots[1], slots[2]}, false
 	if out == 0 and p.hawk and (holder.previewUntil or not p.lock) then
@@ -688,6 +704,7 @@ local function CreateSquares()
 		local def = {
 			key = "hawk", frameName = "YaHTHawkIcon" .. i, label = "Hawk" .. i,
 			shape = "SQUARE", -- (round hawks are the circles above, not these)
+			ownNumbers = true, -- (the hawks write their seconds themselves)
 			spellID = 1293241, fallbackIcon = FALLBACK_ICON, window = HAWK_TIME,
 			ahead = (i - 1) * 9, -- while you place them, the two samples run half a turn apart
 			on = function(p) return p.hawk and p.hawkshape == "SQUARE" and (i == 1 or p.hawkmode ~= "COUNT") or false end,

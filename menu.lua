@@ -43,6 +43,9 @@ local EDGE_TEX = "Interface\\AddOns\\YaHT\\media\\RoundEdge"  -- its one-pixel o
 local DOT_TEX = "Interface\\AddOns\\YaHT\\media\\Dot"         -- a filled circle
 local DISC_TEX = "Interface\\AddOns\\YaHT\\media\\Disc"       -- a larger filled circle (the hawk circles)
 local RING_TEX = "Interface\\AddOns\\YaHT\\media\\Ring"       -- its ring
+local STRIPES_TEX = "Interface\\AddOns\\YaHT\\media\\Stripes"   -- the deadzone's stripes (16x16, repeats)
+local CHEVRON_TEX = "Interface\\AddOns\\YaHT\\media\\Chevron"   -- a too-far arrow
+local GEAR_TEX = "Interface\\AddOns\\YaHT\\media\\Gear"         -- the "open its page" button beside a switch
 local RINGFLAT_TEX = "Interface\\AddOns\\YaHT\\media\\RingFlat" -- the plain ring (the standard look)
 local RINGLINE_TEX = "Interface\\AddOns\\YaHT\\media\\RingLine" -- the ring's fine edge lines
 local GLOSS_TEX = "Interface\\AddOns\\YaHT\\media\\Gloss"     -- a soft light on an icon
@@ -342,7 +345,8 @@ local function PageItems(page)
 	for _, node in ipairs(Sorted(page.path[#page.path].opt.args)) do
 		if node.opt.type == "execute" and CARD_LOOK[node.key] then
 			-- the quick looks show as one row of preview cards, not three buttons
-			if not cards then
+			-- (not on a page that leaves them to Home)
+			if not cards and not Flag(Extend(page.path, node), "hidden") then
 				cards = true
 				items[#items + 1] = {custom = "cards"}
 			end
@@ -354,8 +358,8 @@ local function PageItems(page)
 end
 
 local HOME_SWITCHES = { -- (Lock bar is in the window's header, on every page)
-	{"alerts", "aspect"}, {"alerts", "feign"}, {"alerts", "pet"},
-	{"alerts", "meleerange"}, {"alerts", "melee"}, {"alerts", "ammo"}, {"bar", "minimap"},
+	{"alerts", "aspect"}, {"alerts", "feign"}, {"alerts", "pet"}, {"alerts", "hawk"},
+	{"alerts", "meleerange"}, {"alerts", "melee"}, {"alerts", "ammo"}, {"alerts", "multicast"}, {"bar", "minimap"},
 	{"alerts", "roundall"}, {"alerts", "polishall"},
 }
 local HOME_BUTTONS = {{"alerts", "preview"}}
@@ -504,9 +508,11 @@ local function BuildList()
 		b:SetHeight(20)
 		b:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -4 - (i - 1) * 20)
 		b:SetPoint("RIGHT", f, "RIGHT", -4, 0)
+		-- (a texture's sample sits at the right end of its line, so its name stays easy to read)
 		b.sample = b:CreateTexture(nil, "BACKGROUND")
-		b.sample:SetAllPoints(b)
-		b.sample:SetAlpha(0.55)
+		b.sample:SetPoint("TOPRIGHT", b, "TOPRIGHT", -3, -3)
+		b.sample:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
+		b.sample:SetWidth(40)
 		b.hover = Tex(b, "BORDER", {1, 1, 1, 0.08})
 		b.hover:SetAllPoints(b)
 		b.hover:Hide()
@@ -638,15 +644,17 @@ local SWITCH_PICTURES = {
 	meleerange = {spell = 1130, file = "Interface\\Icons\\Ability_Hunter_SniperShot"},
 	melee = {spell = 2973, file = "Interface\\Icons\\Ability_MeleeDamage"},
 	ammo = {file = "Interface\\Icons\\INV_Ammo_Arrow_02"},
+	multicast = {spell = 2643, file = "Interface\\Icons\\Ability_UpgradeMoonGlaive"},
 	minimap = {file = "Interface\\Icons\\INV_Weapon_Bow_07"},
 	mongoose = {spell = 1495, file = "Interface\\Icons\\Ability_Hunter_SwiftStrike"},
 	quickshots = {spell = 6150, file = "Interface\\Icons\\Ability_Warrior_InnerRage"},
 	rapidfire = {spell = 3045, file = "Interface\\Icons\\Ability_Hunter_RunningShot"},
+	bestial = {spell = 19574, file = "Interface\\Icons\\Ability_Druid_FerociousBite"},
 	racial = {spell = 20572, file = "Interface\\Icons\\Racial_Orc_BerserkerStrength"},
 	-- the switch for every icon's polished look shows what it does: its picture wears the frame while it is on
 	polishall = {spell = 3045, file = "Interface\\Icons\\Ability_Hunter_RunningShot", polished = true},
 	-- and the switch for every icon's shape: its picture is round while it is on, square while it is off
-	roundall = {spell = 3044, file = "Interface\\Icons\\Ability_ImpalingBolt", round = true},
+	roundall = {spell = 6197, file = "Interface\\Icons\\Ability_Hunter_EagleEye", round = true}, -- (Eagle Eye: reads well square and round)
 }
 
 local function SwitchPicture(key)
@@ -712,7 +720,41 @@ Make.toggle = function(parent)
 	On(row, "OnMouseUp", function() if not row.off and row.onClick then row.onClick() end end)
 	Hook(row, b)
 	row.widget = b
+	-- "Edit": a switch that has a page of its own (Home, Alerts, Procs) leads straight to it
+	-- (a small gear: quiet until you point at it, then gold, with a line of help)
+	local e = CreateFrame("Button", nil, row)
+	e:SetSize(22, 22)
+	e:SetPoint("RIGHT", b, "LEFT", -8, 0)
+	e.icon = e:CreateTexture(nil, "ARTWORK")
+	e.icon:SetTexture(GEAR_TEX)
+	e.icon:SetSize(15, 15)
+	e.icon:SetPoint("CENTER", e, "CENTER", 0, 0)
+	e.icon:SetVertexColor(C.muted[1], C.muted[2], C.muted[3], 0.85)
+	On(e, "OnClick", function() if row.editPage then Menu.Show(row.editPage) end end)
+	On(e, "OnEnter", function(self)
+		self.icon:SetVertexColor(C.gold[1], C.gold[2], C.gold[3], 1)
+		self.icon:SetSize(17, 17)
+		row.hover:Show()
+		SetHelp(row.tipTitle, L["Opens this feature's own page, with all of its settings."])
+	end)
+	On(e, "OnLeave", function(self)
+		self.icon:SetVertexColor(C.muted[1], C.muted[2], C.muted[3], 0.85)
+		self.icon:SetSize(15, 15)
+		row.hover:Hide()
+		HideTip()
+	end)
+	e:Hide()
+	row.edit = e
 	return row
+end
+-- the page a switch's feature has to itself, if any (and it is not the page you are on)
+local EDIT_PAGE = {meleerange = "alerts/rangepage"}
+local function EditPage(key)
+	if type(key) ~= "string" then return nil end
+	local id = EDIT_PAGE[key]
+	if not (id and pageById[id]) then id = "alerts/" .. key .. "page" end
+	if not pageById[id] then id = "alerts/procspage/" .. key .. "page" end
+	if pageById[id] and id ~= Menu.current then return id end
 end
 Fill.toggle = function(row, item)
 	local on = Call(item.path, "get") and true or false
@@ -753,7 +795,9 @@ Fill.toggle = function(row, item)
 	end
 	row.label:ClearAllPoints()
 	row.label:SetPoint("LEFT", row.plate, "LEFT", PAD + (pic and 26 or 0), 0)
-	row.label:SetPoint("RIGHT", row.plate, "RIGHT", -(PAD + 36 + 10), 0)
+	row.editPage = EditPage(item.path and item.path[#item.path].key)
+	row.edit:SetShown(row.editPage ~= nil)
+	row.label:SetPoint("RIGHT", row.plate, "RIGHT", -(PAD + 36 + 10 + (row.editPage and 30 or 0)), 0)
 	return ROW_STEP
 end
 
@@ -1490,7 +1534,8 @@ function Menu.DrawNav()
 				b.mark:SetPoint("LEFT", b, "LEFT", 4, 0)
 				b.mark:SetSize(2, NAV_ROW - 12)
 				b.text = Text(b, "GameFontHighlightSmall", C.muted)
-				On(b, "OnClick", function(self) Menu.Show(self.page) end)
+				-- ("Alerts" has no page of its own to show: its switches are on Home, so it opens its first page)
+				On(b, "OnClick", function(self) Menu.Show(self.page == "alerts" and "alerts/procspage" or self.page) end)
 				On(b, "OnEnter", function(self) if not self.on then self.text:SetTextColor(1, 1, 1) end end)
 				On(b, "OnLeave", function(self)
 					if not self.on then self.text:SetTextColor(self.rest[1], self.rest[2], self.rest[3]) end
@@ -1521,7 +1566,7 @@ end
 -- settings, looping through a shot. Only runs while the window is open.
 ---------------------------------------------------------------------------
 local PREVIEW_ICONS = { -- key, a spell whose icon stands in for it; in the order they line up around the bar
-	{"mongoose", 1495}, {"quickshots", 6150}, {"rapidfire", 3045}, {"racial", 20572}, {"aspect", 13165},
+	{"bestial", 19574}, {"mongoose", 1495}, {"quickshots", 6150}, {"rapidfire", 3045}, {"racial", 20572}, {"aspect", 13165},
 }
 local FALLBACK_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 local HAWK_ICON = "Interface\\Icons\\Spell_Nature_RavenForm"
@@ -1760,6 +1805,27 @@ BuildPreview = function(strip)
 	pv.freeNote:SetJustifyH("RIGHT")
 	pv.freeNote:SetText(L["Placed by hand"])
 	pv.freeNote:Hide()
+	-- shown on their own pages: Multi-Shot's cast line, and the range warnings (stripes, arrows, words)
+	pv.mcBack = pv:CreateTexture(nil, "ARTWORK", nil, 5)
+	pv.mcBack:SetColorTexture(0, 0, 0, 0.6)
+	pv.mcBack:Hide()
+	pv.mcFill = pv:CreateTexture(nil, "OVERLAY", nil, 5)
+	pv.mcFill:SetColorTexture(1, 1, 1, 1)
+	pv.mcFill:Hide()
+	pv.warnStripes = pv:CreateTexture(nil, "OVERLAY", nil, 4)
+	pv.warnStripes:SetTexture(STRIPES_TEX, "REPEAT", "REPEAT")
+	pv.warnStripes:Hide()
+	pv.warnArrows = {}
+	for i = 1, 6 do
+		local a = pv:CreateTexture(nil, "OVERLAY", nil, 4)
+		a:SetTexture(CHEVRON_TEX)
+		if i > 3 then a:SetTexCoord(1, 0, 0, 1) end -- (the right side's point left)
+		a:Hide()
+		pv.warnArrows[i] = a
+	end
+	pv.warnText = pv:CreateFontString(nil, "OVERLAY")
+	pv.warnText:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+	pv.warnText:Hide()
 	pv.t = 0
 	-- One shot, over and over, drawn the way the real bar draws it: the fill, the
 	-- glow building up and pulsing, the light sweep and the sparks while you
@@ -1834,6 +1900,111 @@ BuildPreview = function(strip)
 				right:SetPoint("CENTER", self, "LEFT", self.w * part, 0)
 			end
 		end
+		-- ON ITS OWN PAGE: Multi-Shot's cast line, filling over and over as its settings say
+		local page, k = Menu.current, self.k or 1
+		if page == "alerts/multicastpage" and p.multicast then
+			local above = p.multicastpos == "ABOVE"
+			local mw = math.max(4, self.w * (p.multicastwidth or 1))
+			local mh = math.max(2, math.min(9, (p.multicastheight or 4) * k))
+			self.mcT = ((self.mcT or 0) + elapsed) % 1.4
+			local c = p.multicastcolor or {r = 1, g = 0.82, b = 0.2, a = 1}
+			local alpha = self.mcT < 0.75 and (p.multicastalpha or 1) or 0
+			self.mcBack:ClearAllPoints()
+			self.mcBack:SetPoint(above and "BOTTOM" or "TOP", self, above and "TOP" or "BOTTOM", 0, above and 2 or -2)
+			self.mcBack:SetSize(mw, mh)
+			self.mcBack:SetShown(p.multicastback ~= false and alpha > 0)
+			self.mcFill:ClearAllPoints()
+			self.mcFill:SetPoint("LEFT", self.mcBack, "LEFT", 0, 0)
+			self.mcFill:SetSize(math.max(1, mw * math.min(1, self.mcT / 0.5)), mh)
+			self.mcFill:SetVertexColor(c.r, c.g, c.b, (c.a or 1) * alpha)
+			self.mcFill:SetShown(alpha > 0)
+			self.mcOn = true
+		elseif self.mcOn then
+			self.mcOn = nil
+			self.mcBack:Hide()
+			self.mcFill:Hide()
+		end
+		-- ON THE RANGE PAGE: the deadzone warning, then the too-far warning, each the way it is set to show
+		if page == "alerts/rangepage" and p.meleerange and YaHT.RangeShows then
+			self.warnT = ((self.warnT or 0) + elapsed) % 6
+			local which = self.warnT < 3 and "dead" or "far"
+			local pics, text = YaHT.RangeShows(which)
+			if not (pics or text) then -- (that one is off: the other one all the time)
+				which = which == "dead" and "far" or "dead"
+				pics, text = YaHT.RangeShows(which)
+			end
+			local dead = which == "dead"
+			local c = dead and p.meleedeadcolor or p.meleefarcolor
+			local now = GetTime()
+			local stripH = 0
+			-- the stripes: a line under the bar, or caution tape over the bar itself
+			if pics and dead then
+				local onBar = p.meleedeadstyle == "BAR"
+				local h = onBar and self:GetHeight() or math.max(3, math.min(9, (p.meleedeadheight or 5) * k))
+				local st = self.warnStripes
+				st:ClearAllPoints()
+				if onBar then
+					st:SetAllPoints(self)
+				else
+					st:SetPoint("TOP", self, "BOTTOM", 0, -2)
+					st:SetSize(self.w, h)
+					stripH = h + 2
+				end
+				local off = (now * 0.75) % 1
+				st:SetTexCoord(-off, self.w / 16 - off, 0, h / 16)
+				st:SetVertexColor(c.r, c.g, c.b, (p.meleedeadalpha or 1))
+				st:Show()
+			else
+				self.warnStripes:Hide()
+			end
+			-- the arrows: sliding in from both ends, under the bar
+			if pics and not dead then
+				local size = math.max(6, math.min(12, (p.meleefarsize or 8) * k))
+				local half = self.w / 2
+				local gap = half / 3
+				local off = (now * 14) % gap
+				for i = 1, 3 do
+					local x = (i - 1) * gap + off
+					local a = math.max(0, math.min(1, x / gap, (half - x - size) / gap))
+					local l, r = self.warnArrows[i], self.warnArrows[3 + i]
+					l:ClearAllPoints() l:SetPoint("LEFT", self, "BOTTOMLEFT", x, -2 - size / 2)
+					r:ClearAllPoints() r:SetPoint("RIGHT", self, "BOTTOMRIGHT", -x, -2 - size / 2)
+					l:SetSize(size * 5 / 8, size) r:SetSize(size * 5 / 8, size)
+					l:SetVertexColor(c.r, c.g, c.b, a * (p.meleefaralpha or 1))
+					r:SetVertexColor(c.r, c.g, c.b, a * (p.meleefaralpha or 1))
+					l:Show() r:Show()
+				end
+				stripH = size + 2
+			else
+				for _, a in ipairs(self.warnArrows) do a:Hide() end
+			end
+			-- the words
+			if text then
+				local msg = dead and p.rangetextdeadmsg or p.rangetextfarmsg
+				if type(msg) ~= "string" or msg:gsub("%s", "") == "" then msg = dead and L["DEADZONE"] or L["TOO FAR"] end
+				local tc = (dead and p.rangetextdeadcolor or p.rangetextfarcolor) or c
+				local wt = self.warnText
+				if wt.shownMsg ~= msg then wt.shownMsg = msg wt:SetText(msg) end
+				wt:SetTextColor(tc.r, tc.g, tc.b)
+				wt:ClearAllPoints()
+				if p.rangetextpos == "ABOVE" then
+					wt:SetPoint("BOTTOM", self, "TOP", 0, 3)
+				else
+					wt:SetPoint("TOP", self, "BOTTOM", 0, -(stripH + 4))
+				end
+				wt:Show()
+			else
+				self.warnText:Hide()
+			end
+			self.warnOn = which
+			self.phase:Hide() -- (the warning's own words stand there)
+		elseif self.warnOn then
+			self.warnOn = nil
+			self.phase:Show()
+			self.warnStripes:Hide()
+			self.warnText:Hide()
+			for _, a in ipairs(self.warnArrows) do a:Hide() end
+		end
 		-- the proc icons: timers run down, halos breathe
 		for _, ic in ipairs(self.icons) do
 			if ic.on and ic.timed then
@@ -1849,16 +2020,21 @@ end
 -- Lays a preview out from these settings: the live preview, and the small one on each look's card
 LayoutPreview = function(pv, p)
 	pv.p = p
+	Menu.previewIcons = pv.icons -- (for tests and debugging)
 	-- fit the bar, with the icons and the countdown that sit beside it, into the box
 	local beside = 0
 	if p.showtext and (p.textpos == "OUTSIDE_LEFT" or p.textpos == "OUTSIDE_RIGHT" or p.textpos == nil) then beside = beside + 30 end
 	for _, ic in ipairs(pv.icons) do
 		local side = p[ic.key .. "pos"]
-		if p[ic.key] and (side == "LEFT" or side == "RIGHT") then beside = beside + 24 end
+		if p[ic.key] and (side == "LEFT" or side == "RIGHT") then
+			local own = ic.key == "aspect" and p.aspectsize or (p[ic.key .. "own"] and p[ic.key .. "iconsize"]) or p.procsize
+			beside = beside + math.max(20, (own or 20) * 0.6) + 6
+		end
 	end
 	local k = math.min(1, math.max(0.2, (PREVIEW_ROOM - beside) / math.max(1, p.width)))
 	local w, h = p.width * k, math.min(26, math.max(4, p.height * k))
 	pv.w = w
+	pv.k = k
 	pv:SetSize(w, h)
 	pv.standing = nil -- (the phase label takes its color again)
 	pv.shadow:ClearAllPoints()
@@ -1927,9 +2103,12 @@ LayoutPreview = function(pv, p)
 	for _, ic in ipairs(pv.icons) do
 		local side = p[ic.key .. "pos"]
 		ic.on = p[ic.key] and (used[side] ~= nil or side == "FREE") or false
+		-- (Bestial Wrath's prime spot is only kept for a hunter who has it)
+		if ic.key == "bestial" and YaHT.BestialKnown and not YaHT.BestialKnown() then ic.on = false end
 		if ic.on then
 			local own = ic.key == "aspect" and p.aspectsize or (p[ic.key .. "own"] and p[ic.key .. "iconsize"]) or p.procsize
-			ic.size = math.min(side == "ABOVE" and 24 or (side == "FREE" and 16 or 18), math.max(12, own * k))
+			-- (to the bar's own scale, so the size you set is the size you see next to the bar)
+			ic.size = math.min(side == "ABOVE" and 44 or (side == "FREE" and 26 or 34), math.max(7, own * k))
 		end
 	end
 	-- Above the bar the game stands the first icon centred over it and the others to its right
@@ -2006,9 +2185,9 @@ LayoutPreview = function(pv, p)
 	local hs
 	if square then
 		local own = p.hawkown and p.hawkiconsize or p.procsize
-		hs = math.min(hawkFree and 16 or ((hpos == "LEFT" or hpos == "RIGHT") and 18 or 24), math.max(12, (own or 30) * k))
+		hs = math.min(hawkFree and 26 or ((hpos == "LEFT" or hpos == "RIGHT") and 34 or 44), math.max(7, (own or 30) * k))
 	else
-		hs = math.min(hawkFree and 16 or 26, math.max(14, (p.hawksize or 26) * k))
+		hs = math.min(hawkFree and 26 or 44, math.max(8, (p.hawksize or 26) * k))
 	end
 	local numPos = p.hawknumbers and p.hawknumpos or nil
 	local numSize = math.max(8, math.floor(hs * (numPos == "MIDDLE" and 0.5 or 0.42) + 0.5))

@@ -25,9 +25,9 @@ end
 
 -- The three looks. Each says what is on: Minimal is just the bar, Clean adds the icons, Flashy is
 -- everything with every effect. They never touch size, position, colours or the countdown.
-local LOOK_ICONS = {"mongoose", "quickshots", "rapidfire", "racial", "aspect", "hawk", "ammo", "feign"}
+local LOOK_ICONS = {"bestial", "mongoose", "quickshots", "rapidfire", "racial", "aspect", "hawk", "ammo", "feign"}
 local LOOK_WARNINGS = {"pet", "meleerange", "melee"}
-local LOOK_POLISH = {"procpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish",
+local LOOK_POLISH = {"procpolish", "bestialiconpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish",
 	"aspectpolish", "hawkpolish", "hawkiconpolish"}
 local function Look(t, icons, warnings, polish)
 	for _, key in ipairs(LOOK_ICONS) do t[key] = icons end
@@ -74,6 +74,7 @@ local TAB_KEYS = {
 	spark = {"sparkmode", "readypulse", "sparksize", "sparkcolor"},
 	effects = {"glow", "glowmode", "glowlook", "glowstyle", "glowkeepbuiltin", "glowpulse", "glowramp",
 		"glowintensity", "glowsize", "glowcolor", "sparkmode", "readypulse", "sparksize", "sparkcolor"},
+	multicast = {"multicast", "multicastpos", "multicastheight", "multicastwidth", "multicastalpha", "multicastback", "multicastx", "multicasty", "multicastcolor"},
 	timing = {"windupauto", "windup", "castholds", "autocorrect", "smooth"},
 	ammo = {"ammo", "ammosize", "ammofadestart", "ammolow", "ammocrit", "ammofullalpha", "ammoflash", "ammosound"},
 	melee = {"melee", "meleemode", "meleeheight", "meleealpha", "meleeglint", "meleeraptor", "meleecolor", "meleeraptorcolor"},
@@ -81,15 +82,20 @@ local TAB_KEYS = {
 		"feignpoint", "feignrelpoint", "feignx", "feigny"},
 	pet = {"pet", "petlow", "petlowat", "petwhen", "petdead", "petidle", "petsound", "petpulse", "pettextsize",
 		"petpoint", "petrelpoint", "petx", "pety"},
-	hawk = {"hawk", "hawkmode", "hawkpos", "hawksize", "hawkalpha", "hawknumbers", "hawknumpos", "hawkempty", "hawkpolish", "hawkwarn",
+	hawk = {"hawksoundat", "hawk", "hawkmode", "hawkpos", "hawksize", "hawkalpha", "hawknumbers", "hawknumpos", "hawkempty", "hawkpolish", "hawkwarn",
 		"hawkpoint", "hawkrelpoint", "hawkx", "hawky", "hawkshape", "hawkglowcolor", "hawkown", "hawkownset",
 		"hawkiconsize", "hawkiconalpha", "hawkiconglow", "hawkiconpulse", "hawkiconsound", "hawkiconpolish"},
-	aspect = {"aspect", "aspectwhen", "aspectpos", "aspectsize", "aspectalpha", "aspectpolish", "aspectshape", "aspectwarnspeed", "aspectspeedalways",
+	aspect = {"aspecthit", "aspectpackalert", "aspectcheetahalert", "aspectshoutsize", "aspectshoutpoint", "aspectshoutrelpoint", "aspectshoutx", "aspectshouty", "aspect", "aspectwhen", "aspectpos", "aspectsize", "aspectalpha", "aspectpolish", "aspectshape", "aspectwarnspeed", "aspectspeedalways",
 		"aspectwarnnone", "aspecthint", "aspectsound", "aspectpoint", "aspectrelpoint", "aspectx", "aspecty"},
-	procs = {"procshape", "mongooseiconshape", "quickshotsiconshape", "rapidfireiconshape", "racialiconshape", "procpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish", "procsize", "procalpha", "procglow", "procpulse", "procsound", "mongoosecooldown", "mongoose", "mongoosepos", "mongooseglowcolor", "mongoosepoint", "mongooserelpoint", "mongoosex", "mongoosey", "quickshots", "quickshotspos", "quickshotsglowcolor", "quickshotspoint", "quickshotsrelpoint", "quickshotsx", "quickshotsy", "rapidfire", "rapidfirepos", "rapidfireglowcolor", "rapidfirepoint", "rapidfirerelpoint", "rapidfirex", "rapidfirey", "racial", "racialpos", "racialglowcolor", "racialpoint", "racialrelpoint", "racialx", "racialy",
+	procs = {"bestialsoundat", "mongoosesoundat", "quickshotssoundat", "rapidfiresoundat", "racialsoundat", "mongoosenumbers", "quickshotsnumbers", "rapidfirenumbers", "racialnumbers", "bestial", "bestialpos", "bestialnumbers", "bestialcooldown", "bestialglowcolor", "bestialpoint", "bestialrelpoint", "bestialx", "bestialy", "bestialown", "bestialownset",
+		"bestialiconsize", "bestialiconalpha", "bestialiconglow", "bestialiconpulse", "bestialiconsound", "bestialiconpolish", "bestialiconshape",
+		"procshape", "mongooseiconshape", "quickshotsiconshape", "rapidfireiconshape", "racialiconshape", "procpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish", "procsize", "procalpha", "procglow", "procpulse", "procsound", "mongoosecooldown", "mongoose", "mongoosepos", "mongooseglowcolor", "mongoosepoint", "mongooserelpoint", "mongoosex", "mongoosey", "quickshots", "quickshotspos", "quickshotsglowcolor", "quickshotspoint", "quickshotsrelpoint", "quickshotsx", "quickshotsy", "rapidfire", "rapidfirepos", "rapidfireglowcolor", "rapidfirepoint", "rapidfirerelpoint", "rapidfirex", "rapidfirey", "racial", "racialpos", "racialglowcolor", "racialpoint", "racialrelpoint", "racialx", "racialy",
 		"mongooseown", "mongooseownset", "mongooseiconsize", "mongooseiconalpha", "mongooseiconglow", "mongooseiconpulse", "mongooseiconsound", "quickshotsown", "quickshotsownset", "quickshotsiconsize", "quickshotsiconalpha", "quickshotsiconglow", "quickshotsiconpulse", "quickshotsiconsound", "rapidfireown", "rapidfireownset", "rapidfireiconsize", "rapidfireiconalpha", "rapidfireiconglow", "rapidfireiconpulse", "rapidfireiconsound", "racialown", "racialownset", "racialiconsize", "racialiconalpha", "racialiconglow", "racialiconpulse", "racialiconsound"},
 	range = {"meleerange", "meleerangewhen", "meleedeadstyle", "meleedeadcolor", "meleedeadheight", "meleedeadalpha", "meleefarcolor", "meleefarsize", "meleefaralpha",
-		"meleewarnspeed", "meleewarnboost", "meleewarnglow", "meleewarnglowsize", "meleewarnglowalpha"},
+		"meleewarnspeed", "meleewarnboost", "meleewarnglow", "meleewarnglowsize", "meleewarnglowalpha",
+		"rangeyards", "rangeyardsstyle", "rangeyardswhen", "rangeyardssize", "rangeyardspos", "rangeyardspoint", "rangeyardsrelpoint",
+		"rangeyardsx", "rangeyardsy", "rangetextpos", "rangepics", "rangedead", "rangefar", "rangedeadpics", "rangefarpics", "rangetext", "rangetextdead", "rangetextfar", "rangetextdeadmsg", "rangetextfarmsg", "rangetextsize",
+		"rangetextdeadcolor", "rangetextfarcolor", "rangetextpoint", "rangetextrelpoint", "rangetextx", "rangetexty"},
 	announce = {"tranqannounce", "announcetype", "targetchannel",
 		"announcemsg"},
 }
@@ -149,6 +155,9 @@ function YaHT:CreateConfig()
 	local function meleeOff() return not YaHT.db.profile.melee end
 	local function raptorOff() local p = YaHT.db.profile return not p.melee or not p.meleeraptor end
 	local function rangeOff() return not YaHT.db.profile.meleerange end
+	local SPEED_ALERT_VALUES = {OFF = L["Nothing extra"], WORDS = L["Bouncing words"], ICON = L["Bouncing icon"], BOTH = L["Words and icon"]}
+	local SPEED_ALERT_SORTING = {"OFF", "WORDS", "ICON", "BOTH"}
+	local function rangeTextOff() local p = YaHT.db.profile return not (p.meleerange and p.rangetext) end
 	local function glowWarnOff() local p = YaHT.db.profile return not p.meleerange or p.meleewarnglow == "NONE" end
 	local mongoose = YaHT.GetSpellName(1495) or "Mongoose Bite"
 	local quickshots = YaHT.GetSpellName(6150) or "Quick Shots"
@@ -165,8 +174,9 @@ function YaHT:CreateConfig()
 	local function hawkOwnOff() local p = YaHT.db.profile return p.hawkshape ~= "SQUARE" or not p.hawkown end
 
 	local rapidfire = YaHT.GetSpellName(3045) or "Rapid Fire"
+	local bestial = YaHT.GetSpellName(19574) or "Bestial Wrath"
 	local hasLCG = function() return LibStub and LibStub("LibCustomGlow-1.0", true) end
-	local function procsOff() local p = YaHT.db.profile return not (p.mongoose or p.quickshots or p.rapidfire or p.racial) end
+	local function procsOff() local p = YaHT.db.profile return not (p.bestial or p.mongoose or p.quickshots or p.rapidfire or p.racial) end
 	-- the glow and pulse choices, used by the shared look and by an icon's own look
 	local function glowValues()
 		local v = {NONE = L["None"], HALO = L["Soft halo"], RING = L["Bright ring"],
@@ -187,13 +197,13 @@ function YaHT:CreateConfig()
 	local PULSE_SORTING = {"NONE", "BREATHE", "GROW", "HEARTBEAT", "FLASH"}
 	local OWN_LOOK = {"size", "alpha", "glow", "pulse", "sound", "polish", "shape"}
 	-- every "Shape" setting there is (the "Round icons" switch on the Home and Alerts pages sets them all)
-	YaHT.shapeKeys = {"procshape", "mongooseiconshape", "quickshotsiconshape", "rapidfireiconshape", "racialiconshape",
+	YaHT.shapeKeys = {"procshape", "bestialiconshape", "mongooseiconshape", "quickshotsiconshape", "rapidfireiconshape", "racialiconshape",
 		"aspectshape", "hawkshape"}
 	local SHAPE_VALUES = {SQUARE = L["Square"], CIRCLE = L["Circle"]}
 	local SHAPE_SORTING = {"SQUARE", "CIRCLE"}
 	local SHAPE_DESC = L["Square: the icon with a rim and a timer line under it. Circle: the icon cut round inside a ring, and the ring runs down as the timer."]
 	-- every "Polished look" setting there is (the one switch on the Home and Alerts pages sets them all)
-	YaHT.polishKeys = {"procpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish",
+	YaHT.polishKeys = {"procpolish", "bestialiconpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish",
 		"aspectpolish", "hawkpolish", "hawkiconpolish"}
 	local SQUARE_POLISH = L["A bevelled frame with fine edges in place of the flat rim, a soft light on the icon and a shadow under it. Off: the standard look, a plain flat rim."]
 
@@ -265,6 +275,7 @@ function YaHT:CreateConfig()
 		showheader = {name = L["Show"], type = "header", order = 10},
 		mongoose = {name = mongoose, type = "toggle", order = 11},
 		quickshots = {name = quickshots, type = "toggle", order = 12},
+		bestial = {name = bestial, type = "toggle", order = 10.5},
 		rapidfire = {name = rapidfire, type = "toggle", order = 13},
 		racial = {name = L["Racial ability"], type = "toggle", order = 14},
 		lookheader = {name = L["Look of all proc icons"], type = "header", order = 20},
@@ -305,11 +316,177 @@ function YaHT:CreateConfig()
 		}),
 		quickshotspage = procPage("quickshots", quickshots,
 			string.format(L["With the Deadly Aspects talent, your Auto Shots can trigger %s: 30%% faster ranged attacks for 12 seconds. Its icon shows while it lasts, and the timer follows the buff."], quickshots), 2),
+		bestialpage = procPage("bestial", bestial,
+			string.format(L["Shows while %s lasts (18 seconds), from the moment you cast it. It has the prime spot: first in the row of icons, so above the bar it stands centered over it."], bestial), 0.5, {
+			bestialnumbers = {
+				name = L["Show seconds left"],
+				desc = L["The seconds it has left, as a number on the icon."],
+				type = "toggle",
+				order = 5,
+				disabled = function() return not YaHT.db.profile.bestial end,
+			},
+			bestialcooldown = {
+				name = L["Show its cooldown"],
+				desc = string.format(L["After %s ends, its icon stays: grey, with a clock sweep and a countdown, until you can cast it again. Then it flashes once and goes away."], bestial),
+				type = "toggle",
+				order = 5.5,
+				disabled = function() return not YaHT.db.profile.bestial end,
+			},
+		}),
 		rapidfirepage = procPage("rapidfire", rapidfire,
 			string.format(L["Shows while %s lasts (15 seconds), from the moment you cast it."], rapidfire), 3),
 		racialpage = procPage("racial", L["Racial ability"],
 			L["Your race's active (Night Elf Elune's Light, Orc Blood Fury, Troll Berserking, Dwarf Stoneform, Human Perception, Tauren Plainsrunning, Skyborne Skysight) shows while it lasts, from the moment you use it. YaHT recognises it by itself; for a new racial it learns the length the first time you use it out of combat."], 4),
 	}
+
+	-- BASICS FIRST. A page shows what most people want (on / off, position, size, its one or two
+	-- special switches). The fine settings are tucked under "More options", which starts closed each
+	-- time (it is not a saved setting, only how much of the page is showing).
+	local more = {}
+	YaHT.optionsMore = more
+	local function Tuck(args, id, keys, order)
+		for _, key in ipairs(keys) do
+			local opt = args[key]
+			if opt then
+				local was = opt.hidden
+				opt.hidden = function(...)
+					if not more[id] then return true end
+					if type(was) == "function" then return was(...) end
+					return was
+				end
+			end
+		end
+		args[id .. "more"] = {
+			name = L["More options"],
+			desc = L["The fine settings: glow, pulse, sound, shape, the polished look and this icon's own look. Most people never need them."],
+			type = "toggle",
+			width = "double",
+			order = order,
+			get = function() return more[id] and true or false end,
+			set = function(info, value)
+				more[id] = value and true or nil
+				AceConfigRegistry:NotifyChange(Addon)
+			end,
+		}
+	end
+	for _, key in ipairs({"bestial", "mongoose", "quickshots", "rapidfire", "racial"}) do
+		local args = procsArgs[key .. "page"].args
+		-- its size, among the basics: the shared size until you change it here
+		args[key .. "size"] = {
+			name = L["Icon size"],
+			desc = L["How big this icon is. Changing it gives the icon its own size; the others keep theirs."],
+			type = "range",
+			order = 3.5,
+			min = 16, max = 64, step = 1,
+			get = function()
+				local p = YaHT.db.profile
+				return p[key .. "own"] and p[key .. "iconsize"] or p.procsize
+			end,
+			set = function(info, value)
+				local p = YaHT.db.profile
+				if not p[key .. "own"] then
+					if not p[key .. "ownset"] then
+						for _, part in ipairs(OWN_LOOK) do p[key .. "icon" .. part] = p["proc" .. part] end
+						p[key .. "ownset"] = true
+					end
+					p[key .. "own"] = true
+				end
+				p[key .. "iconsize"] = value
+				YaHT:ApplySettings()
+			end,
+			disabled = function() return not YaHT.db.profile[key] end,
+		}
+		args[key .. "iconsize"].hidden = true -- (the size is among the basics now)
+		-- its shape, among the basics too: the shared shape until you change it here
+		args[key .. "shape"] = {
+			name = L["Shape"],
+			desc = L["Square, or round inside a ring that runs down as its timer. Changing it here changes this icon only."],
+			type = "select",
+			order = 2.5,
+			values = SHAPE_VALUES,
+			sorting = SHAPE_SORTING,
+			get = function()
+				local p = YaHT.db.profile
+				return p[key .. "own"] and p[key .. "iconshape"] or p.procshape
+			end,
+			set = function(info, value)
+				local p = YaHT.db.profile
+				if not p[key .. "own"] then
+					if not p[key .. "ownset"] then
+						for _, part in ipairs(OWN_LOOK) do p[key .. "icon" .. part] = p["proc" .. part] end
+						p[key .. "ownset"] = true
+					end
+					p[key .. "own"] = true
+				end
+				p[key .. "iconshape"] = value
+				YaHT:ApplySettings()
+			end,
+			disabled = function() return not YaHT.db.profile[key] end,
+		}
+		args[key .. "iconshape"].hidden = true
+		-- the seconds left as a number on the icon: the same switch on every icon's page
+		args[key .. "numbers"] = args[key .. "numbers"] or {
+			name = L["Show seconds left"],
+			desc = L["The seconds it has left, as a number on the icon."],
+			type = "toggle",
+			disabled = function() return not YaHT.db.profile[key] end,
+		}
+		args[key .. "numbers"].order = 4.2
+		-- a warning sound as its time runs low
+		args[key .. "soundat"] = {
+			name = L["Sound at seconds left"],
+			desc = L["Plays a warning sound once when this many seconds are left. 0 = never."],
+			type = "range",
+			order = 4.25,
+			min = 0, max = 15, step = 1,
+			disabled = function() return not YaHT.db.profile[key] end,
+		}
+		-- three cards: the icon itself, its time, and the fine tuning
+		args[key .. "cardicon"] = {name = L["Icon"], type = "header", order = 1.5}
+		args[key .. "cardtime"] = {name = L["Time"], type = "header", order = 4.1}
+		args[key .. "cardmore"] = {name = L["Fine tuning"], type = "header", order = 8.9}
+		Tuck(args, key, {key .. "glowcolor", key .. "own", key .. "iconalpha", key .. "iconglow",
+			key .. "iconpulse", key .. "iconsound", key .. "iconpolish"}, 9)
+	end
+
+	-- Multi-Shot's cast line: a page of its own, laid out like the icons' pages
+	local function multiOff() return not YaHT.db.profile.multicast end
+	local multicastPage = {
+		name = L["Multi-Shot cast"],
+		type = "group",
+		order = 9,
+		args = {
+			multicastdesc = {name = L["Multi-Shot does not leave right away: it has a short cast the game shows no bar for. With this on, a thin line under the bar fills while it casts, so you see the moment it goes out."], type = "description", order = 1},
+			multicastcardline = {name = L["Line"], type = "header", order = 1.5},
+			multicast = {name = L["Show Multi-Shot's cast"], type = "toggle", width = "double", order = 2},
+			multicastpos = {
+				name = L["Position"], desc = L["Where the line sits."], type = "select", order = 3,
+				values = {BELOW = L["Under the bar"], ABOVE = L["Over the bar"]}, sorting = {"BELOW", "ABOVE"},
+				disabled = multiOff,
+			},
+			multicastheight = {name = L["Line thickness"], type = "range", order = 4, min = 1, max = 20, step = 1, disabled = multiOff},
+			multicastwidth = {
+				name = L["Width"], desc = L["How wide the line is, as a share of the bar's width."],
+				type = "range", order = 5, min = 0.2, max = 1, step = 0.05, isPercent = true, disabled = multiOff,
+			},
+			multicastcardlook = {name = L["Look"], type = "header", order = 5.5},
+			multicastcolor = {name = L["Line color"], type = "color", hasAlpha = true, order = 6, get = getColor, set = setColor, disabled = multiOff},
+			multicastalpha = {name = L["Opacity"], type = "range", order = 7, min = 0.2, max = 1, step = 0.05, isPercent = true, disabled = multiOff},
+			multicastback = {
+				name = L["Dark background"], desc = L["A dark strip behind the line, so you see how far it has to go."],
+				type = "toggle", order = 8, disabled = multiOff,
+			},
+			multicastsample = {
+				name = L["Show a sample"], desc = L["Plays the line once, so you see your settings without casting."],
+				type = "execute", order = 8.5, func = function() YaHT:MultiCastSample() end, disabled = multiOff,
+			},
+			multicastcardmore = {name = L["Fine tuning"], type = "header", order = 8.9},
+			multicastx = {name = L["Sideways"], desc = L["Moves the line a little from its place."], type = "range", order = 10, min = -100, max = 100, step = 1, disabled = multiOff},
+			multicasty = {name = L["Up or down"], desc = L["Moves the line a little from its place."], type = "range", order = 11, min = -100, max = 100, step = 1, disabled = multiOff},
+			reset = resetButton("multicast"),
+		},
+	}
+	Tuck(multicastPage.args, "multicast", {"multicastx", "multicasty"}, 9)
 
 	local aceoptions = {
 		name = "YaHT Forever - Yet another Hunter Timer",
@@ -1224,6 +1401,46 @@ function YaHT:CreateConfig()
 						order = 11,
 						disabled = aspectOff,
 					},
+					aspectpackalert = {
+						name = L["Pack in a fight"],
+						desc = L["How this aspect gets your attention when a fight starts with it on, besides the red badge: its name in bouncing words (unlock the bar to drag them), its icon bouncing and glowing, or both."],
+						type = "select",
+						order = 11.1,
+						values = SPEED_ALERT_VALUES,
+						sorting = SPEED_ALERT_SORTING,
+						disabled = function() local p = YaHT.db.profile return not p.aspect or not p.aspectwarnspeed end,
+					},
+					aspectcheetahalert = {
+						name = L["Cheetah in a fight"],
+						desc = L["How this aspect gets your attention when a fight starts with it on, besides the red badge: its name in bouncing words (unlock the bar to drag them), its icon bouncing and glowing, or both."],
+						type = "select",
+						order = 11.15,
+						values = SPEED_ALERT_VALUES,
+						sorting = SPEED_ALERT_SORTING,
+						disabled = function() local p = YaHT.db.profile return not p.aspect or not p.aspectwarnspeed end,
+					},
+					aspecthit = {
+						name = L["Bigger and flashing when you are hit"],
+						desc = L["While Pack or Cheetah is on in a fight: each time you take a hit, the kind that can daze you, the warning doubles in size and flashes for a moment. (The game hides the Dazed effect itself from addons in a fight, so this goes by the hits.)"],
+						type = "toggle",
+						width = "double",
+						order = 11.17,
+						disabled = function()
+							local p = YaHT.db.profile
+							return not p.aspect or not p.aspectwarnspeed or (p.aspectpackalert == "OFF" and p.aspectcheetahalert == "OFF")
+						end,
+					},
+					aspectshoutsize = {
+						name = L["Size of the words"],
+						type = "range",
+						order = 11.2,
+						min = 10, max = 48, step = 1,
+						disabled = function()
+							local p = YaHT.db.profile
+							local function words(v) return v == "WORDS" or v == "BOTH" end
+							return not p.aspect or not p.aspectwarnspeed or not (words(p.aspectpackalert) or words(p.aspectcheetahalert))
+						end,
+					},
 					aspectspeedalways = {
 						name = L["Always show Cheetah and Pack"],
 						desc = L["Shows the icon any time you're in Aspect of the Cheetah or the Pack, also out of combat, so you don't forget you're in them."],
@@ -1285,6 +1502,44 @@ function YaHT:CreateConfig()
 						sorting = {"COMBAT", "ALWAYS"},
 						disabled = rangeOff,
 					},
+					rangepics = {
+						name = L["Show the stripes and arrows"],
+						desc = L["The pictures: yellow stripes in the deadzone, red arrows when you're too far. Switch them off to have the warning as text only."],
+						type = "toggle",
+						width = "double",
+						order = 3.5,
+						disabled = rangeOff,
+					},
+					textheader = {name = L["Warning text"], type = "header", order = 4},
+					rangetext = {
+						name = L["Show the warning as text"],
+						desc = L["Small text that says it in words. It is not attached to the bar: unlock the bar and drag the text where you want it."],
+						type = "toggle",
+						width = "double",
+						order = 4.1,
+						disabled = rangeOff,
+						-- text needs no moving pictures: switching it on switches the stripes and arrows off,
+						-- switching it off brings them back (they keep their own switch, for having both)
+						set = function(info, value)
+							local p = YaHT.db.profile
+							p.rangetext = value and true or false
+							p.rangepics = not value
+							YaHT:ApplySettings()
+						end,
+					},
+					rangetextsize = {name = L["Font size"], type = "range", order = 4.2, min = 8, max = 40, step = 1, disabled = rangeTextOff},
+					rangetextdead = {name = L["Text in the deadzone"], type = "toggle", order = 4.3, disabled = rangeTextOff},
+					rangetextdeadmsg = {
+						name = L["Deadzone wording"], desc = L["What the text says. Leave it empty for the usual words."],
+						type = "input", order = 4.4, disabled = rangeTextOff,
+					},
+					rangetextdeadcolor = {name = L["Deadzone text color"], type = "color", order = 4.5, get = getColor, set = setColor, disabled = rangeTextOff},
+					rangetextfar = {name = L["Text when too far"], type = "toggle", order = 4.6, disabled = rangeTextOff},
+					rangetextfarmsg = {
+						name = L["Too far wording"], desc = L["What the text says. Leave it empty for the usual words."],
+						type = "input", order = 4.7, disabled = rangeTextOff,
+					},
+					rangetextfarcolor = {name = L["Too far text color"], type = "color", order = 4.8, get = getColor, set = setColor, disabled = rangeTextOff},
 					deadheader = {
 						name = L["Deadzone"],
 						type = "header",
@@ -1629,6 +1884,185 @@ function YaHT:CreateConfig()
 
 	-- Three groups instead of one long list: The bar / Alerts / Advanced.
 	local A = aceoptions.args
+	-- the Hawks page: shape, layout, position, size and the seconds are the basics
+	do
+		local args = A.hawk.args
+		args.hawksize.order, args.hawknumbers.order = 5, 6
+		args.hawksoundat = {
+			name = L["Sound at seconds left"],
+			desc = L["Plays a warning sound once when a hawk has this many seconds left, in time to summon again. 0 = never."],
+			type = "range",
+			order = 6.5,
+			min = 0, max = 17, step = 1,
+			disabled = function() return not YaHT.db.profile.hawk end,
+		}
+		args.hawkcardicon = {name = L["Icon"], type = "header", order = 1.5}
+		args.hawkcardtime = {name = L["Time"], type = "header", order = 5.5}
+		args.hawkcardmore = {name = L["Fine tuning"], type = "header", order = 8.9}
+		args.lookheader.hidden = true -- (the Fine tuning card holds what stood under "Look")
+		Tuck(args, "hawk", {"hawkpolish", "hawkalpha", "hawknumpos", "hawkempty", "hawkwarn", "hawkglowcolor",
+			"hawksharednote", "hawkown", "hawkiconsize", "hawkiconalpha", "hawkiconglow", "hawkiconpulse", "hawkiconsound",
+			"hawkiconpolish"}, 9)
+	end
+	-- THE RANGE PAGE. Each warning is one dropdown (off / pictures / text / both), its color, its text and a
+	-- Test button; nothing on the page depends on a switch somewhere else.
+	do
+		local args = A.range.args
+		local function off() return not YaHT.db.profile.meleerange end
+		-- what a warning shows, read from the settings ("dead" or "far")
+		local function Shows(which)
+			local p = YaHT.db.profile
+			local on = p["range" .. which] ~= false
+			local pics = on and p.rangepics ~= false and p["range" .. which .. "pics"] ~= false
+			local text = on and p.rangetext and p["rangetext" .. which] and true or false
+			return pics, text
+		end
+		YaHT.RangeShows = Shows
+		local function anyText() local _, d = Shows("dead") local _, f = Shows("far") return d or f end
+		local function anyPics() local d = Shows("dead") local f = Shows("far") return d or f end
+		local function Choose(which, value)
+			local p = YaHT.db.profile
+			-- (the two all-in-one switches of before, written out per warning first)
+			local dp, dt = Shows("dead")
+			local fp, ft = Shows("far")
+			p.rangepics = true
+			p.rangedeadpics, p.rangefarpics, p.rangetextdead, p.rangetextfar = dp, fp, dt, ft
+			if value == "OFF" then
+				p["range" .. which] = false
+			else
+				p["range" .. which] = true
+				p["range" .. which .. "pics"] = value ~= "TEXT"
+				p["rangetext" .. which] = value ~= "PICS"
+			end
+			p.rangetext = (p.rangetextdead or p.rangetextfar) and true or false
+			YaHT:ApplySettings()
+			AceConfigRegistry:NotifyChange(Addon)
+		end
+		local function showAs(which, order, picsName, bothName, desc)
+			return {
+				name = L["Show as"], desc = desc, type = "select", order = order,
+				values = {OFF = L["Off"], PICS = picsName, TEXT = L["Text"], BOTH = bothName},
+				sorting = {"OFF", "PICS", "TEXT", "BOTH"},
+				get = function()
+					local pics, text = Shows(which)
+					return (pics and text and "BOTH") or (pics and "PICS") or (text and "TEXT") or "OFF"
+				end,
+				set = function(info, value) Choose(which, value) end,
+				disabled = off,
+			}
+		end
+		-- one color per warning: it colors the stripes or arrows and the text alike
+		local function oneColor(which, picKey, textKey, order)
+			return {
+				name = L["Color"], type = "color", order = order,
+				get = function()
+					local p = YaHT.db.profile
+					local pics = Shows(which)
+					local c = pics and p[picKey] or p[textKey]
+					return c.r, c.g, c.b, 1
+				end,
+				set = function(info, r, g, b)
+					local p = YaHT.db.profile
+					p[picKey].r, p[picKey].g, p[picKey].b = r, g, b
+					p[textKey].r, p[textKey].g, p[textKey].b = r, g, b
+					YaHT:ApplySettings()
+				end,
+				disabled = function() local pics, text = Shows(which) return off() or not (pics or text) end,
+			}
+		end
+		local function test(which, order)
+			return {
+				name = L["Test"], desc = L["Shows this warning for a few seconds, so you see your settings."],
+				type = "execute", order = order,
+				func = function() YaHT:PreviewRange(4, which == "dead" and "DEAD" or "FAR") end,
+				disabled = function() local pics, text = Shows(which) return off() or not (pics or text) or not YaHT.db.profile.lock end,
+			}
+		end
+		local function noTextFor(which) return function() local _, text = Shows(which) return not text end end
+		local function noPicsFor(which) return function() local pics = Shows(which) return not pics end end
+		for _, key in ipairs({"rangepics", "rangetext", "rangetextdead", "rangetextfar", "deadheader", "farheader", "lookheader",
+			"textheader", "meleedeadcolor", "meleefarcolor", "rangetextdeadcolor", "rangetextfarcolor", "rangedesc"}) do
+			args[key].hidden = true -- (the dropdowns and the two cards stand in for these)
+		end
+		-- the top card: on or off, when, and the text's size
+		args.rangecardwarn = {name = L["Range warnings"], type = "header", order = 1.5}
+		args.rangetextsize.name, args.rangetextsize.order = L["Text size"], 3.5
+		args.rangetextsize.hidden = function() return not anyText() end
+		args.rangetextsize.disabled = off
+		args.rangetextpos = {
+			name = L["Text position"],
+			desc = L["Under the bar: just below the stripes or arrows. Over the bar: just above it. Anywhere: unlock the bar and drag the text where you want it."],
+			type = "select", order = 3.55,
+			values = {UNDER = L["Under the bar"], ABOVE = L["Over the bar"], FREE = L["Anywhere (drag it)"]},
+			sorting = {"UNDER", "ABOVE", "FREE"},
+			hidden = function() return not anyText() end,
+			disabled = off,
+		}
+		args.rangetextnote = {name = L["To move the text, unlock the bar and drag it."], type = "description", order = 3.6,
+			hidden = function() return not anyText() or YaHT.db.profile.rangetextpos ~= "FREE" end}
+		-- Deadzone
+		args.rangecarddead = {name = L["Deadzone"], type = "header", order = 5}
+		args.rangedeadshow = showAs("dead", 5.1, L["Stripes"], L["Stripes and text"],
+			L["How this warning shows: moving stripes on the bar, words you can drag anywhere, both, or not at all."])
+		args.rangedeadcolor = oneColor("dead", "meleedeadcolor", "rangetextdeadcolor", 5.2)
+		args.rangetextdeadmsg.name, args.rangetextdeadmsg.order = L["Text"], 5.3
+		args.rangetextdeadmsg.hidden, args.rangetextdeadmsg.disabled = noTextFor("dead"), off
+		args.meleedeadstyle.name, args.meleedeadstyle.order = L["Stripes on"], 5.4
+		args.meleedeadstyle.hidden, args.meleedeadstyle.disabled = noPicsFor("dead"), off
+		args.rangedeadtest = test("dead", 5.5)
+		-- Too far
+		args.rangecardfar = {name = L["Too far"], type = "header", order = 6}
+		args.rangefarshow = showAs("far", 6.1, L["Arrows"], L["Arrows and text"],
+			L["How this warning shows: red arrows on the bar, words you can drag anywhere, both, or not at all."])
+		args.rangefarcolor = oneColor("far", "meleefarcolor", "rangetextfarcolor", 6.2)
+		args.rangetextfarmsg.name, args.rangetextfarmsg.order = L["Text"], 6.3
+		args.rangetextfarmsg.hidden, args.rangetextfarmsg.disabled = noTextFor("far"), off
+		args.rangefartest = test("far", 6.5)
+		-- Distance: how far the target is, as a band of yards
+		local function yardsOff() return not YaHT.db.profile.rangeyards end
+		args.rangecardyards = {name = L["Distance"], type = "header", order = 7}
+		args.rangeyards = {
+			name = L["Show the distance to your target"],
+			desc = L["How far your target is, as a range of yards (for example 20-28 yd). The game does not give addons the exact distance, only whether something is in reach, so this is the narrowest band those answers allow. Green when you can shoot, the deadzone and too-far colors otherwise."],
+			type = "toggle", width = "double", order = 7.1,
+		}
+		args.rangeyardsstyle = {
+			name = L["Show as"],
+			desc = L["Number: the yards in one color. Ruler: a strip of the zones (melee, deadzone, shooting, too far) with a bright block where your target is."],
+			type = "select", order = 7.2,
+			values = {NUMBER = L["Number"], RULER = L["Ruler"], BOTH = L["Number and ruler"]},
+			sorting = {"NUMBER", "RULER", "BOTH"},
+			disabled = yardsOff,
+		}
+		args.rangeyardswhen = {
+			name = L["When"], type = "select", order = 7.3,
+			values = {TARGET = L["Whenever an enemy is targeted"], COMBAT = L["Only in a fight"]},
+			sorting = {"TARGET", "COMBAT"},
+			disabled = yardsOff,
+		}
+		args.rangeyardspos = {
+			name = L["Position"], type = "select", order = 7.4,
+			values = {UNDER = L["Under the bar"], ABOVE = L["Over the bar"], FREE = L["Anywhere (drag it)"]},
+			sorting = {"UNDER", "ABOVE", "FREE"},
+			disabled = yardsOff,
+		}
+		args.rangeyardssize = {name = L["Size"], type = "range", order = 7.5, min = 8, max = 32, step = 1, disabled = yardsOff}
+		-- the rest: More options (all of it is about the stripes and arrows)
+		for key, order in pairs({meleedeadheight = 11, meleedeadalpha = 11.1, meleewarnglow = 11.6, meleewarnglowsize = 11.7, meleewarnglowalpha = 11.8}) do
+			args[key].order, args[key].hidden = order, noPicsFor("dead")
+		end
+		for key, order in pairs({meleefarsize = 11.2, meleefaralpha = 11.3}) do
+			args[key].order, args[key].hidden = order, noPicsFor("far")
+		end
+		for key, order in pairs({meleewarnspeed = 11.4, meleewarnboost = 11.5}) do
+			args[key].order, args[key].hidden = order, function() return not anyPics() end
+		end
+		args.meleedeadalpha.name, args.meleefaralpha.name = L["Deadzone opacity"], L["Too far opacity"]
+		args.rangecardmore = {name = L["Fine tuning"], type = "header", order = 8.9, hidden = function() return not anyPics() end}
+		Tuck(args, "range", {"meleedeadheight", "meleedeadalpha", "meleefarsize", "meleefaralpha", "meleewarnspeed", "meleewarnboost",
+			"meleewarnglow", "meleewarnglowsize", "meleewarnglowalpha"}, 9)
+		args.rangemore.hidden = function() return not anyPics() end
+	end
 	-- glow and spark on one page
 	local effects = A.glow
 	effects.name = L["Glow and spark"]
@@ -1715,6 +2149,7 @@ function YaHT:CreateConfig()
 			meleerange = {name = L["Range warnings"], type = "toggle", order = 13},
 			melee = {name = L["Melee swing line"], type = "toggle", order = 14},
 			ammo = {name = L["Ammo counter"], type = "toggle", order = 15},
+			multicast = {name = L["Multi-Shot cast"], type = "toggle", order = 15.5},
 			procsnote = {name = L["The proc icons are switched on and off on the Procs page."], type = "description", order = 16},
 			procspage = A.procs,
 			aspectpage = A.aspect,
@@ -1724,10 +2159,52 @@ function YaHT:CreateConfig()
 			rangepage = A.range,
 			meleepage = A.melee,
 			ammopage = A.ammo,
+			multicastpage = multicastPage,
 		},
 	}
 	A.procs.order, A.aspect.order, A.feign.order, A.pet.order, A.hawk.order, A.range.order, A.melee.order, A.ammo.order = 1, 2, 3, 4, 5, 6, 7, 8
 	A.melee.name = L["Melee line"]
+
+	-- POLISH PASS. Nothing twice, every card has a title, the same word for the same thing.
+	do
+		-- on its own page a setting that Home (or the window's header) already has is left out;
+		-- a search still finds it
+		local function onlyElsewhere(pageId)
+			return function()
+				local m = YaHT.menu
+				return (m and m.current == pageId and not m.query) and true or false
+			end
+		end
+		local g = bar.args
+		for _, key in ipairs({"lock", "minimap", "presetheader", "presetdesc", "presetminimal", "presetclean", "presetflashy"}) do
+			if g[key] then g[key].hidden = onlyElsewhere("bar") end
+		end
+		for _, key in ipairs({"roundall", "polishall", "preview"}) do
+			if alerts.args[key] then alerts.args[key].hidden = onlyElsewhere("alerts") end
+		end
+		-- a title on every first card
+		local function title(args, name, order) args.cardtitle = {name = name, type = "header", order = order} end
+		title(A.bar.args, L["Bar"], 0.5)
+		title(A.text.args, L["Countdown"], 0.5)
+		title(effects.args, L["Glow"], 0.5)
+		title(A.aspect.args, L["Icon"], 1.5)
+		title(A.feign.args, L["Alert"], 1.5)
+		title(A.pet.args, L["Pet alerts"], 1.5)
+		title(A.melee.args, L["Line"], 1.5)
+		title(A.ammo.args, L["Icon"], 1.5)
+		title(A.timing.args, L["Timing"], 1.5)
+		title(A.announce.args, tranq, 1.5)
+		-- one name for the fine settings, one name for trying something out
+		A.text.args.offsetheader.name = L["Fine tuning"]
+		effects.args.tuneheader.name = L["Fine tuning"]
+		A.feign.args.feigntest.name, A.feign.args.feigntest.order = L["Test"], 7.5 -- (at the end of its card)
+		multicastPage.args.multicastsample.name = L["Test"]
+		A.ammo.args.ammoresetpos.order = 3.5 -- (with the icon it moves, not under the warning levels)
+		-- the aspect icon: its two fine settings out of the way
+		A.aspect.args.aspectcardmore = {name = L["Fine tuning"], type = "header", order = 20}
+		A.aspect.args.aspectalpha.order, A.aspect.args.aspectpolish.order = 21, 22
+		Tuck(A.aspect.args, "aspect", {"aspectalpha", "aspectpolish"}, 20.5)
+	end
 
 	local advanced = {
 		name = L["Advanced"],
@@ -1790,6 +2267,22 @@ function YaHT:CreateConfig()
 
 	aceoptions.args.profile = LibStub("AceDBOptions-3.0"):GetOptionsTable(self.db)
 	aceoptions.args.profile.order = 100
+	-- the Profiles page: the same controls, without the paragraphs between them (each control still
+	-- explains itself when you point at it), in two titled cards, Reset last
+	do
+		local pa = aceoptions.args.profile.args
+		if type(pa) == "table" then
+			for _, key in ipairs({"descreset", "choosedesc", "copydesc", "deldesc"}) do
+				if pa[key] then pa[key].hidden = true end
+			end
+			pa.cardprofile = {name = L["Profile"], type = "header", order = 10.5}
+			if pa.current then pa.current.order = 11 end
+			if pa.choose then pa.choose.order = 12 end
+			if pa.new then pa.new.order = 13 end
+			pa.cardcopy = {name = L["Copy or delete"], type = "header", order = 50}
+			if pa.reset then pa.reset.order = 95 end
+		end
+	end
 	AceConfigRegistry:RegisterOptionsTable(Addon, aceoptions, true)
 	self.optionsTable = aceoptions -- YaHT's own window (menu.lua) is drawn from this same table
 

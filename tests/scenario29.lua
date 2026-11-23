@@ -177,4 +177,21 @@ for _, line in ipairs(fd) do
   assert(not line:find("health", 1, true) or line:find("cast |", 1, true), "chatty health lines kept: "..line)
 end
 assert(resisted and threat, "the record misses the resist or the threat looks")
+-- a watch left open (its seconds long over) must not swallow the next resist: closed at the next event
+do
+  local w = YaHT.feignWatch
+  w.active, w.resisted, w.at = true, true, GetTime() - 60
+  w.scripts.OnEvent(w, "UNIT_SPELLCAST_SENT", "player", "t", "g", 5384)
+  assert(w.active == false, "an old open watch should be closed")
+  local al = YaHT.feignFrame al.shownAt = nil
+  w.scripts.OnEvent(w, "UI_ERROR_MESSAGE", 1, "Resisted")
+  assert(al.shownAt, "the resist message right after the key press should alert at once")
+  -- what else the game says during a watch is written down, once each
+  w.scripts.OnEvent(w, "UNIT_SPELLCAST_SUCCEEDED", "player", "g", 5384)
+  w.scripts.OnEvent(w, "COMBAT_TEXT_UPDATE", "SPELL_RESIST")
+  w.scripts.OnEvent(w, "COMBAT_TEXT_UPDATE", "SPELL_RESIST")
+  w.scripts.OnEvent(w, "UNIT_AURA", "target")
+  local log = YaHT.db.global.fdlog
+  assert(log[#log]:find("heard: COMBAT_TEXT_UPDATE SPELL_RESIST", 1, true) and not log[#log - 1]:find("heard:", 1, true), "the record should note it once: "..log[#log])
+end
 print("OK29")

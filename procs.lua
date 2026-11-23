@@ -50,7 +50,23 @@ local PULSES = {
 
 -- Icons that sit around the bar, in this order. When several share a spot
 -- (above, left or right), each later one moves over past the earlier ones.
-local SLOT_ORDER = {"mongoose", "quickshots", "rapidfire", "racial", "aspect"}
+local SLOT_ORDER = {"bestial", "mongoose", "quickshots", "rapidfire", "racial", "aspect"}
+
+-- Bestial Wrath has the prime spot (first in the row), but only for a hunter who has it: for
+-- everyone else its place is not kept free. Known = in your spellbook, or cast once on this character.
+local BESTIAL_WRATH_ID = 19574
+local function BestialKnown()
+	local char = YaHT.db and YaHT.db.char
+	if char and char.bestialSeen then return true end
+	for _, fn in ipairs({IsPlayerSpell, IsSpellKnown}) do
+		if type(fn) == "function" then
+			local ok, known = pcall(fn, BESTIAL_WRATH_ID)
+			if ok and not IsSecret(known) and known then return true end
+		end
+	end
+	return false
+end
+YaHT.BestialKnown = BestialKnown
 -- the size an icon around the bar takes up (the aspect badge has its own)
 local function IconSize(p, key)
 	if key == "aspect" then return p.aspectsize end
@@ -63,7 +79,9 @@ local function SlotShift(p, key)
 	if pos == "FREE" then return 0 end -- placed by hand: not in the row
 	for _, other in ipairs(SLOT_ORDER) do
 		if other == key then break end
-		if p[other] and p[other .. "pos"] == pos then shift = shift + IconSize(p, other) + 2 + GAP end
+		if p[other] and p[other .. "pos"] == pos and (other ~= "bestial" or BestialKnown()) then
+			shift = shift + IconSize(p, other) + 2 + GAP
+		end
 	end
 	return shift
 end
@@ -401,6 +419,14 @@ function Icon:SetIconSize(size)
 	if f.polished then SizePolish(f.polish, f.holder, size) end
 end
 
+-- The sound for "its time is running low" (not the pop-up chime, so the two can be told apart)
+local function LowSound()
+	if not SOUNDKIT then return end
+	local kit = SOUNDKIT.ALARM_CLOCK_WARNING_3 or SOUNDKIT.READY_CHECK or SOUNDKIT.RAID_WARNING
+	if kit then pcall(PlaySound, kit, "Master") end
+end
+YaHT.LowSound = LowSound
+
 function Icon:OnUpdate(elapsed)
 	local f = self.frame
 	local p = YaHT.db.profile
@@ -440,6 +466,13 @@ function Icon:OnUpdate(elapsed)
 	local left = math.max(0, 1 - t / window)
 	local size = self:Setting(p, "size")
 	f.secondsLeft = math.max(0, window - t)
+	-- "Sound at seconds left": once per run, as the time left passes that mark (never for a run that
+	-- is shorter than the mark, never while placing things; the hawks ring for themselves)
+	local at = (not preview and not self.def.ownNumbers and p[self.key .. "soundat"]) or 0
+	if at > 0 and window > at and f.proc and f.secondsLeft > 0 and f.secondsLeft <= at and f.soundFor ~= start then
+		f.soundFor = start
+		LowSound()
+	end
 	-- an icon can ask for another colour (the hawks turn red when their time runs low)
 	local tint = self.def.tint and self.def.tint(f.secondsLeft, p) or nil
 	if tint ~= f.tint then
@@ -465,6 +498,8 @@ function Icon:OnUpdate(elapsed)
 	-- off cooldown during the chance, the icon pops again: press it now
 	local cdLeft = (not preview and f.cdEnd) and (f.cdEnd - now) or 0
 	local onCD = cdLeft > 0
+	-- (an icon that shows its cooldown AFTER its time, like Bestial Wrath: not grey while it lasts)
+	if self.def.cdAfter and t < window then onCD = false end
 	if onCD ~= f.drawnCD then
 		f.drawnCD = onCD
 		if f.icon.SetDesaturated then f.icon:SetDesaturated(onCD) end
@@ -501,6 +536,19 @@ function Icon:OnUpdate(elapsed)
 	end
 	f.icon:SetAlpha(iconAlpha)
 	f.flash:SetAlpha(flash)
+	-- the seconds left as a number on the icon, for an icon that has that option
+	local number = not onCD and want > 0 and f.secondsLeft > 0 and not self.def.ownNumbers and p[self.key .. "numbers"] or false
+	if number then
+		local n = math.ceil(f.secondsLeft)
+		if f.numShown ~= n then
+			f.numShown = n
+			f.cdText:SetText(string.format("%d", n))
+		end
+		f.cdText:Show()
+	elseif f.numShown then
+		f.numShown = nil
+		if not onCD then f.cdText:Hide() end
+	end
 
 	if want > 0 and not onCD and self:Setting(p, "glow") ~= "NONE" then
 		self:DrawGlow(p, f.glowPhase, size * k)
@@ -1118,6 +1166,24 @@ local rapid = NewIcon({
 	key = "rapidfire", frameName = "YaHTRapidFireFrame", label = "RapidFire",
 	spellID = RAPID_FIRE_ID, fallbackIcon = "Interface\\Icons\\Ability_Hunter_RunningShot", window = CAST_BUFF_LENGTH,
 })
+local BESTIAL_LENGTH = 18
+local BESTIAL_COOLDOWN = 120 -- (used until the game says how long it really is)
+local READY_SHOWN = 1.5      -- the icon stays this long after the cooldown ends, back in colour
+
+-- Bestial Wrath's real cooldown, when the game will say (nil while it only shows the global cooldown)
+local function BestialCooldown()
+	if not (C_Spell and C_Spell.GetSpellCooldown) then return nil end
+	local ok, info = pcall(C_Spell.GetSpellCooldown, BESTIAL_WRATH_ID)
+	if not ok or type(info) ~= "table" or IsSecret(info) then return nil end
+	local start, dur = Open(info.startTime), Open(info.duration)
+	if type(start) == "number" and type(dur) == "number" and dur > 10 then return start, dur end
+end
+local bestial = NewIcon({
+	key = "bestial", frameName = "YaHTBestialWrathFrame", label = "BestialWrath",
+	spellID = BESTIAL_WRATH_ID, fallbackIcon = "Interface\\Icons\\Ability_Druid_FerociousBite", window = BESTIAL_LENGTH,
+	cdAfter = true, -- its cooldown shows after its time, not during it
+	on = function(p) return p.bestial and BestialKnown() end, -- (nothing to show a hunter who doesn't have it)
+})
 local racial = NewIcon({
 	key = "racial", frameName = "YaHTRacialFrame", label = "Racial",
 	spellID = nil, fallbackIcon = "Interface\\Icons\\Spell_Holy_ElunesGrace", window = CAST_BUFF_LENGTH,
@@ -1168,6 +1234,25 @@ local function OnCast(spellID)
 	local p = YaHT.db.profile
 	if not p.lock then return end
 	local name = YaHT.GetSpellName(spellID)
+	if spellID == BESTIAL_WRATH_ID or (name and (name == YaHT.GetSpellName(BESTIAL_WRATH_ID) or name == "Bestial Wrath")) then
+		local char = YaHT.db.char
+		if char and not char.bestialSeen then
+			char.bestialSeen = true -- from now on its prime spot is kept for it
+			YaHT:ApplyProcSettings()
+		end
+		if p.bestial then
+			bestial:Start(false, GetTime(), BESTIAL_LENGTH, SpellIcon(spellID))
+			local f = bestial.frame
+			f.cdRead = nil
+			if p.bestialcooldown then
+				-- its cooldown runs from the cast; shown once the 18 seconds are over
+				f.cdStart, f.cdDur = GetTime(), BESTIAL_COOLDOWN
+				f.cdEnd = f.cdStart + f.cdDur
+			end
+			if YaHT.debug then YaHT:Print("Bestial Wrath on (18s)") end
+		end
+		return
+	end
 	if spellID == RAPID_FIRE_ID or (name and name == YaHT.GetSpellName(RAPID_FIRE_ID)) then
 		if p.rapidfire then
 			rapid:Start(false, GetTime(), CAST_BUFF_LENGTH)
@@ -1195,12 +1280,24 @@ local function CheckCastBuffs()
 			cur.learning = false
 		end
 	end
-	for _, icon in ipairs({rapid, racial}) do
+	-- Bestial Wrath: the game's own word on its cooldown, as soon as it gives one
+	local bf = bestial.frame
+	if bf.proc and bf.cdEnd and not bf.cdRead then
+		local start, dur = BestialCooldown()
+		if start then
+			bf.cdRead = true
+			bf.cdStart, bf.cdDur, bf.cdEnd = start, dur, start + dur
+			bf.drawnCD = nil -- (the clock sweep takes the real length)
+		end
+	end
+	for _, icon in ipairs({bestial, rapid, racial}) do
 		local f = icon.frame
-		if f.proc and now - f.procStart >= (f.window or CAST_BUFF_LENGTH) then
+		-- (Bestial Wrath stays for its cooldown, and a moment longer to show it is ready again)
+		local keep = icon == bestial and f.cdEnd and now < f.cdEnd + READY_SHOWN
+		if f.proc and not keep and now - f.procStart >= (f.window or CAST_BUFF_LENGTH) then
 			icon:End()
 			if YaHT.debug then
-				YaHT:Print((icon == racial and cur and cur.r.name or "Rapid Fire") .. " off")
+				YaHT:Print((icon == racial and cur and cur.r.name or (icon == bestial and "Bestial Wrath" or "Rapid Fire")) .. " off")
 			end
 		end
 	end
@@ -1404,6 +1501,160 @@ local function SetBadgeIcon()
 	end
 end
 
+-- THE WARNING IN WORDS: "Pack On!" / "Cheetah On!", bouncing, for as long as the red warning for a
+-- speed aspect lasts. Its own small frame, dragged while the bar is unlocked (a sample shows then).
+local shout
+local SHOUT_RED = {1, 0.25, 0.2}
+local function ShoutText(key)
+	local L = YaHT.L
+	return key == "CHEETAH" and L["Cheetah On!"] or L["Pack On!"]
+end
+-- how a speed aspect asks for attention in a fight: "OFF", "WORDS", "ICON" or "BOTH"
+local function SpeedAlert(p, key)
+	if key == "PACK" then return p.aspectpackalert or "WORDS" end
+	if key == "CHEETAH" then return p.aspectcheetahalert or "ICON" end
+	return "OFF"
+end
+-- For Cheetah it is the badge itself that bounces: moved a little each frame along a smooth up-and-down
+-- curve from where it stands (the game's own looping animation snapped back at the end of every loop),
+-- and put back exactly when it stops.
+local HOP_TIME = 0.6 -- seconds for one up and down
+local HIT_TIME = 1.2 -- seconds the warning stays doubled and flashing after a hit
+local function BadgeRest(f)
+	if f.bigK and f.bigK ~= 1 then
+		f.bigK = 1
+		f:SetScale(YaHT.db.profile.scale or 1)
+	end
+	if f.flashing then
+		f.flashing = nil
+		f.icon:SetVertexColor(1, 1, 1)
+	end
+	local base = f.hopBase
+	if not base then return end
+	f.hopBase = nil
+	f:ClearAllPoints()
+	f:SetPoint(base[1], base[2], base[3], base[4], base[5])
+end
+local function BadgeBounce(f, on)
+	on = on and true or false
+	if on == (f.bouncing or false) then return end
+	f.bouncing = on
+	f.hopT = 0
+	if not on then BadgeRest(f) end
+end
+-- big: just hit. The badge is drawn at twice its size (its place is given in its own, now doubled,
+-- measure: halved here so it grows where it stands) and its picture flashes red.
+local function BadgeHop(f, elapsed, height, big)
+	if not f.hopBase then
+		local point, rel, relPoint, x, y = f:GetPoint(1)
+		if not point then return end
+		f.hopBase = {point, rel, relPoint, x or 0, y or 0}
+		f.hopT = 0
+	end
+	local k = big and 2 or 1
+	if (f.bigK or 1) ~= k then
+		f.bigK = k
+		f:SetScale((YaHT.db.profile.scale or 1) * k)
+	end
+	if big then
+		f.flashing = true
+		local dim = math.floor(GetTime() * 12) % 2 == 0
+		f.icon:SetVertexColor(1, dim and 0.3 or 1, dim and 0.3 or 1)
+	elseif f.flashing then
+		f.flashing = nil
+		f.icon:SetVertexColor(1, 1, 1)
+	end
+	f.hopT = (f.hopT or 0) + elapsed
+	local base = f.hopBase
+	local up = height * (0.5 - 0.5 * math.cos(TWO_PI * f.hopT / HOP_TIME))
+	f:ClearAllPoints()
+	f:SetPoint(base[1], base[2], base[3], base[4] / k, (base[5] + up) / k)
+end
+local function Shout(say)
+	local f = shout
+	if not f then return end
+	if not say then f.say = nil f:Hide() return end
+	if f.say ~= say then
+		f.say = say
+		f.t = 0
+		f.text:SetText(say)
+	end
+	f:Show()
+end
+local function LayoutShout(p)
+	local f = shout
+	if not f then
+		f = CreateFrame("Frame", "YaHTAspectShoutFrame", UIParent)
+		shout = f
+		YaHT.aspectShoutFrame = f
+		f:SetFrameStrata("HIGH")
+		f:SetClampedToScreen(true)
+		f:SetMovable(true)
+		f:RegisterForDrag("LeftButton")
+		f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+		f:SetScript("OnDragStop", function(self)
+			self:StopMovingOrSizing()
+			local q = YaHT.db.profile
+			local _
+			q.aspectshoutpoint, _, q.aspectshoutrelpoint, q.aspectshoutx, q.aspectshouty = self:GetPoint()
+		end)
+		local font = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+		f.text = f:CreateFontString(nil, "OVERLAY")
+		f.text:SetFont(font, 22, "OUTLINE")
+		f.text:SetTextColor(SHOUT_RED[1], SHOUT_RED[2], SHOUT_RED[3])
+		f.dragHint = f:CreateFontString(nil, "OVERLAY")
+		f.dragHint:SetPoint("TOP", f, "BOTTOM", 0, -2)
+		f.dragHint:SetFont(font, 11, "OUTLINE")
+		f.dragHint:SetTextColor(0.8, 0.8, 0.8)
+		f.dragHint:SetText(YaHT.L["Aspect warning (drag me)"])
+		f.dragHint:Hide()
+		f.t = 0
+		-- the bounce: up and back down, like a ball, about twice a second
+		f:SetScript("OnUpdate", function(self, elapsed)
+			self.t = (self.t or 0) + elapsed
+			-- just hit: twice the size, flashing red and white, for a moment
+			local big = (self.hitUntil and GetTime() < self.hitUntil and not self.sample) and true or false
+			if big ~= (self.big or false) then
+				self.big = big
+				local size = (self.size or 22) * (big and 2 or 1)
+				if not self.text:SetFont(self.font or STANDARD_TEXT_FONT, size, "OUTLINE") then self.text:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE") end
+				if not big then self.text:SetTextColor(SHOUT_RED[1], SHOUT_RED[2], SHOUT_RED[3]) end
+			end
+			if big then
+				local white = math.floor(GetTime() * 12) % 2 == 0
+				self.text:SetTextColor(1, white and 1 or SHOUT_RED[2], white and 1 or SHOUT_RED[3])
+			end
+			local up = math.abs(math.sin(self.t * math.pi / 0.45)) * (self.jump or 12) * (big and 2 or 1)
+			self.text:ClearAllPoints()
+			self.text:SetPoint("BOTTOM", self, "BOTTOM", 0, up)
+		end)
+		f:Hide()
+	end
+	local size = p.aspectshoutsize or 22
+	local font = YaHT:GetMedia("font", p.font) or STANDARD_TEXT_FONT
+	if not f.text:SetFont(font, size, "OUTLINE") then f.text:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE") end
+	f.jump = math.max(6, size * 0.6)
+	f.size, f.font, f.big = size, font, false
+	f:SetSize(size * 9, size + f.jump + 4)
+	f:ClearAllPoints()
+	if p.aspectshoutpoint then
+		f:SetPoint(p.aspectshoutpoint, UIParent, p.aspectshoutrelpoint, p.aspectshoutx, p.aspectshouty)
+	else
+		f:SetPoint("CENTER", UIParent, "CENTER", 0, 200)
+	end
+	local function words(v) return v == "WORDS" or v == "BOTH" end
+	local on = p.aspect and (words(SpeedAlert(p, "PACK")) or words(SpeedAlert(p, "CHEETAH")))
+	local placing = on and not p.lock
+	f:EnableMouse(placing and true or false)
+	f.dragHint:SetShown(placing and true or false)
+	if placing then
+		Shout(ShoutText("PACK")) -- a sample to drag
+	elseif not on or f.sample then
+		Shout(nil)
+	end
+	f.sample = placing or nil
+end
+
 local function BadgeUpdate(self, elapsed)
 	local p = YaHT.db.profile
 	self.judge = (self.judge or 0) - elapsed
@@ -1414,6 +1665,14 @@ local function BadgeUpdate(self, elapsed)
 			pcall(PlaySound, SOUNDKIT.RAID_WARNING, "Master")
 		end
 		self.level = level
+		-- the words with it: only for a speed aspect in a fight (and in "Preview all alerts")
+		if p.lock then
+			-- each speed aspect its own way: words, the icon itself bouncing (and glowing harder), or both
+			local how = level == "DANGER" and SpeedAlert(p, self.aspect) or "OFF"
+			if level == "DANGER" and self.previewUntil then how = "WORDS" end -- ("Preview all alerts" shows the words)
+			Shout((how == "WORDS" or how == "BOTH") and ShoutText(self.previewUntil and "PACK" or self.aspect) or nil)
+			BadgeBounce(self, how == "ICON" or how == "BOTH")
+		end
 		-- the saved record notes each real warning as it starts (not previews, and not the
 		-- Hawk / Monkey hints, which come and go all fight long)
 		if p.lock and not self.previewUntil then
@@ -1439,6 +1698,8 @@ local function BadgeUpdate(self, elapsed)
 	end
 	self.fade = a
 	if a <= 0 and want <= 0 then
+		if p.lock then Shout(nil) end
+		BadgeBounce(self, false)
 		self:Hide() -- wakes again on the next aspect / combat / Auto Shot change
 		return
 	end
@@ -1459,7 +1720,11 @@ local function BadgeUpdate(self, elapsed)
 		self:SetAlpha(a)
 		self.icon:SetAlpha(0.65 + 0.35 * pulse)
 		self.halo:SetVertexColor(c[1], c[2], c[3])
-		self.halo:SetAlpha(0.35 + 0.55 * pulse)
+		self.halo:SetAlpha(self.bouncing and (0.7 + 0.3 * pulse) or (0.35 + 0.55 * pulse)) -- (a bouncing Cheetah glows harder)
+		if self.bouncing then
+			local big = p.aspecthit and self.hitUntil and GetTime() < self.hitUntil
+			BadgeHop(self, elapsed, math.max(6, (p.aspectsize or 22) * 0.45), big)
+		end
 		self.halo:Show()
 	end
 end
@@ -1490,6 +1755,7 @@ local function ApplyAspect()
 	badge:SetScale(p.scale)
 	local size = p.aspectsize
 	badge:SetSize(size + 2, size + 2)
+	badge.hopBase = nil -- (placed afresh: a bounce starts again from here)
 	PlaceAroundBar(badge, p, "aspect")
 	badge.rim:SetAllPoints(badge)
 	badge.icon:SetSize(size, size)
@@ -1567,8 +1833,8 @@ local PREVIEW_TIME = 6
 function YaHT:PreviewAlerts()
 	local now = GetTime()
 	local p = self.db.profile
-	for _, icon in ipairs({mongoose, quick, rapid, racial}) do
-		if p[icon.key] then
+	for _, icon in ipairs({bestial, mongoose, quick, rapid, racial}) do
+		if p[icon.key] and (icon ~= bestial or BestialKnown()) then
 			icon:Start(false, now, PREVIEW_TIME)
 			icon.frame.previewUntil = now + PREVIEW_TIME
 		end
@@ -1588,6 +1854,8 @@ end
 -- Setup
 ---------------------------------------------------------------------------
 function YaHT:ApplyProcSettings()
+	LayoutShout(self.db.profile)
+	bestial:Apply()
 	mongoose:Apply()
 	quick:Apply()
 	rapid:Apply()
@@ -1650,6 +1918,7 @@ function YaHT:InitProcs()
 	self.quickShotsWatch = quickWatch
 
 	-- Rapid Fire / your racial: start on your cast, end when their time is up
+	self.bestialFrame = bestial:Create()
 	self.rapidFireFrame = rapid:Create()
 	self.racialFrame = racial:Create()
 	-- show your own race's icon (for the preview), if one of yours is in your spellbook
@@ -1665,7 +1934,7 @@ function YaHT:InitProcs()
 	castWatch = NewWatcher("CastBuffs", 0.2,
 		{{"UNIT_SPELLCAST_SUCCEEDED", "player"}},
 		CheckCastBuffs,
-		function() return rapid.frame.proc or racial.frame.proc end,
+		function() return bestial.frame.proc or rapid.frame.proc or racial.frame.proc end,
 		function(event, unit, _, spellID) if unit == "player" then OnCast(spellID) end end)
 	self.castBuffWatch = castWatch
 
@@ -1675,11 +1944,21 @@ function YaHT:InitProcs()
 	self.aspectFrame = badge
 	aspectWatch = NewWatcher("Aspect", 1,
 		{{"UNIT_AURA", "player"}, "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED",
-			"START_AUTOREPEAT_SPELL", "STOP_AUTOREPEAT_SPELL", "PLAYER_ENTERING_WORLD", {"UNIT_SPELLCAST_SUCCEEDED", "player"}},
+			"START_AUTOREPEAT_SPELL", "STOP_AUTOREPEAT_SPELL", "PLAYER_ENTERING_WORLD", {"UNIT_SPELLCAST_SUCCEEDED", "player"},
+			{"UNIT_COMBAT", "player"}},
 		CheckAspect,
 		function() return false end, -- nothing to poll: events are enough
 		function(event, ...)
-			if event == "PLAYER_REGEN_DISABLED" then aspectWatch.inCombat = true
+			if event == "UNIT_COMBAT" then
+				-- you were hit with a speed aspect on, in a fight: the warning grows and flashes for a moment
+				local unit, action = ...
+				if unit == "player" and Plain(action) == "WOUND" and badge.level == "DANGER"
+					and (badge.aspect == "PACK" or badge.aspect == "CHEETAH") and YaHT.db.profile.aspecthit then
+					local untilWhen = GetTime() + HIT_TIME
+					badge.hitUntil = untilWhen
+					if shout then shout.hitUntil = untilWhen end
+				end
+			elseif event == "PLAYER_REGEN_DISABLED" then aspectWatch.inCombat = true
 			elseif event == "PLAYER_REGEN_ENABLED" then aspectWatch.inCombat = false
 			elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
 				-- you cast an aspect: the game shows that even when it hides buffs

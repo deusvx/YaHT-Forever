@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.4.0"
+YaHT.version = "1.5.0"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -262,6 +262,40 @@ local function OnUpdate(self, elapsed)
 		return
 	end
 	local curTime = GetTime()
+	-- AUTO SHOT ENDED WITHOUT THE GAME SAYING SO (seen after walking into a dungeon: the bar then came
+	-- up on every stop, winding up for a shot that never left). Auto Shot cannot run without a target,
+	-- so a few seconds with none while the bar still thinks you shoot means it is over. Where the game
+	-- answers the question itself, and has been seen to say "yes" during a shot run, its "no" counts too.
+	if self.shooting and curTime >= (self.stillCheckAt or 0) then
+		self.stillCheckAt = curTime + 0.5
+		local gone
+		if UnitExists then
+			local ok, has = pcall(UnitExists, "target")
+			if ok and not IsSecret(has) then gone = not has end
+		end
+		if C_Spell and C_Spell.IsAutoRepeatSpell then
+			local ok, on = pcall(C_Spell.IsAutoRepeatSpell, AUTO_SHOT_ID)
+			if ok and not IsSecret(on) and type(on) == "boolean" then
+				if on then YaHT.autoRepeatAnswers = true gone = false
+				elseif YaHT.autoRepeatAnswers then gone = true end
+			end
+		end
+		if gone then
+			self.goneSince = self.goneSince or curTime
+			if curTime - self.goneSince >= 2.5 then
+				self.goneSince = nil
+				if YaHT.Record then YaHT:Record("bar", "Auto Shot had ended without the game saying so: bar put away") end
+				YaHT:STOP_AUTOREPEAT_SPELL()
+				self.lastshot = math.min(self.lastshot, curTime - self.swingtime)
+				self.SwingStart = nil
+				self:SetAlpha(0)
+				self:Hide()
+				return
+			end
+		else
+			self.goneSince = nil
+		end
+	end
 	-- a SENT that wasn't refused within 0.05s really started the wind-up
 	if self.pendingSent and curTime - self.pendingSent > 0.05 then
 		YaHT:CommitWindupStart(self.pendingSent)
@@ -941,15 +975,156 @@ function YaHT:SyncAutoShotCast(source)
 	f.pendingSent = now
 end
 
+---------------------------------------------------------------------------
+-- Multi-Shot's short cast: a thin line under the bar that fills until the shot leaves
+---------------------------------------------------------------------------
+local MULTI_CAST = 0.5 -- (used until a real cast has been timed)
+local castLine
+
+local function IsMultiShot(spellID)
+	if IsSecret(spellID) then return false end
+	local name = GetSpellName(spellID)
+	return name ~= nil and name == MultiShot
+end
+
+local function CastLine()
+	if castLine then return castLine end
+	local main = YaHT.mainFrame
+	if not main then return nil end
+	local f = CreateFrame("Frame", "YaHTCastLine", UIParent)
+	f:SetFrameStrata("MEDIUM")
+	f:SetHeight(4)
+	f:SetWidth(100)
+	f.back = f:CreateTexture(nil, "BACKGROUND")
+	f.back:SetAllPoints()
+	f.back:SetColorTexture(0, 0, 0, 0.6)
+	f.fill = f:CreateTexture(nil, "ARTWORK")
+	f.fill:SetPoint("TOPLEFT")
+	f.fill:SetPoint("BOTTOMLEFT")
+	f.fill:SetColorTexture(1, 0.82, 0.2, 1)
+	f.fill:SetWidth(0.01)
+	f:Hide()
+	f:SetScript("OnUpdate", function(self)
+		local now = GetTime()
+		if self.doneAt then -- the shot left: full for a blink, then gone
+			if now - self.doneAt > 0.15 then self:Hide() end
+			return
+		end
+		local t = now - self.from
+		if self.sample and t >= self.length then -- (a sample ends by itself)
+			self.doneAt = now
+			self.fill:SetWidth(math.max(self.width, 0.01))
+			return
+		end
+		if t > self.length + 1 then self:Hide() return end -- (never heard how it ended)
+		-- (a request the game refuses is over before the line shows)
+		self:SetAlpha(t < 0.05 and 0 or (self.alphaOn or 1))
+		self.fill:SetWidth(math.max(self.width * math.min(t / self.length, 1), 0.01))
+	end)
+	castLine = f
+	YaHT.castLine = f
+	return f
+end
+
+-- The line as its settings say: where it sits, how thick and wide, its color
+local function LayoutCastLine(f)
+	local p, main = YaHT.db.profile, YaHT.mainFrame
+	local above = p.multicastpos == "ABOVE"
+	f:ClearAllPoints()
+	f:SetPoint(above and "BOTTOM" or "TOP", main, above and "TOP" or "BOTTOM", p.multicastx or 0, (above and 1 or -1) + (p.multicasty or 0))
+	f:SetScale(main.GetScale and main:GetScale() or 1)
+	f:SetHeight(p.multicastheight or 4)
+	f.width = math.max((main:GetWidth() or 100) * (p.multicastwidth or 1), 1)
+	f:SetWidth(f.width)
+	local c = p.multicastcolor or {r = 1, g = 0.82, b = 0.2, a = 1}
+	f.fill:SetColorTexture(c.r, c.g, c.b, c.a or 1)
+	f.back:SetShown(p.multicastback ~= false)
+	f.alphaOn = p.multicastalpha or 1
+end
+
+-- "Show a sample" on its page: the line plays once
+function YaHT:MultiCastSample()
+	local f = CastLine()
+	if not f then return end
+	LayoutCastLine(f)
+	f.from, f.doneAt, f.guid, f.sawStart, f.sample = GetTime() - 0.05, nil, nil, false, true
+	f.length = self.db.char.multicastLen or MULTI_CAST
+	f.fill:SetWidth(0.01)
+	f:SetAlpha(f.alphaOn)
+	f:Show()
+end
+
+-- how long the game says the cast is, when it says
+local function CastLength()
+	if not UnitCastingInfo then return nil end
+	local ok, _, _, _, startMS, endMS = pcall(UnitCastingInfo, "player")
+	if not ok or IsSecret(startMS) or IsSecret(endMS) then return nil end
+	if type(startMS) ~= "number" or type(endMS) ~= "number" then return nil end
+	local len = (endMS - startMS) / 1000
+	if len >= 0.1 and len <= 3 then return len end
+end
+
+function YaHT:MultiCastStart(castGUID, source)
+	if not self.db.profile.multicast then return end
+	local f = CastLine()
+	if not f then return end
+	local now = GetTime()
+	local guid = (not IsSecret(castGUID)) and castGUID or nil
+	local running = f:IsShown() and not f.sample and not f.doneAt and now - f.from < f.length + 0.3
+	if running then
+		-- the same cast heard a second time (SENT, then START): keep the line, take what is new
+		if source == "START" and (not f.guid or not guid or f.guid == guid) then
+			f.sawStart = true
+			f.length = CastLength() or f.length
+		end
+		return -- (a key press during the cast starts nothing)
+	end
+	LayoutCastLine(f)
+	f.from, f.doneAt, f.guid, f.sawStart, f.sample = now, nil, guid, source == "START", nil
+	f.length = (source == "START" and CastLength()) or self.db.char.multicastLen or MULTI_CAST
+	f.fill:SetWidth(0.01)
+	f:SetAlpha(0)
+	f:Show()
+end
+
+-- ended = the shot left; otherwise it was refused or broken off
+function YaHT:MultiCastEnd(castGUID, left)
+	local f = castLine
+	if not f or not f:IsShown() or f.doneAt or f.sample then return end
+	local guid = (not IsSecret(castGUID)) and castGUID or nil
+	if not left then
+		if f.guid and guid and f.guid ~= guid then return end -- (another key press was refused, not this cast)
+		f:Hide()
+		return
+	end
+	local now = GetTime()
+	local took = now - f.from
+	if took >= 0.15 and took <= 2 then
+		-- learn how long it really takes, for the next one
+		local old = self.db.char.multicastLen
+		self.db.char.multicastLen = old and (old + 0.3 * (took - old)) or took
+		if not self.multicastNoted then
+			self.multicastNoted = true
+			self:Record("multishot", string.format("cast took %.3fs | game said %s | START seen %s", took, tostring(f.length), tostring(f.sawStart)))
+		end
+	end
+	if self.debug then self:Print(string.format("Multi-Shot left %.3fs after the key", took)) end
+	f.doneAt = now
+	f:SetAlpha(took < 0.05 and 0 or (f.alphaOn or 1))
+	f.fill:SetWidth(math.max(f.width, 0.01))
+end
+
 -- Forever doesn't send UNIT_SPELLCAST_START for Auto Shot, but it does send
 -- SENT when the shot attempt begins (WeaponSwingTimer uses the same signal).
 function YaHT:UNIT_SPELLCAST_SENT(unit, target, castGUID, spellID)
+	if unit == "player" and IsMultiShot(spellID) then self:MultiCastStart(castGUID, "SENT") return end
 	if unit ~= "player" or IsSecret(spellID) or spellID ~= AUTO_SHOT_ID then return end
 	self:SyncAutoShotCast("SENT")
 end
 
 function YaHT:UNIT_SPELLCAST_START(unit, castGUID, spellID)
 	if unit ~= "player" or IsSecret(spellID) then return end
+	if IsMultiShot(spellID) then self:MultiCastStart(castGUID, "START") end
 	if IsCastSpell(spellID) then
 		self.mainFrame.casting = true
 		self.mainFrame.disturbed = true
@@ -959,6 +1134,7 @@ end
 
 function YaHT:UNIT_SPELLCAST_STOP(unit, castGUID, spellID)
 	if unit ~= "player" or IsSecret(spellID) then return end
+	if IsMultiShot(spellID) then self:MultiCastEnd(castGUID, false) end
 	if IsCastSpell(spellID) then
 		if self.debug and self.mainFrame.casting then self:Print(GetSpellName(spellID).." cast ended") end
 		self.mainFrame.casting = nil
@@ -981,6 +1157,7 @@ function YaHT:UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
 		end
 	end
 
+	if IsMultiShot(spellID) then self:MultiCastEnd(castGUID, true) end
 	if IsCastSpell(spellID) then
 		if self.debug and self.mainFrame.casting then self:Print(name.." cast finished") end
 		self.mainFrame.casting = nil

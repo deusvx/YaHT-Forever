@@ -69,7 +69,7 @@ local function row(key) for _, r in ipairs(M.rows) do local p = r.item and r.ite
 assert(row("minimap") and row("minimap").on == true, "no Minimap button switch on Home")
 row("minimap").widget.scripts.OnClick(row("minimap").widget)
 assert(db.minimap == false and not b.shown, "the switch didn't hide the button")
-M.Show("bar") assert(row("minimap"), "no Minimap button switch on The bar page")
+M.Show("bar") assert(not row("minimap"), "the Minimap switch is on Home; The bar page should not repeat it")
 popups = {} row("reset").widget.scripts.OnClick(row("reset").widget) popups[1].data()
 assert(db.minimap == true and db.minimapangle == 215 and b.shown, "Reset didn't bring the button back")
 print("OK37")

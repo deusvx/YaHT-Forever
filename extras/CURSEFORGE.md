@@ -19,7 +19,11 @@ A port of Aviana's classic **YaHT** (Yet another Hunter Timer). **Original proje
 
 ## Warnings that save you
 - **Deadzone and too far:** yellow caution stripes when your target is too close to shoot and too
-  far to hit, red arrows pointing you closer when it's out of range.
+  far to hit, red arrows pointing you closer when it's out of range. Or have them as text
+  ("DEADZONE" / "TOO FAR") with your own wording, or both.
+- **Distance to your target:** a small readout like "20-28 yd", green when you can shoot, as a
+  number or a ruler of the zones. (The game gives addons no exact distance; this is the narrowest
+  band its range checks allow.)
 - **Feign Death resist:** a movable icon with RESIST and a warning sound. It notices a resist in
   a little over a second even when the game shows no "Resisted" message.
 - **Aspect badge:** your current aspect next to the bar. Red when a fight starts in Cheetah or Pack,
@@ -29,12 +33,16 @@ A port of Aviana's classic **YaHT** (Yet another Hunter Timer). **Original proje
   red with a warning sound.
 
 ## Proc and cooldown icons
+- **Bestial Wrath:** its 18 seconds in the prime spot over the bar, then its cooldown counting down.
 - **Mongoose Bite:** pops in after you dodge, with a gold timer for the window and its cooldown.
 - **Quick Shots:** with Deadly Aspects talented, shows while the haste lasts.
 - **Rapid Fire and your racial:** show while they last. Your race's active is recognised automatically.
 - **Summon Hawk:** each hawk that is out, with its 18 seconds running down and the seconds left. It
   turns red under 6 seconds: time to summon again before you spend the shared cooldown on Arcane
   Shot. One icon per hawk, or one with a count.
+- **Sound at seconds left:** on any timed icon or the hawks, set a number of seconds and a warning
+  sound plays once when that much time is left. Hawks at 6 seconds, for example.
+- **Seconds on the icon:** the time left as a number, on any icon you like.
 - Place each icon above, left or right of the bar, or drag it anywhere. Give them one shared look
   (size, glow, pulse, sound) or give any icon its own.
 - **Round or square:** a round icon sits in a ring that runs down as its timer, a square one has its
@@ -48,6 +56,8 @@ A port of Aviana's classic **YaHT** (Yet another Hunter Timer). **Original proje
 - **Glow, sparks and light sweep:** the glow builds as the reload runs out and is full while you must
   stand still; sparks mark the moving edge. Uses **WeakAuras glow effects** if you have WeakAuras.
 - **Ready pulse:** moving with the shot ready? Lines pulse in the middle until you stop.
+- **Multi-Shot cast line:** Multi-Shot does not leave right away and the game shows no cast bar for
+  it. A thin line under the bar fills while it casts, so you see the moment it goes out.
 - **Melee swing line:** a thin line under the bar that fills with your melee swing, only while you're
   in melee. Turns gold while Raptor Strike is queued.
 - **Three looks:** Minimal (just the bar), Clean (the bar with its icons) or Flashy (everything).
@@ -55,7 +65,9 @@ A port of Aviana's classic **YaHT** (Yet another Hunter Timer). **Original proje
 - **Tranquilizing Shot announce** to Say, Party, Raid, Raid Warning, Whisper or a channel.
 
 ## An options window that explains itself
-- **Live preview:** your bar and icons, drawn from your settings as you change them.
+- **Live preview:** your bar, icons and warnings, drawn from your settings as you change them.
+- **Short pages:** each page shows the few settings that matter, in titled cards; the fine settings
+  are one "More options" switch away. A gear beside a switch takes you to that feature's page.
 - **Help beside the settings:** point at a setting and the panel on the right says what it does.
 - **Search,** a page list on the left, and a Home page with the main switches, each with a small
   picture so you find it at a glance.
