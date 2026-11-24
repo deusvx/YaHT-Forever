@@ -50,11 +50,15 @@ mouse(0, 0)
 hub.scripts.OnClick(hub)
 assert(wheel.open and wheel.shown and wheel.count == 4, "the wheel should have the four tracking spells, has "..tostring(wheel.count))
 assert(slices[1].name == "Track Beasts" and slices[4].name == "Find Minerals" and slices[1].shown, "wrong tracks")
+local pieceAlphaSet = false
+slices[1].piece.SetAlpha = function() pieceAlphaSet = true end
 run(0.3)
 -- a pie: one piece for each track, together a wide grey disc around the tracks; no tooltip on the button
 assert(wheel.edge > wheel.radius + db.trackersize and wheel.edge >= db.trackersize * 3, "the pie should be wide")
 assert(slices[1].piece.shown and slices[1].piece.w == wheel.edge * 2, "no pieces of pie")
 assert(not slices[1].lit and not slices[2].lit and slices[1].alpha == 1, "nothing should be lit yet")
+-- see-through: the pie's own alpha must survive (setting a texture's alpha again would make it solid)
+assert(not pieceAlphaSet, "the pie's alpha was set again: in the game that makes it solid instead of see-through")
 assert(hub.scripts.OnEnter == nil, "the button should have no tooltip")
 assert(wheel.aimed == nil and wheel.label.txt == "No tracking", "nothing should be aimed at while the mouse is in the middle")
 

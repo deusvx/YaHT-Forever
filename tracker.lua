@@ -32,10 +32,10 @@ local GAP = 10
 local GROW = 1.22         -- the track you are heading for is drawn this much bigger
 local MAX_PIECES = 12     -- media has a piece of pie for 1 to 12 tracks ("Wedge<n>", pointing up)
 local HOLE = 30 / 126     -- the hole in the middle of the pie (for the button), as a share of its radius
-local PIE = {0.08, 0.08, 0.09, 0.40}        -- a piece of the pie: grey, see-through
-local PIE_ACTIVE = {0.34, 0.27, 0.10, 0.46} -- the piece of what you track now: a breath of gold
-local PIE_AIMED = {1, 0.90, 0.62, 0.40}     -- the piece you are heading for
-local RIM, RIM_ACTIVE, RIM_AIMED = {0, 0, 0}, {1, 0.80, 0.25}, {1, 1, 1}
+local PIE = {0.15, 0.15, 0.17, 0.72}        -- a piece of the pie: grey, see-through
+local PIE_ACTIVE = {0.30, 0.25, 0.13, 0.76} -- the piece of what you track now: a breath of gold
+local PIE_AIMED = {1, 0.90, 0.62, 0.50}     -- the piece you are heading for
+local RIM, RIM_ACTIVE, RIM_AIMED = {0, 0, 0}, {0.72, 0.58, 0.24}, {1, 1, 1} -- (the gold is kept quiet)
 local TEXT, TEXT_AIMED = {1, 1, 1}, {1, 0.90, 0.62}
 
 local hub, wheel
@@ -96,8 +96,8 @@ local function Icon(parent, size)
 	b:SetSize(size, size)
 	b.rim = b:CreateTexture(nil, "BACKGROUND")
 	b.rim:SetTexture(MEDIA .. "Disc")
-	b.rim:SetPoint("TOPLEFT", b, "TOPLEFT", -2, 2)
-	b.rim:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 2, -2)
+	b.rim:SetPoint("TOPLEFT", b, "TOPLEFT", -1.5, 1.5)
+	b.rim:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 1.5, -1.5)
 	b.rim:SetVertexColor(0, 0, 0)
 	b.icon = b:CreateTexture(nil, "ARTWORK")
 	b.icon:SetAllPoints(b)
@@ -128,9 +128,10 @@ local function Paint(s)
 	local r, g, b = Mix(s.active and RIM_ACTIVE or RIM, RIM_AIMED, k)
 	s.rim:SetVertexColor(r, g, b)
 	if s.piece then
+		-- (a texture has one alpha: SetAlpha would overwrite this one, so the pie's fade-in is part of it)
 		local a
 		r, g, b, a = Mix(s.active and PIE_ACTIVE or PIE, PIE_AIMED, k)
-		s.piece:SetVertexColor(r, g, b, a)
+		s.piece:SetVertexColor(r, g, b, a * (s.fade or 1))
 	end
 end
 
@@ -140,7 +141,8 @@ local function Refresh()
 	local now = Current(list)
 	hub.icon:SetTexture(now and now.texture or NOTHING)
 	hub.icon:SetDesaturated(not now)
-	hub.rim:SetVertexColor(now and 1 or 0, now and 0.80 or 0, now and 0.25 or 0)
+	local c = now and RIM_ACTIVE or RIM
+	hub.rim:SetVertexColor(c[1], c[2], c[3])
 	hub.current = now and now.name or nil
 	for _, s in ipairs(slices) do
 		s.active = false
@@ -206,7 +208,7 @@ local function Open()
 			s:SetScript("OnClick", function(self) if wheel.open then Pick(self, true) end end)
 			slices[i] = s
 		end
-		s.index, s.name, s.active, s.lit, s.glow = t.index, t.name, t.active, false, 0
+		s.index, s.name, s.active, s.lit, s.glow, s.fade = t.index, t.name, t.active, false, 0, 0
 		s.angle = (i - 1) / #list * 2 * math.pi -- the first one on top, then clockwise
 		-- its piece of the pie: the picture points up, turned to where this track sits
 		s.piece:SetTexture(MEDIA .. "Wedge" .. math.min(#list, MAX_PIECES))
@@ -279,9 +281,12 @@ local function Step(self, elapsed)
 		local s = slices[i]
 		-- the light glides on and off instead of jumping
 		local goal = s.lit and 1 or 0
-		if s.glow ~= goal then
-			s.glow = s.glow + (goal - s.glow) * step
-			if math.abs(goal - s.glow) < 0.02 then s.glow = goal end
+		if s.glow ~= goal or s.fade ~= t then
+			if s.glow ~= goal then
+				s.glow = s.glow + (goal - s.glow) * step
+				if math.abs(goal - s.glow) < 0.02 then s.glow = goal end
+			end
+			s.fade = t
 			Paint(s)
 		end
 		local big = size * (1 + (GROW - 1) * s.glow)
@@ -290,7 +295,6 @@ local function Step(self, elapsed)
 		s:SetPoint("CENTER", hub, "CENTER", math.sin(s.angle) * r, math.cos(s.angle) * r)
 		s:SetAlpha(t)
 		s.piece:SetSize(self.edge * 2 * ease, self.edge * 2 * ease)
-		s.piece:SetAlpha(t)
 	end
 	-- out of the pie: the one you headed for is picked (or, set to clicks, the wheel just closes)
 	if t >= 1 and far > self.edge then
