@@ -325,7 +325,7 @@ local NAV_HEADINGS = {
 -- every group is a page; the list on the left shows them in order
 local function BuildPages()
 	local section -- (the alerts section the pages being walked belong to)
-	pages, pageById = {{id = "home", name = L["Home"], depth = 1}, {id = "changed", name = L["What I changed"], depth = 1}}, {}
+	pages, pageById = {{id = "home", name = L["Home"], depth = 1}, {id = "changed", name = L["My changes"], depth = 1}}, {}
 	pageById.home, pageById.changed = pages[1], pages[2]
 	local function walk(args, path, depth, parent)
 		for _, node in ipairs(Sorted(args)) do
@@ -1605,6 +1605,17 @@ function Menu.DrawBack()
 	b.can = can
 	local c = can and C.text or C.soft
 	b.text:SetTextColor(c[1], c[2], c[3])
+	-- "My changes (7)": how many settings are off their default; gold while you are on that page
+	local m = frame.changes
+	if m then
+		local count = Menu.ChangedCount()
+		m.text:SetText(count > 0 and string.format("%s (%d)", L["My changes"], count) or L["My changes"])
+		m:SetWidth(math.max(84, (m.text:GetStringWidth() or 0) + 20))
+		local on = Menu.current == "changed" and not Menu.query
+		local mc = on and C.gold or C.text
+		m.text:SetTextColor(mc[1], mc[2], mc[3])
+		m.on = on
+	end
 end
 
 function Menu.Search(text)
@@ -1664,8 +1675,8 @@ function Menu.DrawNav()
 	-- the alerts' groups; clicking one opens its first page. Only the single procs wait inside Procs.
 	local shown = {}
 	for _, page in ipairs(pages) do
-		if page.id == "alerts" then
-			-- not listed (see NAV_HEADINGS)
+		if page.id == "alerts" or page.id == "changed" then
+			-- not listed ("alerts": see NAV_HEADINGS; your changes have a button by the search box)
 		elseif page.depth < 3 or page.parent == current or (current.depth == 3 and current.parent == page.parent) then
 			if page.heading then shown[#shown + 1] = {title = page.heading, page = page} end
 			shown[#shown + 1] = {page = page}
@@ -1717,13 +1728,7 @@ function Menu.DrawNav()
 		if b.text.SetFontObject then
 			b.text:SetFontObject(isTitle and GameFontHighlight or GameFontHighlightSmall)
 		end
-		local name = entry.title or page.name
-		if page.id == "changed" then
-			-- how many, so you see at a glance whether anything is off its default
-			local count = Menu.ChangedCount()
-			if count > 0 then name = name .. "  (" .. count .. ")" end
-		end
-		b.text:SetText(name)
+		b.text:SetText(entry.title or page.name)
 		local c = b.on and C.white or b.rest
 		b.text:SetTextColor(c[1], c[2], c[3])
 		b.bg:SetShown(b.on)
@@ -2644,13 +2649,32 @@ local function Build()
 	-- back to the page you were on before
 	local back = CreateFrame("Button", nil, head)
 	f.back = back
-	back:SetSize(26, 24)
+	back:SetSize(58, 24)
 	back:SetPoint("RIGHT", search, "LEFT", -8, 0)
 	Plate(back, "BACKGROUND", C.field):SetAllPoints(back)
 	Rim(back, C.soft)
-	back.text = Text(back, "GameFontHighlight", C.soft)
+	back.text = Text(back, "GameFontHighlightSmall", C.soft)
 	back.text:SetPoint("CENTER", back, "CENTER", 0, 0)
-	back.text:SetText("<")
+	back.text:SetText("< " .. L["Back"]) -- (a bare arrow didn't say what it was)
+	-- everything you changed from the defaults, one click away (and out of the page list, where
+	-- it only puzzled someone who has changed nothing yet)
+	local changes = CreateFrame("Button", nil, head)
+	f.changes = changes
+	changes:SetHeight(24)
+	changes:SetPoint("RIGHT", back, "LEFT", -8, 0)
+	Plate(changes, "BACKGROUND", C.field):SetAllPoints(changes)
+	Rim(changes, C.soft)
+	changes.text = Text(changes, "GameFontHighlightSmall", C.text)
+	changes.text:SetPoint("CENTER", changes, "CENTER", 0, 0)
+	On(changes, "OnClick", function()
+		Click()
+		if Menu.current == "changed" and not Menu.query then Menu.Back() else Menu.Show("changed") end
+	end)
+	On(changes, "OnEnter", function(self)
+		self.text:SetTextColor(1, 1, 1)
+		SetHelp(L["My changes"], L["Every setting you changed from how YaHT comes, in one list. Right-click one to put it back. A gold dot marks the same settings on their own pages."])
+	end)
+	On(changes, "OnLeave", function() Menu.DrawBack() HideTip() end)
 	On(back, "OnClick", function(self)
 		if not self.can then return end
 		Click()

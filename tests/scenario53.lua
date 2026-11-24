@@ -148,9 +148,10 @@ local function list()
 end
 local function at(id) for i, p in ipairs(order) do if p == id then return i end end end
 M.Show("home") list()
-assert(table.concat(order, " ") == "home changed bar bar/lookpage bar/textpage bar/effectspage bar/lonewolfpage [Warnings] alerts/rangepage alerts/feignpage alerts/petpage alerts/aspectpage alerts/ammopage [Timers and icons] alerts/procspage alerts/hawkpage alerts/multicastpage alerts/meleepage [Tools] alerts/trackerpage alerts/announcepage advanced advanced/timingpage profile",
+assert(table.concat(order, " ") == "home bar bar/lookpage bar/textpage bar/effectspage bar/lonewolfpage [Warnings] alerts/rangepage alerts/feignpage alerts/petpage alerts/aspectpage alerts/ammopage [Timers and icons] alerts/procspage alerts/hawkpage alerts/multicastpage alerts/meleepage [Tools] alerts/trackerpage alerts/announcepage advanced advanced/timingpage profile",
   "the list: "..table.concat(order, " "))
 assert(not at("alerts") and not at("advanced/announcepage"), "no Alerts row; Tranquilizing Shot announce is with the tools")
+assert(not at("changed"), "your changes have a button by the search box, not a row in the list")
 -- a section title of the alerts looks like "The bar" and opens its first page; it is never the lit row
 local bar, warn
 for _, b in ipairs(f.nav) do if b.shown then if b.page == "bar" then bar = b elseif b.group and b.text.txt == "Warnings" then warn = b end end end
@@ -170,21 +171,25 @@ M.Show("home")
 M.Show("alerts/procspage/mongoosepage") list()
 local rows, low = 0, 0
 for _, b in ipairs(f.nav) do if b.shown then rows = rows + 1 low = low + b.rowH end end
-assert(rows == 30 and low + 16 <= 700 - 50 - 10 + 1, "the list doesn't fit: "..rows.." rows, "..low.." high")
+assert(rows == 29 and low + 16 <= 700 - 50 - 10 + 1, "the list doesn't fit: "..rows.." rows, "..low.." high")
 
 -- WHAT I CHANGED: empty to start with, then everything that is off its default, each once
 YaHT.db:ResetProfile() db = YaHT.db.profile
-M.Show("changed")
-assert(M.helpTitle == "What I changed" and noteWith("Nothing yet") and M.ChangedCount() == 0, "the page should say there is nothing yet")
+M.Show("home")
+-- MY CHANGES: a button by the search box (not a row in the list). Empty to start with.
+assert(f.changes and f.changes.text.txt == "My changes" and not f.changes.on, "the button should be there, with no number yet: "..tostring(f.changes and f.changes.text.txt))
+f.changes.scripts.OnClick(f.changes)
+assert(M.current == "changed" and f.changes.on, "the button should open the list of your changes")
+assert(M.helpTitle == "My changes" and noteWith("Nothing yet") and M.ChangedCount() == 0, "the page should say there is nothing yet")
+f.changes.scripts.OnClick(f.changes)
+assert(M.current ~= "changed" and not f.changes.on, "a second click should take you back to where you were")
 db.width, db.pet, db.petlowat = 250, false, 20
 M.Show("changed")
 assert(row("width") and row("pet") and row("petlowat") and M.ChangedCount() == 3, "the changed settings should be listed, found "..M.ChangedCount())
 local n = 0
 for _, rr in ipairs(M.rows) do local pth = rr.item and rr.item.path if pth and pth[#pth].key == "pet" then n = n + 1 end end
 assert(n == 1, "a switch that is on two pages should be listed once, is listed "..n.." times")
-local label
-for _, b in ipairs(f.nav) do if b.shown and b.page == "changed" then label = b.text.txt end end
-assert(label and label:find("(3)", 1, true), "the list should say how many: "..tostring(label))
+assert(f.changes.text.txt == "My changes (3)", "the button should say how many: "..tostring(f.changes.text.txt))
 -- a right-click there puts one back, and it leaves the list
 local w = row("width") w.scripts.OnMouseUp(w, "RightButton")
 assert(db.width == 300 and not row("width") and M.ChangedCount() == 2, "putting one back should take it off the list")
