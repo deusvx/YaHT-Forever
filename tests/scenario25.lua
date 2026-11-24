@@ -179,6 +179,18 @@ reset()
 assert(db.meleedeadheight==5 and db.meleefarsize==8 and db.meleewarnglow=="NONE", "range defaults wrong")
 run(0.6) assert(not G.shown, "glow left on after switching it off")
 
+-- out of the deadzone or back in range: the warning is gone at once, not fading away over half a second
+db.melee=false YaHT:ApplySettings()
+auto,wing,near=false,false,true run(0.6)
+assert(m.position=="DEAD" and m.shown and m.alpha>0.9, "setup: deadzone showing")
+auto,wing,near=true,false,true run(0.2)
+assert(m.position=="OK" and (not m.shown or m.alpha==0), "the deadzone warning should vanish the moment you are out of it")
+auto,wing,near=false,false,false run(0.6)
+assert(m.position=="FAR" and m.shown and m.alpha>0.9, "setup: too far showing")
+auto,wing,near=true,false,true run(0.2)
+assert(m.position=="OK" and (not m.shown or m.alpha==0), "the too-far warning should vanish the moment you are back in range")
+db.melee=true YaHT:ApplySettings()
+
 -- switched off: no reading, no warning
 db.meleerange=false YaHT:ApplySettings() interactCalls=0 run(0.5)
 assert(m.position==nil and interactCalls==0, "range warnings switched off still run")

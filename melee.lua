@@ -494,6 +494,13 @@ local function TargetAlpha(self, p, now)
 	return 0
 end
 
+-- Is a range warning (deadzone stripes, too-far arrows) due on the line right now?
+local function WarnLive(self, p)
+	local pos = self.position
+	return (p.lock and p.meleerange and p.rangepics ~= false
+		and ((pos == "DEAD" and p.rangedeadpics ~= false and not DeadOnBar(p)) or (pos == "FAR" and p.rangefarpics ~= false))) and true or false
+end
+
 local function OnUpdate(self, elapsed)
 	local p = YaHT.db.profile
 	local now = GetTime()
@@ -504,7 +511,13 @@ local function OnUpdate(self, elapsed)
 	if a < want then
 		a = math.min(want, a + elapsed / FADE_IN)
 	elseif a > want then
-		a = math.max(want, a - elapsed / FADE_OUT)
+		if self.fadingWarn and not WarnLive(self, p) then
+			-- a range warning that no longer applies is gone at once: you moved to get rid of it,
+			-- and a warning still fading says you haven't. (The swing line keeps its gentle fade.)
+			a = want
+		else
+			a = math.max(want, a - elapsed / FADE_OUT)
+		end
 	end
 	self.fade = a
 	self:SetAlpha(a * (p.meleealpha or 1))
@@ -522,8 +535,7 @@ local function OnUpdate(self, elapsed)
 	-- nothing else needs the line, keep drawing it while it fades out, so the
 	-- melee line doesn't flash up underneath for a moment.
 	local pos = self.position
-	local live = p.lock and p.meleerange and p.rangepics ~= false
-		and ((pos == "DEAD" and p.rangedeadpics ~= false and not DeadOnBar(p)) or (pos == "FAR" and p.rangefarpics ~= false))
+	local live = WarnLive(self, p)
 	if live then
 		self.fadingWarn = pos
 	elseif want > 0 then
@@ -796,8 +808,13 @@ local function UpdateOverlay(p, elapsed)
 		if overlay:IsShown() then overlay:Hide() end
 		return
 	end
-	a = want > a and math.min(1, a + elapsed / 0.15) or math.max(0, a - elapsed / 0.25)
+	-- in: a quick fade. Out: at once (out of the deadzone means out of the warning)
+	if want > a then a = math.min(1, a + elapsed / 0.15) elseif want < a then a = 0 end
 	overlay.fade = a
+	if a == 0 then
+		overlay:Hide()
+		return
+	end
 	-- the bar dims itself while you move with a shot ready; the warning must
 	-- not, since you're usually moving to get out of the deadzone
 	overlay:SetAlpha(a * (p.meleedeadalpha or 1))

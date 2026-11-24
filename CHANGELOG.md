@@ -7,6 +7,8 @@
   the middle closes the wheel. Drag the button anywhere while the bar is unlocked. Its own page
   (Alerts, "Tracking wheel"): choose by moving out of the pie or by clicking, size, and whether
   the minimap's other filters join the wheel. The button sits behind your bags and other windows.
+- The deadzone and too-far warnings are gone the moment you are out of them, instead of fading away
+  over half a second.
 
 ## 1.5.1
 - New: a Raptor Strike icon. While Raptor Strike is queued for your next melee swing, its icon shows
