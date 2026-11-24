@@ -647,6 +647,7 @@ local SWITCH_PICTURES = {
 	multicast = {spell = 2643, file = "Interface\\Icons\\Ability_UpgradeMoonGlaive"},
 	minimap = {file = "Interface\\Icons\\INV_Weapon_Bow_07"},
 	mongoose = {spell = 1495, file = "Interface\\Icons\\Ability_Hunter_SwiftStrike"},
+	raptor = {spell = 2973, file = "Interface\\Icons\\Ability_MeleeDamage"},
 	quickshots = {spell = 6150, file = "Interface\\Icons\\Ability_Warrior_InnerRage"},
 	rapidfire = {spell = 3045, file = "Interface\\Icons\\Ability_Hunter_RunningShot"},
 	bestial = {spell = 19574, file = "Interface\\Icons\\Ability_Druid_FerociousBite"},
@@ -1566,7 +1567,7 @@ end
 -- settings, looping through a shot. Only runs while the window is open.
 ---------------------------------------------------------------------------
 local PREVIEW_ICONS = { -- key, a spell whose icon stands in for it; in the order they line up around the bar
-	{"bestial", 19574}, {"mongoose", 1495}, {"quickshots", 6150}, {"rapidfire", 3045}, {"racial", 20572}, {"aspect", 13165},
+	{"bestial", 19574}, {"mongoose", 1495}, {"quickshots", 6150}, {"rapidfire", 3045}, {"racial", 20572}, {"aspect", 13165}, {"raptor", 2973},
 }
 local FALLBACK_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 local HAWK_ICON = "Interface\\Icons\\Spell_Nature_RavenForm"
@@ -1837,8 +1838,13 @@ BuildPreview = function(strip)
 		local part = t / PREVIEW_CYCLE
 		local standing = part >= PREVIEW_WINDUP
 		self.fill:SetWidth(math.max(1, self.w * part))
-		local c = standing and p.drawcolor or p.timercolor
+		local c = standing and p.drawcolor or (self.wolf and p.lonewolfcolor) or p.timercolor
 		self.fill:SetVertexColor(c.r, c.g, c.b)
+		if self.reticle then -- Lone Wolf's scope: the crosshair locks on while you stand still
+			local on = self.scope and standing
+			self.reticle:SetShown(on)
+			self.reticleShadow:SetShown(on)
+		end
 		local tenth = math.floor((PREVIEW_CYCLE - t) * 10)
 		if tenth ~= self.tenth then
 			self.tenth = tenth
@@ -2040,6 +2046,41 @@ LayoutPreview = function(pv, p)
 	pv.shadow:ClearAllPoints()
 	pv.shadow:SetPoint("TOPLEFT", pv, "TOPLEFT", -26, 5)
 	pv.shadow:SetPoint("BOTTOMRIGHT", pv, "BOTTOMRIGHT", 26, -14)
+	-- The Lone Wolf look: as the bar has it right now, and always on Lone Wolf's own page
+	-- (also with a pet out or without the talent), so you see what you are setting.
+	pv.wolf = false
+	if p == YaHT.db.profile then
+		if Menu.current == "bar/lonewolfpage" then pv.wolf = p.lonewolf ~= "OFF" else pv.wolf = YaHT:LoneWolfMode() end
+	end
+	pv.scope = pv.wolf and p.lonewolfstyle == "SCOPE"
+	if pv.scope and not pv.reticle then
+		pv.ticks = {}
+		for i = 0, 8 do pv.ticks[i] = pv:CreateTexture(nil, "OVERLAY") end
+		pv.reticleShadow = pv:CreateTexture(nil, "OVERLAY", nil, 1)
+		pv.reticleShadow:SetTexture("Interface\AddOns\YaHT\media\WolfScopeShadow")
+		pv.reticleShadow:SetVertexColor(0, 0, 0, 0.85)
+		pv.reticleShadow:SetPoint("CENTER", pv, "CENTER", 0, 0)
+		pv.reticle = pv:CreateTexture(nil, "OVERLAY", nil, 2)
+		pv.reticle:SetTexture("Interface\AddOns\YaHT\media\WolfScope")
+		pv.reticle:SetPoint("CENTER", pv, "CENTER", 0, 0)
+		pv.reticle:Hide()
+		pv.reticleShadow:Hide()
+	end
+	if pv.reticle then
+		local wc = p.lonewolfglowcolor
+		for i = 0, 8 do
+			local t = pv.ticks[i]
+			t:SetColorTexture(wc.r, wc.g, wc.b, 0.75)
+			t:SetSize(1, h + ((i % 4 == 0) and 6 or 3) * k)
+			t:ClearAllPoints()
+			t:SetPoint("TOP", pv, "TOPLEFT", w * i / 8, 0)
+			t:SetShown(pv.scope)
+		end
+		local size = math.max(10, (p.lonewolfheight or 22) * k)
+		pv.reticle:SetSize(size, size)
+		pv.reticleShadow:SetSize(size, size)
+		if not pv.scope then pv.reticle:Hide() pv.reticleShadow:Hide() end
+	end
 	pv.fill:SetTexture(YaHT:GetMedia("statusbar", p.statusbar))
 	pv.fill:ClearAllPoints()
 	pv.fill:SetPoint(p.fill and "CENTER" or "LEFT", pv, p.fill and "CENTER" or "LEFT")
@@ -2057,7 +2098,7 @@ LayoutPreview = function(pv, p)
 		t:SetColorTexture(p.bordercolor.r, p.bordercolor.g, p.bordercolor.b, 1)
 	end
 	-- the glow, soft or as an outline, in its own color and size
-	local gc = p.glowcolor or {r = 1, g = 0.82, b = 0.3}
+	local gc = (pv.wolf and p.lonewolfglowcolor) or p.glowcolor or {r = 1, g = 0.82, b = 0.3}
 	local g = math.max(4, (p.glowsize or 10) * k)
 	pv.soft = p.glow and p.glowlook ~= "OUTLINE" or false
 	pv.outlined = p.glow and p.glowlook == "OUTLINE" or false

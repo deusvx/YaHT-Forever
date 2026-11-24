@@ -21,6 +21,9 @@ wrong aspect, and a pet that is low or dead, and it times your procs and your Su
   Raptor Strike is queued.
 - **Three looks:** Minimal (just the bar), Clean (the bar with its icons) or Flashy (everything).
   Click one to see it in the live preview, then keep it with one more click.
+- **Lone Wolf look:** for hunters who play without a pet. While no pet is out, the bar turns
+  moonlight silver and becomes a marksman's scope, with a crosshair that locks on when you have
+  to stand still. Pet warnings go quiet. With a pet out, everything is regular.
 
 **Warnings**
 - **Deadzone and too far:** yellow caution stripes in the deadzone, red arrows when out of range,
@@ -39,6 +42,8 @@ wrong aspect, and a pet that is low or dead, and it times your procs and your Su
 **Proc and cooldown icons**
 - **Bestial Wrath** (its 18 seconds, then its cooldown), **Mongoose Bite** (with its cooldown),
   **Quick Shots**, **Rapid Fire** and your **racial**.
+- **Raptor Strike:** its icon shows while it is queued for your next melee swing, with a timer
+  running down to the swing.
 - **Multi-Shot cast line:** a thin line under the bar that fills while Multi-Shot casts.
 - **Sound at seconds left** and **seconds on the icon** for any timed icon and the hawks.
 - **Summon Hawk:** each hawk that is out, with its 18 seconds running down. It turns red under 6

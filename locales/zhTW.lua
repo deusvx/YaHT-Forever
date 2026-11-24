@@ -541,6 +541,7 @@ local L = {
 ["How this aspect gets your attention when a fight starts with it on, besides the red badge: its name in bouncing words (unlock the bar to drag them), its icon bouncing and glowing, or both."] = "當戰鬥開始且該守護開啟時，除了紅色徽章外如何引起你的注意：跳動的名稱文字（解鎖計時條可拖曳）、跳動並發光的圖示，或兩者皆有。",
 ["Bigger and flashing when you are hit"] = "被擊中時變大並閃爍",
 ["While Pack or Cheetah is on in a fight: each time you take a hit, the kind that can daze you, the warning doubles in size and flashes for a moment. (The game hides the Dazed effect itself from addons in a fight, so this goes by the hits.)"] = "在戰鬥中開啟豹群或獵豹時：每次受到可能使你暈眩的攻擊，警告會短暫變為兩倍大小並閃爍。（遊戲在戰鬥中對插件隱藏暈眩效果本身，因此以受擊為準。）",
+["%s does not hit right away: it waits for your next melee swing. While it is waiting, its icon shows next to the bar, like the lit-up button on your action bar, and the timer under it runs down to the swing. It goes away when the swing lands or you cancel it."] = "%s不會立刻命中：它會等待你的下一次近戰揮擊。等待期間，它的圖示會顯示在計時條旁邊，就像動作條上亮起的按鈕，下方的計時線會倒數到揮擊為止。揮擊命中或你取消後圖示消失。",
 }
 
 YaHT.L = L

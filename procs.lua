@@ -50,12 +50,13 @@ local PULSES = {
 
 -- Icons that sit around the bar, in this order. When several share a spot
 -- (above, left or right), each later one moves over past the earlier ones.
-local SLOT_ORDER = {"bestial", "mongoose", "quickshots", "rapidfire", "racial", "aspect"}
+local SLOT_ORDER = {"bestial", "mongoose", "quickshots", "rapidfire", "racial", "aspect", "raptor"}
 
 -- Bestial Wrath has the prime spot (first in the row), but only for a hunter who has it: for
 -- everyone else its place is not kept free. Known = in your spellbook, or cast once on this character.
 local BESTIAL_WRATH_ID = 19574
 local function BestialKnown()
+	if YaHT.LoneWolfMode and YaHT:LoneWolfMode() then return false end -- no pet: nothing to enrage
 	local char = YaHT.db and YaHT.db.char
 	if char and char.bestialSeen then return true end
 	for _, fn in ipairs({IsPlayerSpell, IsSpellKnown}) do
@@ -953,6 +954,37 @@ local function CheckMongoose()
 end
 
 ---------------------------------------------------------------------------
+-- Raptor Strike: queued, waiting for your next melee swing
+---------------------------------------------------------------------------
+local RAPTOR_WINDOW = 3 -- (the pretend length while placing things)
+local raptor = NewIcon({
+	key = "raptor", frameName = "YaHTRaptorFrame", label = "Raptor",
+	spellID = 2973, fallbackIcon = "Interface\\Icons\\Ability_MeleeDamage", window = RAPTOR_WINDOW,
+})
+local raptorWatch
+local function CheckRaptor()
+	local p = YaHT.db.profile
+	local f = raptor.frame
+	if not p.raptor or not p.lock then raptor:End() return end
+	if f.previewUntil and GetTime() < f.previewUntil then return end -- "Preview all alerts" is showing it
+	local queued = YaHT.RaptorQueued and YaHT.RaptorQueued() or false
+	if queued then
+		if not f.proc then
+			-- its timer: the time left until your next swing, when the melee line knows it
+			local now = GetTime()
+			local m = YaHT.meleeFrame
+			local s, d = m and m.swingStart, m and m.swingDur
+			local left = (type(s) == "number" and type(d) == "number") and (s + d - now) or 0
+			if left < 0.1 then left = (type(d) == "number" and d > 0) and d or RAPTOR_WINDOW end
+			raptor:Start(false, now, left)
+			if YaHT.debug then YaHT:Print(string.format("Raptor Strike queued (swing in %.1fs)", left)) end
+		end
+	elseif raptor:End() and YaHT.debug then
+		YaHT:Print("Raptor Strike no longer queued")
+	end
+end
+
+---------------------------------------------------------------------------
 -- Quick Shots: +30% ranged attack speed for 12s (Deadly Aspects talent)
 ---------------------------------------------------------------------------
 local QUICK_SHOTS_IDS = {6150} -- the Quick Shots buff (Classic's Improved Aspect of the Hawk)
@@ -1833,7 +1865,7 @@ local PREVIEW_TIME = 6
 function YaHT:PreviewAlerts()
 	local now = GetTime()
 	local p = self.db.profile
-	for _, icon in ipairs({bestial, mongoose, quick, rapid, racial}) do
+	for _, icon in ipairs({bestial, mongoose, quick, rapid, racial, raptor}) do
 		if p[icon.key] and (icon ~= bestial or BestialKnown()) then
 			icon:Start(false, now, PREVIEW_TIME)
 			icon.frame.previewUntil = now + PREVIEW_TIME
@@ -1860,6 +1892,7 @@ function YaHT:ApplyProcSettings()
 	quick:Apply()
 	rapid:Apply()
 	racial:Apply()
+	raptor:Apply()
 	ApplyAspect()
 end
 
@@ -1894,6 +1927,20 @@ function YaHT:InitProcs()
 			elseif event == "PLAYER_REGEN_ENABLED" then mongooseWatch.inCombat = false end
 		end)
 	self.mongooseWatch = mongooseWatch
+
+	-- Raptor Strike queued: the game says when what you have "on the way" changes; while it is queued
+	-- (or in a fight) it is checked ten times a second, so the icon goes the moment the swing lands
+	self.raptorFrame = raptor:Create()
+	raptorWatch = NewWatcher("Raptor", 0.1,
+		{"CURRENT_SPELL_CAST_CHANGED", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED"},
+		CheckRaptor,
+		function() return Fighting(raptorWatch) or raptor.frame.proc end,
+		function(event)
+			if event == "PLAYER_REGEN_DISABLED" then raptorWatch.inCombat = true
+			elseif event == "PLAYER_REGEN_ENABLED" then raptorWatch.inCombat = false end
+		end,
+		true)
+	self.raptorWatch = raptorWatch
 
 	-- buffs change rarely, so this one wakes on UNIT_AURA and only keeps
 	-- polling while Quick Shots is up (to catch its end)

@@ -249,7 +249,7 @@ local function procChildren() local n = 0
   for _, b in ipairs(f.nav) do if b.shown and b.page:find("alerts/procspage/", 1, true) then n = n + 1 end end return n end
 M.Show("alerts") assert(procChildren() == 0, "proc pages listed outside their section")
 assert(f.lock.shown, "Lock bar should stay in view on other pages")
-M.Show("alerts/procspage") assert(procChildren() == 5, "proc pages not listed inside their section")
+M.Show("alerts/procspage") assert(procChildren() == 6, "proc pages not listed inside their section")
 
 -- a dropdown whose order is worked out by a function (the glow styles)
 click(row("procglow").widget)

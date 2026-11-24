@@ -167,6 +167,7 @@ local function RaptorQueued()
 	end
 	return false
 end
+YaHT.RaptorQueued = RaptorQueued
 
 -- true / false, or nil when the game doesn't say (or hides the answer).
 local function SpellInRange(spellID)

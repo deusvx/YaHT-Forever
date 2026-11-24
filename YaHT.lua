@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.5.0"
+YaHT.version = "1.5.1"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -40,6 +40,40 @@ local function GetSpellName(spellID)
 	end
 end
 YaHT.GetSpellName = GetSpellName
+
+---------------------------------------------------------------------------
+-- Lone Wolf mode: the bar's own look for a hunter who plays without a pet
+---------------------------------------------------------------------------
+-- Wanted: "Always", or "Automatic" while the game says you have Lone Wolf.
+function YaHT:LoneWolfWanted()
+	local p = self.db and self.db.profile
+	if not p then return false end
+	if p.lonewolf == "ALWAYS" then return true end
+	if p.lonewolf == "AUTO" then return self.LoneWolfKnown and self.LoneWolfKnown() or false end
+	return false
+end
+-- On: wanted, and no pet at your side. With a pet out you are hunting the
+-- regular way, so everything is the regular bar and the regular pet warnings.
+function YaHT:LoneWolfMode()
+	if not self:LoneWolfWanted() then return false end
+	local ok, out = pcall(UnitExists, "pet")
+	if ok and not IsSecret(out) and out then return false end -- (a dead pet too: PET DEAD is regular news)
+	return true
+end
+-- A colour of the bar: in Lone Wolf mode the reload colour and the glow have their own
+local WOLF_COLORS = {timercolor = "lonewolfcolor", glowcolor = "lonewolfglowcolor"}
+local function Look(config, key)
+	local wolf = WOLF_COLORS[key]
+	if wolf and config[wolf] and YaHT:LoneWolfMode() then return config[wolf] end
+	return config[key]
+end
+YaHT.Look = Look
+-- Lone Wolf "Scope": the bar as a marksman's scope. A range scale hangs under it,
+-- and a crosshair locks on in the middle the moment you have to stand still.
+-- (A crosshair riding the reload was tried and was too much: the reload stays plain.)
+local SCOPE_ART = "Interface\\AddOns\\YaHT\\media\\WolfScope"
+local SCOPE_TICKS = 8     -- the scale's parts (a longer tick at the ends and the middle)
+local SCOPE_POP = 0.25    -- seconds the lock-on takes
 
 local warnedChat = {}
 local function ChatWarnOnce(key, text)
@@ -256,7 +290,7 @@ local function OnUpdate(self, elapsed)
 			end
 		else
 			self.mockTime2 = 0
-			self.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
+			self.texture:SetVertexColor(Look(config, "timercolor").r,Look(config, "timercolor").g,Look(config, "timercolor").b)
 			self.texture:SetWidth(math.max(self:GetWidth() * self.mockTime/self.swingtime, 0.01))
 		end
 		return
@@ -495,7 +529,7 @@ function YaHT:ApplyGlowSettings()
 	local g = config.glowsize
 	for _, t in pairs(P) do
 		t:ClearAllPoints()
-		t:SetVertexColor(config.glowcolor.r, config.glowcolor.g, config.glowcolor.b)
+		t:SetVertexColor(Look(config, "glowcolor").r, Look(config, "glowcolor").g, Look(config, "glowcolor").b)
 	end
 	P.TL:SetSize(g, g) P.TL:SetPoint("BOTTOMRIGHT", f, "TOPLEFT")
 	P.TR:SetSize(g, g) P.TR:SetPoint("BOTTOMLEFT", f, "TOPRIGHT")
@@ -510,7 +544,7 @@ function YaHT:ApplyGlowSettings()
 	local o, th = glow.outline, math.max(1, math.floor(g / 4))
 	for _, t in pairs(o) do
 		t:ClearAllPoints()
-		t:SetVertexColor(config.glowcolor.r, config.glowcolor.g, config.glowcolor.b)
+		t:SetVertexColor(Look(config, "glowcolor").r, Look(config, "glowcolor").g, Look(config, "glowcolor").b)
 		t:SetShown(not soft)
 	end
 	o.T:SetPoint("BOTTOMLEFT", f, "TOPLEFT", -th - 1, 1) o.T:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", th + 1, 1) o.T:SetHeight(th)
@@ -527,7 +561,7 @@ function YaHT:ApplyGlowSettings()
 		sp:SetVertexColor(sc.r, sc.g, sc.b, sc.a or 1)
 	end
 	f.sweep:SetSize(math.max(config.width * 0.25, 30), config.height * 3)
-	f.sweep:SetVertexColor(config.glowcolor.r, config.glowcolor.g, config.glowcolor.b)
+	f.sweep:SetVertexColor(Look(config, "glowcolor").r, Look(config, "glowcolor").g, Look(config, "glowcolor").b)
 
 	if config.glow then glow:Show() else glow:Hide() self:StopFancyGlow() end
 	-- restart the animated effect so color/style changes apply
@@ -638,6 +672,53 @@ local function UpdateGlow(self)
 	self.glow:SetAlpha(level * config.glowintensity)
 end
 
+local function CreateScope(f)
+	local s = CreateFrame("Frame", nil, f)
+	s:SetFrameLevel(f:GetFrameLevel() + 3)
+	s:SetAllPoints(f)
+	s.ticks = {}
+	for i = 0, SCOPE_TICKS do
+		s.ticks[i] = s:CreateTexture(nil, "ARTWORK")
+	end
+	s.shadow = s:CreateTexture(nil, "OVERLAY", nil, 1)
+	s.shadow:SetTexture(SCOPE_ART .. "Shadow")
+	s.shadow:SetVertexColor(0, 0, 0)
+	s.reticle = s:CreateTexture(nil, "OVERLAY", nil, 2)
+	s.reticle:SetTexture(SCOPE_ART)
+	s.shadow:Hide()
+	s.reticle:Hide()
+	return s
+end
+
+local function UpdateScope(self)
+	local s = self.scope
+	if not self.scopeOn or not s then return end
+	local config = YaHT.db.profile
+	local standing = IsStanding(self) and true or false
+	local now = GetTime()
+	if standing and s.wasStanding == false then s.lockAt = now end
+	s.wasStanding = standing
+	local r, sh = s.reticle, s.shadow
+	if not standing then
+		r:Hide() sh:Hide()
+		return
+	end
+	-- locked on: dead centre, white, with a short kick as it snaps in
+	local size = config.lonewolfheight
+	local t = s.lockAt and (now - s.lockAt) / SCOPE_POP or 1
+	if t >= 1 then s.lockAt = nil else size = size * (1 + 0.45 * (1 - t)) end
+	r:ClearAllPoints()
+	r:SetPoint("CENTER", self, "CENTER", 0, 0)
+	r:SetVertexColor(1, 1, 1)
+	r:SetSize(size, size)
+	r:SetAlpha(1)
+	sh:ClearAllPoints()
+	sh:SetPoint("CENTER", r, "CENTER", 0, 0)
+	sh:SetSize(size, size)
+	sh:SetAlpha(0.85)
+	r:Show() sh:Show()
+end
+
 local LCG_KEY = "YaHT"
 function YaHT:GetLCG()
 	return LibStub and LibStub("LibCustomGlow-1.0", true)
@@ -650,7 +731,7 @@ function YaHT:StartFancyGlow()
 	if self.fancyGlow == config.glowstyle then return true end
 	self:StopFancyGlow()
 	local f = self.mainFrame
-	local c = {config.glowcolor.r, config.glowcolor.g, config.glowcolor.b, 1}
+	local c = {Look(config, "glowcolor").r, Look(config, "glowcolor").g, Look(config, "glowcolor").b, 1}
 	local ok
 	if config.glowstyle == "PIXEL" and LCG.PixelGlow_Start then
 		ok = pcall(LCG.PixelGlow_Start, f, c, 12, 0.25, nil, 2, 2, 2, false, LCG_KEY)
@@ -816,12 +897,28 @@ function YaHT:ApplySettings()
 		if f.SwingStart then
 			f.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
 		else
-			f.texture:SetVertexColor(config.timercolor.r, config.timercolor.g,config.timercolor.b)
+			f.texture:SetVertexColor(Look(config, "timercolor").r, Look(config, "timercolor").g,Look(config, "timercolor").b)
 		end
 	end
 
 	f.texture:SetTexture(self:GetMedia("statusbar", config.statusbar))
 	f.texture:SetHeight(config.height)
+	-- Lone Wolf "Scope": the range scale under the bar and the crosshair on it
+	f.scopeOn = self:LoneWolfMode() and config.lonewolfstyle == "SCOPE" or false
+	if f.scopeOn and not f.scope then f.scope = CreateScope(f) end
+	if f.scope then
+		local s = f.scope
+		local gc = Look(config, "glowcolor")
+		for i = 0, SCOPE_TICKS do
+			local t = s.ticks[i]
+			local long = i % (SCOPE_TICKS / 2) == 0
+			t:SetColorTexture(gc.r, gc.g, gc.b, 0.75)
+			t:SetSize(1, config.height + (long and 6 or 3))
+			t:ClearAllPoints()
+			t:SetPoint("TOP", f, "TOPLEFT", config.width * i / SCOPE_TICKS, 0)
+		end
+		s:SetShown(f.scopeOn)
+	end
 	if f.textHolder then self:ApplyTextSettings() end
 	if f.glow then self:ApplyGlowSettings() end
 	if self.ApplyAmmoSettings then self:ApplyAmmoSettings() end
@@ -859,6 +956,8 @@ function YaHT:Load()
 		if not ok then ReportError("UpdateText", err) end
 		ok, err = pcall(UpdateGlow, frame)
 		if not ok then ReportError("UpdateGlow", err) end
+		ok, err = pcall(UpdateScope, frame)
+		if not ok then ReportError("UpdateScope", err) end
 	end)
 
 	f.background = f:CreateTexture("YaHTMainFrameBackground", "BACKGROUND")
@@ -1244,7 +1343,7 @@ function YaHT:OnAutoShot(duration, source)
 	f.SwingStart, f.fillFrom, f.nextAttempt, f.wasMoving = nil, nil, nil, false
 	f.fillBase, f.fillFrac = 0, 0
 	f.awaitFirstSent = false -- a shot went out, so later SENTs aren't "the first"
-	f.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
+	f.texture:SetVertexColor(Look(config, "timercolor").r,Look(config, "timercolor").g,Look(config, "timercolor").b)
 end
 
 -- WoW Forever: native swing event, fires for every swing with its duration.
@@ -1310,7 +1409,7 @@ function YaHT:START_AUTOREPEAT_SPELL()
 	f.disturbed = true -- a restart never counts toward learning the delay
 	f.awaitFirstSent = true
 	if curTime - f.lastshot < f.swingtime then
-		f.texture:SetVertexColor(config.timercolor.r,config.timercolor.g,config.timercolor.b)
+		f.texture:SetVertexColor(Look(config, "timercolor").r,Look(config, "timercolor").g,Look(config, "timercolor").b)
 	else
 		f.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
 		f.SwingStart, f.fillFrom, f.nextAttempt = curTime, curTime, curTime

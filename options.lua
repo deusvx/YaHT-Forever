@@ -25,9 +25,9 @@ end
 
 -- The three looks. Each says what is on: Minimal is just the bar, Clean adds the icons, Flashy is
 -- everything with every effect. They never touch size, position, colours or the countdown.
-local LOOK_ICONS = {"bestial", "mongoose", "quickshots", "rapidfire", "racial", "aspect", "hawk", "ammo", "feign"}
+local LOOK_ICONS = {"raptor", "bestial", "mongoose", "quickshots", "rapidfire", "racial", "aspect", "hawk", "ammo", "feign"}
 local LOOK_WARNINGS = {"pet", "meleerange", "melee"}
-local LOOK_POLISH = {"procpolish", "bestialiconpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish",
+local LOOK_POLISH = {"procpolish", "raptoriconpolish", "bestialiconpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish",
 	"aspectpolish", "hawkpolish", "hawkiconpolish"}
 local function Look(t, icons, warnings, polish)
 	for _, key in ipairs(LOOK_ICONS) do t[key] = icons end
@@ -66,6 +66,7 @@ end
 
 local TAB_KEYS = {
 	general = {"lock", "width", "height", "scale", "alpha", "malpha", "minimap", "minimapangle"},
+	lonewolf = {"lonewolf", "lonewolfstyle", "lonewolfheight", "lonewolfpet", "lonewolfcolor", "lonewolfglowcolor"},
 	bar = {"statusbar", "timercolor", "drawcolor", "fill", "enablebackground", "background",
 		"backgroundcolor", "enableborder", "border", "bordercolor"},
 	text = {"showtext", "textmode", "textpos", "textsize", "textx", "texty", "font", "textcolor"},
@@ -87,7 +88,7 @@ local TAB_KEYS = {
 		"hawkiconsize", "hawkiconalpha", "hawkiconglow", "hawkiconpulse", "hawkiconsound", "hawkiconpolish"},
 	aspect = {"aspecthit", "aspectpackalert", "aspectcheetahalert", "aspectshoutsize", "aspectshoutpoint", "aspectshoutrelpoint", "aspectshoutx", "aspectshouty", "aspect", "aspectwhen", "aspectpos", "aspectsize", "aspectalpha", "aspectpolish", "aspectshape", "aspectwarnspeed", "aspectspeedalways",
 		"aspectwarnnone", "aspecthint", "aspectsound", "aspectpoint", "aspectrelpoint", "aspectx", "aspecty"},
-	procs = {"bestialsoundat", "mongoosesoundat", "quickshotssoundat", "rapidfiresoundat", "racialsoundat", "mongoosenumbers", "quickshotsnumbers", "rapidfirenumbers", "racialnumbers", "bestial", "bestialpos", "bestialnumbers", "bestialcooldown", "bestialglowcolor", "bestialpoint", "bestialrelpoint", "bestialx", "bestialy", "bestialown", "bestialownset",
+	procs = {"raptor", "raptorpos", "raptornumbers", "raptorsoundat", "raptorglowcolor", "raptorpoint", "raptorrelpoint", "raptorx", "raptory", "raptorown", "raptorownset", "raptoriconsize", "raptoriconalpha", "raptoriconglow", "raptoriconpulse", "raptoriconsound", "raptoriconpolish", "raptoriconshape", "bestialsoundat", "mongoosesoundat", "quickshotssoundat", "rapidfiresoundat", "racialsoundat", "mongoosenumbers", "quickshotsnumbers", "rapidfirenumbers", "racialnumbers", "bestial", "bestialpos", "bestialnumbers", "bestialcooldown", "bestialglowcolor", "bestialpoint", "bestialrelpoint", "bestialx", "bestialy", "bestialown", "bestialownset",
 		"bestialiconsize", "bestialiconalpha", "bestialiconglow", "bestialiconpulse", "bestialiconsound", "bestialiconpolish", "bestialiconshape",
 		"procshape", "mongooseiconshape", "quickshotsiconshape", "rapidfireiconshape", "racialiconshape", "procpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish", "procsize", "procalpha", "procglow", "procpulse", "procsound", "mongoosecooldown", "mongoose", "mongoosepos", "mongooseglowcolor", "mongoosepoint", "mongooserelpoint", "mongoosex", "mongoosey", "quickshots", "quickshotspos", "quickshotsglowcolor", "quickshotspoint", "quickshotsrelpoint", "quickshotsx", "quickshotsy", "rapidfire", "rapidfirepos", "rapidfireglowcolor", "rapidfirepoint", "rapidfirerelpoint", "rapidfirex", "rapidfirey", "racial", "racialpos", "racialglowcolor", "racialpoint", "racialrelpoint", "racialx", "racialy",
 		"mongooseown", "mongooseownset", "mongooseiconsize", "mongooseiconalpha", "mongooseiconglow", "mongooseiconpulse", "mongooseiconsound", "quickshotsown", "quickshotsownset", "quickshotsiconsize", "quickshotsiconalpha", "quickshotsiconglow", "quickshotsiconpulse", "quickshotsiconsound", "rapidfireown", "rapidfireownset", "rapidfireiconsize", "rapidfireiconalpha", "rapidfireiconglow", "rapidfireiconpulse", "rapidfireiconsound", "racialown", "racialownset", "racialiconsize", "racialiconalpha", "racialiconglow", "racialiconpulse", "racialiconsound"},
@@ -176,7 +177,7 @@ function YaHT:CreateConfig()
 	local rapidfire = YaHT.GetSpellName(3045) or "Rapid Fire"
 	local bestial = YaHT.GetSpellName(19574) or "Bestial Wrath"
 	local hasLCG = function() return LibStub and LibStub("LibCustomGlow-1.0", true) end
-	local function procsOff() local p = YaHT.db.profile return not (p.bestial or p.mongoose or p.quickshots or p.rapidfire or p.racial) end
+	local function procsOff() local p = YaHT.db.profile return not (p.bestial or p.mongoose or p.quickshots or p.rapidfire or p.racial or p.raptor) end
 	-- the glow and pulse choices, used by the shared look and by an icon's own look
 	local function glowValues()
 		local v = {NONE = L["None"], HALO = L["Soft halo"], RING = L["Bright ring"],
@@ -197,13 +198,13 @@ function YaHT:CreateConfig()
 	local PULSE_SORTING = {"NONE", "BREATHE", "GROW", "HEARTBEAT", "FLASH"}
 	local OWN_LOOK = {"size", "alpha", "glow", "pulse", "sound", "polish", "shape"}
 	-- every "Shape" setting there is (the "Round icons" switch on the Home and Alerts pages sets them all)
-	YaHT.shapeKeys = {"procshape", "bestialiconshape", "mongooseiconshape", "quickshotsiconshape", "rapidfireiconshape", "racialiconshape",
+	YaHT.shapeKeys = {"procshape", "raptoriconshape", "bestialiconshape", "mongooseiconshape", "quickshotsiconshape", "rapidfireiconshape", "racialiconshape",
 		"aspectshape", "hawkshape"}
 	local SHAPE_VALUES = {SQUARE = L["Square"], CIRCLE = L["Circle"]}
 	local SHAPE_SORTING = {"SQUARE", "CIRCLE"}
 	local SHAPE_DESC = L["Square: the icon with a rim and a timer line under it. Circle: the icon cut round inside a ring, and the ring runs down as the timer."]
 	-- every "Polished look" setting there is (the one switch on the Home and Alerts pages sets them all)
-	YaHT.polishKeys = {"procpolish", "bestialiconpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish",
+	YaHT.polishKeys = {"procpolish", "raptoriconpolish", "bestialiconpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish",
 		"aspectpolish", "hawkpolish", "hawkiconpolish"}
 	local SQUARE_POLISH = L["A bevelled frame with fine edges in place of the flat rim, a soft light on the icon and a shadow under it. Off: the standard look, a plain flat rim."]
 
@@ -278,6 +279,7 @@ function YaHT:CreateConfig()
 		bestial = {name = bestial, type = "toggle", order = 10.5},
 		rapidfire = {name = rapidfire, type = "toggle", order = 13},
 		racial = {name = L["Racial ability"], type = "toggle", order = 14},
+		raptor = {name = raptor, type = "toggle", order = 11.5},
 		lookheader = {name = L["Look of all proc icons"], type = "header", order = 20},
 		procshape = {name = L["Shape"], desc = SHAPE_DESC, type = "select", order = 20.5, values = SHAPE_VALUES, sorting = SHAPE_SORTING, disabled = procsOff},
 		procsize = {name = L["Icon size"], type = "range", order = 21, min = 16, max = 64, step = 1, disabled = procsOff},
@@ -333,6 +335,8 @@ function YaHT:CreateConfig()
 				disabled = function() return not YaHT.db.profile.bestial end,
 			},
 		}),
+		raptorpage = procPage("raptor", raptor,
+			string.format(L["%s does not hit right away: it waits for your next melee swing. While it is waiting, its icon shows next to the bar, like the lit-up button on your action bar, and the timer under it runs down to the swing. It goes away when the swing lands or you cancel it."], raptor), 1.5),
 		rapidfirepage = procPage("rapidfire", rapidfire,
 			string.format(L["Shows while %s lasts (15 seconds), from the moment you cast it."], rapidfire), 3),
 		racialpage = procPage("racial", L["Racial ability"],
@@ -369,7 +373,7 @@ function YaHT:CreateConfig()
 			end,
 		}
 	end
-	for _, key in ipairs({"bestial", "mongoose", "quickshots", "rapidfire", "racial"}) do
+	for _, key in ipairs({"bestial", "mongoose", "raptor", "quickshots", "rapidfire", "racial"}) do
 		local args = procsArgs[key .. "page"].args
 		-- its size, among the basics: the shared size until you change it here
 		args[key .. "size"] = {
@@ -674,6 +678,58 @@ function YaHT:CreateConfig()
 						order = 4,
 						get = getColor,
 						set = setColor,
+					},
+					lonewolfheader = {
+						name = L["Lone Wolf"],
+						type = "header",
+						order = 5,
+					},
+					lonewolf = {
+						name = L["Lone Wolf look"],
+						desc = L["For hunters who play without a pet. While no pet is out, the bar turns moonlight silver and becomes a marksman's scope, pet warnings go quiet and Bestial Wrath's place is freed. With a pet out, everything is regular. Automatic: while you have the Lone Wolf talent. Always: switch it on yourself."],
+						type = "select",
+						order = 5.1,
+						values = {AUTO = L["Automatic"], ALWAYS = L["Always"], OFF = L["Off"]},
+						sorting = {"AUTO", "ALWAYS", "OFF"},
+					},
+					lonewolfcolor = {
+						name = L["Lone Wolf bar color"],
+						type = "color",
+						order = 5.2,
+						get = getColor,
+						set = setColor,
+						disabled = function() return YaHT.db.profile.lonewolf == "OFF" end,
+					},
+					lonewolfglowcolor = {
+						name = L["Lone Wolf glow color"],
+						type = "color",
+						order = 5.3,
+						get = getColor,
+						set = setColor,
+						disabled = function() return YaHT.db.profile.lonewolf == "OFF" end,
+					},
+					lonewolfstyle = {
+						name = L["Bar design"],
+						desc = L["Scope: a range scale under the bar, and a crosshair that locks on in the middle when you have to stand still. Plain bar: only the Lone Wolf colors."],
+						type = "select",
+						order = 5.15,
+						values = {SCOPE = L["Scope"], PLAIN = L["Plain bar"]},
+						sorting = {"SCOPE", "PLAIN"},
+						disabled = function() return YaHT.db.profile.lonewolf == "OFF" end,
+					},
+					lonewolfheight = {
+						name = L["Crosshair size"],
+						type = "range",
+						order = 5.4,
+						min = 12, max = 48, step = 1,
+						disabled = function() local p = YaHT.db.profile return p.lonewolf == "OFF" or p.lonewolfstyle == "PLAIN" end,
+					},
+					lonewolfpet = {
+						name = L["Warn: PET OUT"],
+						desc = L["You have the Lone Wolf talent and a pet is out in a fight: you lose its bonus. Shows PET OUT where your pet alerts are."],
+						type = "toggle",
+						order = 5.5,
+						disabled = function() return YaHT.db.profile.lonewolf == "OFF" end,
 					},
 					backgroundheader = {
 						name = L["Background"],
@@ -2083,6 +2139,20 @@ function YaHT:CreateConfig()
 	bar.args.textpage = A.text
 	bar.args.effectspage = effects
 	A.bar.order, A.text.order, effects.order = 1, 2, 3
+	-- Lone Wolf has a page of its own under the bar
+	local wolf = {name = L["Lone Wolf"], type = "group", order = 4, args = {}}
+	for _, key in ipairs({"lonewolf", "lonewolfstyle", "lonewolfcolor", "lonewolfglowcolor", "lonewolfheight", "lonewolfpet"}) do
+		wolf.args[key], A.bar.args[key] = A.bar.args[key], nil
+	end
+	A.bar.args.lonewolfheader = nil
+	wolf.args.lonewolfintro = {
+		name = L["A look of its own for hunters who play without a pet. It shows while no pet is out; with a pet out, the bar and your pet warnings are regular."],
+		type = "description",
+		order = 0,
+	}
+	wolf.args.lonewolf.width = "double"
+	wolf.args.reset = resetButton("lonewolf")
+	bar.args.lonewolfpage = wolf
 
 	local alerts = {
 		name = L["Alerts"],

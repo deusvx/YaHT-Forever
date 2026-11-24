@@ -80,7 +80,38 @@ run(1.6)
 assert(a.text.shown and a.text.txt == "NO PET" and #sounds == 2, "no NO PET for a pet missing in a fight")
 -- mounted: no pet is expected
 mounted = true run(0.3) assert(not a.shown, "NO PET while mounted")
-mounted = false exists = true fire("UNIT_PET", "player") run(0.1)
+mounted = false run(2.6) assert(a.text.shown, "setup: NO PET back")
+
+-- hunting without a pet (a Lone Wolf build): after three whole fights without one, NO PET stays quiet
+fire("PLAYER_REGEN_ENABLED") run(0.1)   -- the pet left during this fight: doesn't count
+assert(YaHT.db.char.petSeen and not YaHT.db.char.petlessFights, "a fight the pet was in counted as one without")
+for i = 1, 2 do
+  fire("PLAYER_REGEN_DISABLED") run(2.6)
+  assert(a.text.shown and a.text.txt == "NO PET", "NO PET gave up too early (fight "..i..")")
+  fire("PLAYER_REGEN_ENABLED") run(0.1)
+end
+fire("PLAYER_REGEN_DISABLED") run(2.6) fire("PLAYER_REGEN_ENABLED") run(0.1)
+assert(YaHT.db.char.petSeen == false, "three fights without a pet should quiet NO PET")
+local n = #sounds
+fire("PLAYER_REGEN_DISABLED") run(4)
+assert(not a.shown and #sounds == n, "NO PET still nags a hunter who fights without a pet")
+fire("PLAYER_REGEN_ENABLED") run(0.1)
+-- a pet out again: the warning is back for the next time it goes missing
+exists = true fire("UNIT_PET", "player") fire("PLAYER_REGEN_DISABLED") run(0.1)
+exists = false fire("UNIT_PET", "player") run(2.6)
+assert(a.text.shown and a.text.txt == "NO PET", "NO PET didn't come back after a pet was out again")
+-- the Lone Wolf spell itself: quiet at once
+local oldInfo, oldKnown = C_Spell and C_Spell.GetSpellInfo, IsPlayerSpell
+C_Spell = C_Spell or {}
+C_Spell.GetSpellInfo = function(x) if x == "Lone Wolf" then return {spellID = 155228} end return oldInfo and oldInfo(x) end
+IsPlayerSpell = function(id) if id == 155228 then return true end return oldKnown and oldKnown(id) end
+fire("PLAYER_REGEN_ENABLED") run(0.1) advance(6)
+fire("PLAYER_REGEN_DISABLED") run(4)
+assert(not a.text.shown, "NO PET with Lone Wolf known")
+C_Spell.GetSpellInfo, IsPlayerSpell = oldInfo, oldKnown
+fire("PLAYER_REGEN_ENABLED") run(0.1) advance(6)
+sounds = {{}, {}}
+exists = true fire("UNIT_PET", "player") fire("PLAYER_REGEN_DISABLED") run(0.1)
 
 -- not attacking: only after 3 seconds of shooting
 attacking = false

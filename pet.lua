@@ -24,14 +24,16 @@ local function Plain(v) if IsSecret(v) then return nil end return v end
 local POLL = 0.25        -- how often things are re-judged while you fight or shoot
 local IDLE_DELAY = 3     -- seconds of shooting without the pet attacking before the warning
 local GONE_GRACE = 2     -- a pet must be missing this long in a fight before NO PET (it may just be on its way)
+local PETLESS_FIGHTS = 3 -- this many fights in a row without a pet: you hunt without one, NO PET stops
+local LONE_WOLF = "Lone Wolf"
 local LOW_EDGE = 0.02    -- the low warning fades in over this much health around the threshold
 local LINE_GAP = 2
 local PULSE_LOW, PULSE_TIME = 0.45, 0.5
 local RED = {1, 0.27, 0.2}
 local YELLOW = {1, 0.8, 0.16}
-local STATE_TEXT = {DEAD = "PET DEAD", NONE = "NO PET", IDLE = "PET NOT ATTACKING"}
-local STATE_COLOR = {DEAD = RED, NONE = RED, IDLE = YELLOW}
-local STATE_LOG = {DEAD = "dead", NONE = "not out", IDLE = "not attacking"}
+local STATE_TEXT = {DEAD = "PET DEAD", NONE = "NO PET", IDLE = "PET NOT ATTACKING", OUT = "PET OUT"}
+local STATE_COLOR = {DEAD = RED, NONE = RED, IDLE = YELLOW, OUT = RED}
+local STATE_LOG = {DEAD = "dead", NONE = "not out", IDLE = "not attacking", OUT = "out (Lone Wolf)"}
 
 local alert, watch
 local lowCurve, lowCurveAt   -- the curve for the low warning, and the threshold it was built for
@@ -65,6 +67,32 @@ end
 local function PlayerAway()
 	return Ask(UnitIsDeadOrGhost, "player") or Ask(IsMounted) or Ask(UnitOnTaxi, "player") or false
 end
+
+-- Hunting without a pet on purpose (a Lone Wolf build): NO PET would only nag.
+-- Asked by name, since the spell's number on Forever isn't known; the game only
+-- answers by name for a spell you have. Kept for a few seconds between looks.
+local loneWolf, loneWolfAt = false, nil
+local function LoneWolf()
+	local now = GetTime()
+	if loneWolfAt and now - loneWolfAt < 5 then return loneWolf end
+	loneWolfAt, loneWolf = now, false
+	local id
+	if C_Spell and type(C_Spell.GetSpellInfo) == "function" then
+		local ok, info = pcall(C_Spell.GetSpellInfo, LONE_WOLF)
+		if ok and type(info) == "table" then id = Plain(info.spellID) end
+	end
+	if not id and type(GetSpellInfo) == "function" then
+		local ok, _, _, _, _, _, _, sid = pcall(GetSpellInfo, LONE_WOLF)
+		if ok then id = Plain(sid) end
+	end
+	if type(id) == "number" then
+		for _, fn in ipairs({IsPlayerSpell, IsSpellKnown}) do
+			if Ask(fn, id) then loneWolf = true end
+		end
+	end
+	return loneWolf
+end
+YaHT.LoneWolfKnown = LoneWolf
 
 ---------------------------------------------------------------------------
 -- The low warning: drawn by the game from the hidden health
@@ -120,7 +148,11 @@ local function Judge()
 	if alert.previewUntil and now >= alert.previewUntil then alert.previewUntil = nil end
 	local preview = not p.lock or alert.previewUntil ~= nil
 	local state, low = nil, false
-	if not p.pet then
+	local wolf = YaHT:LoneWolfMode()
+	if wolf and not preview then
+		-- Lone Wolf mode (no pet at your side): no pet news at all
+		watch.idleSince, watch.goneSince = nil, nil
+	elseif not p.pet then
 		watch.idleSince = nil
 	elseif preview then
 		state = (p.petdead and "DEAD") or (p.petidle and "IDLE") or nil
@@ -130,7 +162,8 @@ local function Judge()
 		local shooting = YaHT.mainFrame and YaHT.mainFrame.shooting or false
 		local exists, dead = PetState()
 		local alive = exists and dead == false
-		if alive then YaHT.db.char.petSeen = true end
+		if alive then YaHT.db.char.petSeen, YaHT.db.char.petlessFights = true, nil end
+		if exists and fighting then watch.fightPet = true end
 		local missing = exists == false and fighting
 		if not missing then watch.goneSince = nil end
 		if PlayerAway() then
@@ -139,7 +172,7 @@ local function Judge()
 			if p.petdead and fighting then
 				if exists and dead then
 					state = "DEAD"
-				elseif missing and YaHT.db.char.petSeen then
+				elseif missing and YaHT.db.char.petSeen and not LoneWolf() then
 					watch.goneSince = watch.goneSince or now
 					-- a dead pet's body going away needs no second look
 					local wasGone = alert.stateReal and (alert.state == "DEAD" or alert.state == "NONE")
@@ -154,6 +187,14 @@ local function Judge()
 			end
 			low = p.petlow and alive and (fighting or shooting or p.petwhen == "ALWAYS")
 		end
+	end
+
+	-- You have the Lone Wolf talent and a pet is out in a fight: it costs you the bonus.
+	-- (Only with the talent itself: with the look set to "Always" a pet out is just regular hunting.)
+	if not preview and not state and p.lonewolfpet and p.lonewolf == "AUTO" and LoneWolf() then
+		local fighting = watch.inCombat or (InCombatLockdown and InCombatLockdown()) or false
+		local exists, dead = PetState()
+		if fighting and exists and dead == false and not PlayerAway() then state = "OUT" end
 	end
 
 	local changed = state ~= alert.state
@@ -176,8 +217,8 @@ local function Judge()
 				YaHT:Record("pet", string.format("%s | pet out %s, dead %s, attacking %s", state and STATE_LOG[state] or "fine again",
 					tostring(out), tostring(isDead), tostring(PetAttacking())))
 			end
-			local gone = state == "DEAD" or state == "NONE"
-			if gone and was ~= "DEAD" and was ~= "NONE" and p.petsound and SOUNDKIT and SOUNDKIT.RAID_WARNING then
+			local gone = state == "DEAD" or state == "NONE" or state == "OUT"
+			if gone and was ~= "DEAD" and was ~= "NONE" and was ~= "OUT" and p.petsound and SOUNDKIT and SOUNDKIT.RAID_WARNING then
 				pcall(PlaySound, SOUNDKIT.RAID_WARNING, "Master")
 			end
 		end
@@ -197,10 +238,30 @@ local function Step(self, elapsed)
 end
 
 local function OnEvent(self, event, unit)
+	if event ~= "UNIT_HEALTH" and event ~= "UNIT_MAXHEALTH" then
+		-- Lone Wolf picked up or dropped: the bar changes its look
+		if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_TALENT_UPDATE" or event == "SPELLS_CHANGED" then loneWolfAt = nil end
+		local on = YaHT:LoneWolfMode()
+		if on ~= self.wolfOn then
+			self.wolfOn = on
+			YaHT:ApplySettings()
+		end
+	end
 	if event == "PLAYER_REGEN_DISABLED" then
 		self.inCombat = true
+		self.fightPet = Ask(UnitExists, "pet") ~= false
 	elseif event == "PLAYER_REGEN_ENABLED" then
-		self.inCombat = false
+		-- a whole fight without a pet, a few times in a row: you hunt without one,
+		-- so NO PET stays quiet until a pet is out again
+		local c = YaHT.db.char
+		if self.inCombat and self.fightPet == false and c.petSeen and Ask(UnitExists, "pet") == false then
+			c.petlessFights = (c.petlessFights or 0) + 1
+			if c.petlessFights >= PETLESS_FIGHTS then
+				c.petSeen, c.petlessFights = false, nil
+				if YaHT.debug then YaHT:Print("Pet: hunting without one, NO PET is quiet until a pet is out again") end
+			end
+		end
+		self.inCombat, self.fightPet = false, nil
 	end
 	self.pending = true -- look on the next frame (bursts of events become one look)
 	self:Show()
@@ -238,6 +299,7 @@ function YaHT:ApplyPetSettings()
 	if alert.pulse then
 		if p.petpulse and p.pet then pcall(alert.pulse.Play, alert.pulse) else pcall(alert.pulse.Stop, alert.pulse) end
 	end
+	watch.wolfOn = self:LoneWolfMode() -- the look now matches this
 	alert.redraw = true -- draw the first line again with the new look
 	watch.pending = true
 	watch:Show()
@@ -255,8 +317,11 @@ end
 function YaHT:ReportPet()
 	if not alert then return end
 	local exists, dead = PetState()
-	self:Print(string.format("Pet: out %s | dead %s | attacking %s | low warning %s | shown: %s",
-		tostring(exists), tostring(dead), tostring(PetAttacking()),
+	loneWolfAt = nil
+	local c = self.db.char
+	self:Print(string.format("Pet: out %s | dead %s | attacking %s | Lone Wolf %s | NO PET %s | low warning %s | shown: %s",
+		tostring(exists), tostring(dead), tostring(PetAttacking()), tostring(LoneWolf()),
+		(not c.petSeen and "quiet (no pet used)") or (LoneWolf() and "quiet (Lone Wolf)") or "on",
 		LowPossible() and ("drawn by the game below " .. tostring(lowCurveAt) .. "%") or "not possible in this game",
 		alert.state and STATE_LOG[alert.state] or "nothing"))
 end
@@ -330,8 +395,10 @@ function YaHT:InitPet()
 	self.petWatch = watch
 	watch.sum, watch.pending = 0, false
 	watch.inCombat = (InCombatLockdown and InCombatLockdown()) and true or false
+	watch.wolfOn = self:LoneWolfMode()
 	for _, e in ipairs({"PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_ENTERING_WORLD",
-		"START_AUTOREPEAT_SPELL", "STOP_AUTOREPEAT_SPELL", "PET_ATTACK_START", "PET_ATTACK_STOP"}) do
+		"START_AUTOREPEAT_SPELL", "STOP_AUTOREPEAT_SPELL", "PET_ATTACK_START", "PET_ATTACK_STOP",
+		"PLAYER_TALENT_UPDATE", "SPELLS_CHANGED"}) do
 		pcall(watch.RegisterEvent, watch, e)
 	end
 	for _, e in ipairs({"UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_FLAGS"}) do

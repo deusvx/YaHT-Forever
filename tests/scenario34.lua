@@ -28,7 +28,7 @@ assert(adv.timingpage and adv.announcepage, "Advanced group incomplete")
 -- the Procs page is short: one shared look, small pages per proc
 local n = 0
 for _, v in pairs(alerts.procspage.args) do if v.type ~= "group" and v.type ~= "header" and v.type ~= "description" then n = n + 1 end end
-assert(n <= 13, "Procs page has "..n.." controls")
+assert(n <= 14, "Procs page has "..n.." controls")
 -- wording: no "Alpha", consistent sentence case on the pages that had it
 local function names(g, out) for _, v in pairs(g.args or {}) do
   if v.type == "group" then names(v, out) elseif type(v.name) == "string" then out[#out+1] = v.name end end return out end

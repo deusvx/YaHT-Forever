@@ -29,12 +29,17 @@ A port of Aviana's classic **YaHT** (Yet another Hunter Timer). **Original proje
 - **Aspect badge:** your current aspect next to the bar. Red when a fight starts in Cheetah or Pack,
   and a reminder when you have no aspect at all.
 - **Pet alerts:** small movable text for PET LOW, PET DEAD, NO PET and PET NOT ATTACKING.
+- **Lone Wolf look:** playing without a pet? While no pet is out, the bar turns moonlight silver and
+  becomes a marksman's scope, with a crosshair that locks on when you have to stand still, and the
+  pet warnings go quiet. With a pet out, everything is regular.
 - **Ammo counter:** invisible while you have plenty, fades in as you run low, then flashes yellow and
   red with a warning sound.
 
 ## Proc and cooldown icons
 - **Bestial Wrath:** its 18 seconds in the prime spot over the bar, then its cooldown counting down.
 - **Mongoose Bite:** pops in after you dodge, with a gold timer for the window and its cooldown.
+- **Raptor Strike:** its icon shows while it is queued for your next melee swing, with a timer
+  running down to the swing.
 - **Quick Shots:** with Deadly Aspects talented, shows while the haste lasts.
 - **Rapid Fire and your racial:** show while they last. Your race's active is recognised automatically.
 - **Summon Hawk:** each hawk that is out, with its 18 seconds running down and the seconds left. It

@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.5.1
+- New: a Raptor Strike icon. While Raptor Strike is queued for your next melee swing, its icon shows
+  next to the bar (like the lit-up button on your action bar), with a timer that runs down to the
+  swing. Its own page under Procs, with the same options as the other icons.
+- New: Lone Wolf look, for hunters who play without a pet. While no pet is out, the bar turns
+  moonlight silver and becomes a marksman's scope: a range scale under the bar, and a crosshair
+  that locks on in the middle the moment you have to stand still. Pet warnings go quiet and
+  Bestial Wrath's place is freed. With a pet out, everything is regular. Automatic with the Lone
+  Wolf talent, or switch it on yourself (The bar, "Lone Wolf" tab). With the talent, "PET OUT" warns
+  you in a fight when a pet is out and costing you the bonus. Colors, crosshair size and the
+  warning each have their own setting.
+- Fixed: "NO PET" kept showing for hunters who play without a pet (Lone Wolf builds). It now stays
+  quiet with Lone Wolf, and for anyone after three fights in a row without a pet. It comes back by
+  itself the next time you have a pet out.
+
 ## 1.5.0
 - New: a Bestial Wrath icon. It shows for its 18 seconds from the moment you cast it, then stays grey
   with a countdown until you can cast it again (both can be switched off). It has the prime spot:
