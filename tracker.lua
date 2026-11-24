@@ -165,6 +165,7 @@ local function Close(atOnce)
 	wheel.aimed = nil
 	if atOnce then
 		wheel:Hide()
+		hub.layer = "LOW" hub:SetFrameStrata("LOW")
 	else
 		wheel.closingAt = wheel.closingAt or GetTime()
 	end
@@ -224,6 +225,7 @@ local function Open()
 	wheel.label:SetPoint("TOP", hub, "CENTER", 0, -wheel.edge - 8)
 	wheel.label:SetText(hub.current or L["No tracking"])
 	wheel.label:SetTextColor(TEXT[1], TEXT[2], TEXT[3])
+	hub.layer = "DIALOG" hub:SetFrameStrata("DIALOG") -- in front while its pie is open, so a click in the middle closes it
 	wheel:SetAlpha(1)
 	wheel:Show()
 end
@@ -251,6 +253,7 @@ local function Step(self, elapsed)
 		if left <= 0 then
 			self.closingAt = nil
 			self:Hide()
+			hub.layer = "LOW" hub:SetFrameStrata("LOW")
 		else
 			self:SetAlpha(left)
 		end
@@ -345,7 +348,7 @@ end
 
 function YaHT:InitTracker()
 	hub = Icon(UIParent, 36)
-	hub:SetFrameStrata("DIALOG")
+	hub.layer = "LOW" hub:SetFrameStrata("LOW") -- behind your bags and other windows while it is closed
 	hub:SetClampedToScreen(true)
 	hub:RegisterForClicks("LeftButtonUp")
 	hub:RegisterForDrag("LeftButton")

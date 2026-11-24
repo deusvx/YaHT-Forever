@@ -41,7 +41,8 @@ local chat = {}
 local add = DEFAULT_CHAT_FRAME.AddMessage
 DEFAULT_CHAT_FRAME.AddMessage = function(self, msg) chat[#chat + 1] = msg end
 
--- tracking nothing: the button is there, grey, and closed
+-- tracking nothing: the button is there, grey, and closed, behind bags and other windows
+assert(hub.layer == "LOW", "the closed button should sit behind windows, is "..tostring(hub.layer))
 assert(hub.shown and not wheel.open and hub.current == nil and hub.icon.desat == true, "the button should show 'nothing' to start with")
 
 -- a click opens the wheel: a circle, with one track for each spell (not the minimap's other filters)
@@ -71,7 +72,9 @@ assert(calls == 1 and list[3].active and not wheel.open, "leaving the circle sho
 assert(hub.current == "Track Hidden" and hub.icon.tex == "hidden" and hub.icon.desat == false, "the button doesn't show the new tracking")
 -- it fades away rather than vanishing
 assert(wheel.shown and wheel.alpha <= 1, "the pie should fade out, not pop")
+assert(hub.layer == "DIALOG", "the button should be in front while its pie is open")
 run(0.3) assert(not wheel.shown, "the pie should be gone after its fade")
+assert(hub.layer == "LOW", "the button should go behind windows again once the pie is closed")
 run(2) assert(#chat == 0, "a pick that went through was reported as ignored")
 
 -- out past the one you already track: nothing is asked of the game, the wheel just closes

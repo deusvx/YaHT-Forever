@@ -6,7 +6,7 @@
   whole piece lights up) and on out of the pie, and you track it. A click on the one you track switches tracking off, and a click in
   the middle closes the wheel. Drag the button anywhere while the bar is unlocked. Its own page
   (Alerts, "Tracking wheel"): choose by moving out of the pie or by clicking, size, and whether
-  the minimap's other filters join the wheel.
+  the minimap's other filters join the wheel. The button sits behind your bags and other windows.
 
 ## 1.5.1
 - New: a Raptor Strike icon. While Raptor Strike is queued for your next melee swing, its icon shows
