@@ -2232,6 +2232,7 @@ function YaHT:CreateConfig()
 			meleepage = A.melee,
 			ammopage = A.ammo,
 			multicastpage = multicastPage,
+			announcepage = A.announce, -- (a feature like the others, not an advanced setting)
 			trackerpage = {
 				name = L["Tracking wheel"],
 				type = "group",
@@ -2269,7 +2270,11 @@ function YaHT:CreateConfig()
 			},
 		},
 	}
-	A.procs.order, A.aspect.order, A.feign.order, A.pet.order, A.hawk.order, A.range.order, A.melee.order, A.ammo.order = 1, 2, 3, 4, 5, 6, 7, 8
+	-- The list on the left, in three groups (menu.lua puts a small heading above the first page of
+	-- each): what warns you, what times things for you, and tools.
+	A.range.order, A.feign.order, A.pet.order, A.aspect.order, A.ammo.order = 1, 2, 3, 4, 5
+	A.procs.order, A.hawk.order, multicastPage.order, A.melee.order = 6, 7, 8, 9
+	A.announce.order = 11 -- (the tracking wheel is 10)
 	A.melee.name = L["Melee line"]
 
 	-- POLISH PASS. Nothing twice, every card has a title, the same word for the same thing.
@@ -2323,44 +2328,6 @@ function YaHT:CreateConfig()
 				type = "description",
 				order = 1,
 			},
-			shareheader = {name = L["Share your setup"], type = "header", order = 5},
-			sharedesc = {
-				name = L["Your setup as one line of text: everything you changed from the defaults, without the places things sit on your screen. Click into the box, press Ctrl+A and Ctrl+C to copy it. To take someone else's, paste theirs into the second box and press Enter."],
-				type = "description",
-				order = 5.1,
-			},
-			exportsetup = {
-				name = L["Your setup"],
-				desc = L["Copy this and send it to someone. It changes nothing here."],
-				type = "input",
-				order = 5.2,
-				get = function() return YaHT:ExportSetup() end,
-				set = function() end,
-			},
-			importsetup = {
-				name = L["Paste a setup"],
-				desc = L["Paste a setup someone sent you and press Enter. This profile's settings are replaced by it; the places things sit on your screen stay. You can undo it afterwards."],
-				type = "input",
-				order = 5.3,
-				get = function() return "" end,
-				set = function(_, text)
-					if type(text) ~= "string" or text:gsub("%s", "") == "" then return end
-					local ok, result = YaHT:ImportSetup(text)
-					if ok then
-						YaHT:Print(string.format(L["Setup taken over (%d settings). \"Undo the import\" on the Advanced page puts yours back."], result))
-					else
-						YaHT:Print(result)
-					end
-				end,
-			},
-			importundo = {
-				name = L["Undo the import"],
-				desc = L["Puts back the settings you had before you pasted a setup."],
-				type = "execute",
-				order = 5.4,
-				hidden = function() return not YaHT.importBackup end,
-				func = function() YaHT:UndoImport() end,
-			},
 			debugheader = {name = L["Debug log"], type = "header", order = 10},
 			debugdesc = {
 				name = L["For bug reports: writes down every shot and alert while it is on. /yaht copy opens the log so you can copy it."],
@@ -2403,10 +2370,9 @@ function YaHT:CreateConfig()
 				set = function(_, value) YaHT.db.global.debugwindow = value end,
 			},
 			timingpage = A.timing,
-			announcepage = A.announce,
 		},
 	}
-	A.timing.order, A.announce.order = 1, 2
+	A.timing.order = 1
 
 	aceoptions.args = {bar = bar, alerts = alerts, advanced = advanced}
 
@@ -2426,6 +2392,45 @@ function YaHT:CreateConfig()
 			if pa.new then pa.new.order = 13 end
 			pa.cardcopy = {name = L["Copy or delete"], type = "header", order = 50}
 			if pa.reset then pa.reset.order = 95 end
+			-- sharing a setup belongs with the profiles: both are about your settings as a whole
+			pa.shareheader = {name = L["Share your setup"], type = "header", order = 200}
+			pa.sharedesc = {
+				name = L["Your setup as one line of text: everything you changed from the defaults, without the places things sit on your screen. Click into the box, press Ctrl+A and Ctrl+C to copy it. To take someone else's, paste theirs into the second box and press Enter."],
+				type = "description",
+				order = 201,
+			}
+			pa.exportsetup = {
+				name = L["Your setup"],
+				desc = L["Copy this and send it to someone. It changes nothing here."],
+				type = "input",
+				order = 202,
+				get = function() return YaHT:ExportSetup() end,
+				set = function() end,
+			}
+			pa.importsetup = {
+				name = L["Paste a setup"],
+				desc = L["Paste a setup someone sent you and press Enter. This profile's settings are replaced by it; the places things sit on your screen stay. You can undo it afterwards."],
+				type = "input",
+				order = 203,
+				get = function() return "" end,
+				set = function(_, text)
+					if type(text) ~= "string" or text:gsub("%s", "") == "" then return end
+					local ok, result = YaHT:ImportSetup(text)
+					if ok then
+						YaHT:Print(string.format(L["Setup taken over (%d settings). \"Undo the import\" on the Profiles page puts yours back."], result))
+					else
+						YaHT:Print(result)
+					end
+				end,
+			}
+			pa.importundo = {
+				name = L["Undo the import"],
+				desc = L["Puts back the settings you had before you pasted a setup."],
+				type = "execute",
+				order = 204,
+				hidden = function() return not YaHT.importBackup end,
+				func = function() YaHT:UndoImport() end,
+			}
 		end
 	end
 	AceConfigRegistry:RegisterOptionsTable(Addon, aceoptions, true)

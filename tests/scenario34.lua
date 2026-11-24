@@ -24,7 +24,7 @@ assert(bar.lookpage and bar.textpage and bar.effectspage and bar.presetclean, "T
 assert(bar.effectspage.args.glowstyle and bar.effectspage.args.sparkmode, "glow and spark should share one page")
 assert(alerts.petpage and alerts.pet, "no Pet page in the Alerts group")
 assert(alerts.procspage and alerts.aspectpage and alerts.feignpage and alerts.rangepage and alerts.meleepage and alerts.ammopage, "Alerts group incomplete")
-assert(adv.timingpage and adv.announcepage, "Advanced group incomplete")
+assert(adv.timingpage and not adv.announcepage and opts.args.alerts.args.announcepage, "Timing stays under Advanced; Announce is a feature, with the tools")
 -- the Procs page is short: one shared look, small pages per proc
 local n = 0
 for _, v in pairs(alerts.procspage.args) do if v.type ~= "group" and v.type ~= "header" and v.type ~= "description" then n = n + 1 end end

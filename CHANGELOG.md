@@ -11,8 +11,12 @@
   over half a second.
 - Options: a gold dot marks every setting you changed from its default. Right-click a setting to put
   just that one back.
-- Options: share your setup. The Advanced page shows it as one line of text to copy, and takes one
+- Options: "What I changed", right under Home, lists every setting that is off its default in one
+  place, with how many there are.
+- Options: share your setup. The Profiles page shows it as one line of text to copy, and takes one
   that someone sent you (with an undo). The places things sit on your screen are not part of it.
+- Options: the long Alerts list is in three groups (Warnings, Timers and icons, Tools), Tranquilizing
+  Shot announce moved from Advanced to Tools, and a back button takes you to the page before.
 - Options: the window opens on the page you left, also after a reload.
 - Options: Ctrl + mouse wheel moves a slider one step (the wheel alone still scrolls the page), and
   switches, lists and buttons click like the game's own.

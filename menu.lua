@@ -313,10 +313,17 @@ local function Find(keys)
 	return path
 end
 
+-- The long list under Alerts is in three groups: a small heading sits above the first page of each.
+local NAV_HEADINGS = {
+	["alerts/rangepage"] = "Warnings",
+	["alerts/procspage"] = "Timers and icons",
+	["alerts/trackerpage"] = "Tools",
+}
+
 -- every group is a page; the list on the left shows them in order
 local function BuildPages()
-	pages, pageById = {{id = "home", name = L["Home"], depth = 1}}, {}
-	pageById.home = pages[1]
+	pages, pageById = {{id = "home", name = L["Home"], depth = 1}, {id = "changed", name = L["What I changed"], depth = 1}}, {}
+	pageById.home, pageById.changed = pages[1], pages[2]
 	local function walk(args, path, depth, parent)
 		for _, node in ipairs(Sorted(args)) do
 			if node.opt.type == "group" then
@@ -324,6 +331,7 @@ local function BuildPages()
 				local keys = {}
 				for i, n in ipairs(p) do keys[i] = n.key end
 				local page = {id = table.concat(keys, "/"), name = node.opt.name, path = p, depth = depth, parent = parent}
+				page.heading = NAV_HEADINGS[page.id] and L[NAV_HEADINGS[page.id]] or nil
 				pages[#pages + 1] = page
 				pageById[page.id] = page
 				walk(node.opt.args, p, depth + 1, page)
@@ -439,9 +447,44 @@ function Menu.PageIds()
 	return ids
 end
 
+-- Every setting that differs from its default, under the page it lives on (each one once)
+local CHANGEABLE = {toggle = true, range = true, select = true, color = true, input = true}
+local function ChangedItems()
+	local items, seen = {}, {}
+	for _, page in ipairs(pages) do
+		if page.path then
+			local first = true
+			for _, item in ipairs(PageItems(page)) do
+				local key = item.path and item.path[#item.path].key
+				if item.opt and CHANGEABLE[item.opt.type] and key and not seen[key] and YaHT.IsChanged and YaHT:IsChanged(key) then
+					seen[key] = true
+					if first then
+						items[#items + 1] = {custom = "section", text = Trail(page)}
+						first = false
+					end
+					items[#items + 1] = item
+				end
+			end
+		end
+	end
+	return items
+end
+function Menu.ChangedCount()
+	local n = 0
+	for _, item in ipairs(ChangedItems()) do if item.opt then n = n + 1 end end
+	return n
+end
+
 function Menu.Items()
 	if Menu.query and #Menu.query >= 2 then return SearchItems(Menu.query) end
 	local page = pageById[Menu.current] or pages[1]
+	if page.id == "changed" then
+		local items = ChangedItems()
+		if #items == 0 then
+			items[1] = {custom = "note", text = L["Nothing yet: every setting is at its default. Once you change one it is listed here, and a gold dot marks it on its own page."]}
+		end
+		return items
+	end
 	if not page.path then return HomeItems() end
 	return PageItems(page)
 end
@@ -1489,6 +1532,9 @@ function Menu.Render()
 	local hint = L["Point at a setting to see what it does."]
 	if searching then
 		Menu.helpTitle, Menu.helpText = L["Search settings"], hint
+	elseif page.id == "changed" then
+		Menu.helpTitle = page.name
+		Menu.helpText = L["Everything you changed from the defaults, in one place. Right-click a setting to put it back."] .. "\n\n" .. hint
 	elseif not page.path then
 		Menu.helpTitle = L["Welcome"]
 		Menu.helpText = L["Pick a look, then switch alerts on or off. Everything else is optional."] .. "\n\n" .. hint
@@ -1502,6 +1548,7 @@ function Menu.Render()
 	frame.help.foot:SetText(type(credits) == "string" and credits or "")
 	Menu.DrawNav()
 	Menu.DrawLock()
+	Menu.DrawBack()
 	Menu.DrawPreview()
 end
 
@@ -1513,8 +1560,16 @@ function Menu.Changed()
 	Menu.Render()
 end
 
-function Menu.Show(id)
-	Menu.current = pageById[id] and id or "home"
+-- back: true when stepping back (that step is not added to the way back)
+function Menu.Show(id, back)
+	local to = pageById[id] and id or "home"
+	Menu.history = Menu.history or {}
+	if not back and Menu.current and Menu.current ~= to and frame and frame:IsShown() then
+		local h = Menu.history
+		h[#h + 1] = Menu.current
+		if #h > 30 then table.remove(h, 1) end
+	end
+	Menu.current = to
 	if YaHT.db then YaHT.db.global.menupage = Menu.current end -- (the window opens here next time)
 	Menu.viewing = nil -- (a look is viewed on the page where it was clicked)
 	Menu.query = nil
@@ -1526,6 +1581,21 @@ function Menu.Show(id)
 		frame.search.hint:Show()
 	end
 	Menu.Render()
+end
+
+-- The page you were on before
+function Menu.Back()
+	local h = Menu.history
+	if not h or #h == 0 then return end
+	Menu.Show(table.remove(h), true)
+end
+function Menu.DrawBack()
+	local b = frame and frame.back
+	if not b then return end
+	local can = Menu.history ~= nil and #Menu.history > 0
+	b.can = can
+	local c = can and C.text or C.soft
+	b.text:SetTextColor(c[1], c[2], c[3])
 end
 
 function Menu.Search(text)
@@ -1576,56 +1646,87 @@ end
 ---------------------------------------------------------------------------
 -- The list of pages on the left
 ---------------------------------------------------------------------------
+local NAV_HEAD = 17 -- a group's small heading in the list
 function Menu.DrawNav()
 	local current = pageById[Menu.current] or pages[1]
 	local searching = Menu.query ~= nil
-	local n = 0
+	-- which pages show: third-level pages (the single procs) only inside their own section
+	local shown, heads = {}, 0
 	for _, page in ipairs(pages) do
-		-- third-level pages (the single procs) only show inside their own section
-		local open = page.depth < 3 or page.parent == current or (current.depth == 3 and current.parent == page.parent)
-		if open then
-			n = n + 1
-			local b = frame.nav[n]
-			if not b then
-				b = CreateFrame("Button", nil, frame.navHolder)
-				b:SetHeight(NAV_ROW)
-				b:SetPoint("TOPLEFT", frame.navHolder, "TOPLEFT", 6, -8 - (n - 1) * NAV_ROW)
-				b:SetPoint("RIGHT", frame.navHolder, "RIGHT", -6, 0)
-				b.bg = Plate(b, "BACKGROUND", C.navOn)
-				b.bg:SetPoint("TOPLEFT", b, "TOPLEFT", 0, -1)
-				b.bg:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 0, 1)
-				b.mark = Tex(b, "ARTWORK", C.gold)
-				b.mark:SetPoint("LEFT", b, "LEFT", 4, 0)
-				b.mark:SetSize(2, NAV_ROW - 12)
-				b.text = Text(b, "GameFontHighlightSmall", C.muted)
-				-- ("Alerts" has no page of its own to show: its switches are on Home, so it opens its first page)
-				On(b, "OnClick", function(self)
-					Click()
-					Menu.Show(self.page == "alerts" and "alerts/procspage" or self.page)
-				end)
-				On(b, "OnEnter", function(self) if not self.on then self.text:SetTextColor(1, 1, 1) end end)
-				On(b, "OnLeave", function(self)
-					if not self.on then self.text:SetTextColor(self.rest[1], self.rest[2], self.rest[3]) end
-				end)
-				frame.nav[n] = b
-			end
-			b.page = page.id
-			b.on = (page == current) and not searching
-			b.rest = page.depth == 1 and C.text or C.muted
-			b.text:ClearAllPoints()
-			b.text:SetPoint("LEFT", b, "LEFT", 13 + (page.depth - 1) * 13, 0)
-			if b.text.SetFontObject then
-				b.text:SetFontObject(page.depth == 1 and GameFontHighlight or GameFontHighlightSmall)
-			end
-			b.text:SetText(page.name)
-			local c = b.on and C.white or b.rest
-			b.text:SetTextColor(c[1], c[2], c[3])
-			b.bg:SetShown(b.on)
-			b.mark:SetShown(b.on)
-			b:Show()
+		if page.depth < 3 or page.parent == current or (current.depth == 3 and current.parent == page.parent) then
+			shown[#shown + 1] = page
+			if page.heading then heads = heads + 1 end
 		end
 	end
+	-- the rows take their usual height, or a little less when the list would not fit
+	local room = VIEW_H - 16 -- (the list is as tall as the page beside it)
+	local rowH = math.max(18, math.min(NAV_ROW, math.floor((room - heads * NAV_HEAD) / math.max(1, #shown))))
+	frame.navHeads = frame.navHeads or {}
+	local n, h, y = 0, 0, -8
+	for _, page in ipairs(shown) do
+		if page.heading then
+			h = h + 1
+			local t = frame.navHeads[h]
+			if not t then
+				t = Text(frame.navHolder, "GameFontDisableSmall", C.soft)
+				frame.navHeads[h] = t
+			end
+			t:ClearAllPoints()
+			t:SetPoint("BOTTOMLEFT", frame.navHolder, "TOPLEFT", 6 + 13 + 13, y - NAV_HEAD + 3)
+			t:SetText(page.heading)
+			t:Show()
+			y = y - NAV_HEAD
+		end
+		n = n + 1
+		local b = frame.nav[n]
+		if not b then
+			b = CreateFrame("Button", nil, frame.navHolder)
+			b.bg = Plate(b, "BACKGROUND", C.navOn)
+			b.bg:SetPoint("TOPLEFT", b, "TOPLEFT", 0, -1)
+			b.bg:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 0, 1)
+			b.mark = Tex(b, "ARTWORK", C.gold)
+			b.mark:SetPoint("LEFT", b, "LEFT", 4, 0)
+			b.text = Text(b, "GameFontHighlightSmall", C.muted)
+			-- ("Alerts" has no page of its own to show: its switches are on Home, so it opens its first page)
+			On(b, "OnClick", function(self)
+				Click()
+				Menu.Show(self.page == "alerts" and "alerts/rangepage" or self.page)
+			end)
+			On(b, "OnEnter", function(self) if not self.on then self.text:SetTextColor(1, 1, 1) end end)
+			On(b, "OnLeave", function(self)
+				if not self.on then self.text:SetTextColor(self.rest[1], self.rest[2], self.rest[3]) end
+			end)
+			frame.nav[n] = b
+		end
+		b:SetHeight(rowH)
+		b:ClearAllPoints()
+		b:SetPoint("TOPLEFT", frame.navHolder, "TOPLEFT", 6, y)
+		b:SetPoint("RIGHT", frame.navHolder, "RIGHT", -6, 0)
+		b.mark:SetSize(2, rowH - 12)
+		y = y - rowH
+		b.page = page.id
+		b.on = (page == current) and not searching
+		b.rest = page.depth == 1 and C.text or C.muted
+		b.text:ClearAllPoints()
+		b.text:SetPoint("LEFT", b, "LEFT", 13 + (page.depth - 1) * 13, 0)
+		if b.text.SetFontObject then
+			b.text:SetFontObject(page.depth == 1 and GameFontHighlight or GameFontHighlightSmall)
+		end
+		local name = page.name
+		if page.id == "changed" then
+			-- how many, so you see at a glance whether anything is off its default
+			local count = Menu.ChangedCount()
+			if count > 0 then name = name .. "  (" .. count .. ")" end
+		end
+		b.text:SetText(name)
+		local c = b.on and C.white or b.rest
+		b.text:SetTextColor(c[1], c[2], c[3])
+		b.bg:SetShown(b.on)
+		b.mark:SetShown(b.on)
+		b:Show()
+	end
 	for i = n + 1, #frame.nav do frame.nav[i]:Hide() end
+	for i = h + 1, #frame.navHeads do frame.navHeads[i]:Hide() end
 end
 
 ---------------------------------------------------------------------------
@@ -2534,6 +2635,26 @@ local function Build()
 	f.search = search
 	search:SetSize(200, 24)
 	search:SetPoint("RIGHT", close, "LEFT", -10, 0)
+	-- back to the page you were on before
+	local back = CreateFrame("Button", nil, head)
+	f.back = back
+	back:SetSize(26, 24)
+	back:SetPoint("RIGHT", search, "LEFT", -8, 0)
+	Plate(back, "BACKGROUND", C.field):SetAllPoints(back)
+	Rim(back, C.soft)
+	back.text = Text(back, "GameFontHighlight", C.soft)
+	back.text:SetPoint("CENTER", back, "CENTER", 0, 0)
+	back.text:SetText("<")
+	On(back, "OnClick", function(self)
+		if not self.can then return end
+		Click()
+		Menu.Back()
+	end)
+	On(back, "OnEnter", function(self)
+		if self.can then self.text:SetTextColor(1, 1, 1) end
+		SetHelp(L["Back"], L["The page you were on before."])
+	end)
+	On(back, "OnLeave", function() Menu.DrawBack() HideTip() end)
 	Plate(search, "BACKGROUND", C.field):SetAllPoints(search)
 	Rim(search, C.soft)
 	search:SetFontObject(GameFontHighlightSmall)

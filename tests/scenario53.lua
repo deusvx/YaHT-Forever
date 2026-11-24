@@ -126,13 +126,65 @@ assert(db.height == 5 and db.textpos == "OUTSIDE_RIGHT" and db.pet == true and d
 assert(db.timercolor.r == 1 and db.timercolor.a == 1, "a colour should be held between 0 and 1")
 YaHT:UndoImport()
 
--- the Advanced page has it, and "Undo the import" only shows when there is something to undo
+-- the Profiles page has it (not Advanced), and "Undo the import" only shows when there is something to undo
 M.Show("advanced")
-assert(row("exportsetup") and row("importsetup") and not row("importundo"), "the Advanced page should have the two boxes, and no undo yet")
+assert(not row("exportsetup"), "sharing a setup belongs with the profiles")
+M.Show("profile")
+assert(row("exportsetup") and row("importsetup") and not row("importundo"), "the Profiles page should have the two boxes, and no undo yet")
 local box = row("importsetup")
 box.onText("YaHT1:width=n260")
 assert(db.width == 260 and said("Setup taken over") and row("importundo"), "pasting a setup into the box should take it over and offer undo")
 row("importundo").onClick()
 assert(db.width == 300 and not row("importundo"), "the undo button should put it back and go away")
+
+-- THE LIST ON THE LEFT: the long Alerts list is in three groups, each under a small heading
+M.Show("home")
+local order, heads = {}, {}
+for _, b in ipairs(f.nav) do if b.shown then order[#order + 1] = b.page end end
+for _, t in ipairs(f.navHeads) do if t.shown then heads[#heads + 1] = t.txt end end
+local function at(id) for i, p in ipairs(order) do if p == id then return i end end end
+assert(#heads == 3 and heads[1] == "Warnings" and heads[2] == "Timers and icons" and heads[3] == "Tools", "the three groups: "..table.concat(heads, ", "))
+assert(at("alerts/rangepage") < at("alerts/feignpage") and at("alerts/ammopage") < at("alerts/procspage"), "warnings should come first")
+assert(at("alerts/procspage") < at("alerts/meleepage") and at("alerts/meleepage") < at("alerts/trackerpage"), "then the timers, then the tools")
+assert(at("alerts/announcepage") and at("alerts/announcepage") > at("alerts/trackerpage") and not at("advanced/announcepage"), "Tranquilizing Shot announce belongs with the tools")
+assert(order[1] == "home" and order[2] == "changed", "What I changed should sit right under Home")
+-- every row fits in the list, also with the six proc pages open
+M.Show("alerts/procspage/mongoosepage")
+local rows, low = 0, 0
+for _, b in ipairs(f.nav) do if b.shown then rows = rows + 1 low = low + b:GetHeight() end end
+assert(rows >= 28 and low + 3 * 17 + 16 <= 700 - 50 - 10 + 1, "the list doesn't fit: "..rows.." rows, "..low.." high")
+-- "Alerts" in the list opens its first page
+for _, b in ipairs(f.nav) do if b.shown and b.page == "alerts" then b.scripts.OnClick(b) end end
+assert(M.current == "alerts/rangepage", "Alerts should open its first page, opened "..tostring(M.current))
+
+-- WHAT I CHANGED: empty to start with, then everything that is off its default, each once
+YaHT.db:ResetProfile() db = YaHT.db.profile
+M.Show("changed")
+assert(M.helpTitle == "What I changed" and noteWith("Nothing yet") and M.ChangedCount() == 0, "the page should say there is nothing yet")
+db.width, db.pet, db.petlowat = 250, false, 20
+M.Show("changed")
+assert(row("width") and row("pet") and row("petlowat") and M.ChangedCount() == 3, "the changed settings should be listed, found "..M.ChangedCount())
+local n = 0
+for _, rr in ipairs(M.rows) do local pth = rr.item and rr.item.path if pth and pth[#pth].key == "pet" then n = n + 1 end end
+assert(n == 1, "a switch that is on two pages should be listed once, is listed "..n.." times")
+local label
+for _, b in ipairs(f.nav) do if b.shown and b.page == "changed" then label = b.text.txt end end
+assert(label and label:find("(3)", 1, true), "the list should say how many: "..tostring(label))
+-- a right-click there puts one back, and it leaves the list
+local w = row("width") w.scripts.OnMouseUp(w, "RightButton")
+assert(db.width == 300 and not row("width") and M.ChangedCount() == 2, "putting one back should take it off the list")
+db.pet, db.petlowat = true, 35
+
+-- BACK: the page you were on before, step by step; greyed when there is nowhere to go back to
+M.Show("home") M.history = {} M.Render()
+assert(not f.back.can, "nothing to go back to yet")
+-- closing and opening the window again is not a step on the way back
+YaHT:CloseMenu() SlashCmdList["YAHT"]("")
+assert(M.current == "home" and not f.back.can, "reopening the window added a step back")
+M.Show("bar/lookpage") M.Show("alerts/petpage") M.Show("alerts/petpage")
+assert(f.back.can and #M.history == 2, "the way back should hold the two pages before, holds "..#M.history)
+f.back.scripts.OnClick(f.back) assert(M.current == "bar/lookpage", "back should go to the page before")
+f.back.scripts.OnClick(f.back) assert(M.current == "home" and not f.back.can, "back again should reach the start, and then be spent")
+f.back.scripts.OnClick(f.back) assert(M.current == "home", "back with nowhere to go should do nothing")
 DEFAULT_CHAT_FRAME.AddMessage = add
 print("OK53")

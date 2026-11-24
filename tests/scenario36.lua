@@ -148,7 +148,7 @@ M.Show("bar/lookpage")
 assert(M.helpTitle == "Look" and #M.helpText > 20 and M.helpText ~= "Point at a setting to see what it does.", "the Look page's intro should be in the help column")
 assert(M.rows[1].kind ~= "description", "the intro should not also be on the page")
 -- boxes left over from a longer page are hidden again
-M.Show("advanced/announcepage") local few = 0 for _, b in ipairs(f.boxes) do if b.shown then few = few + 1 end end
+M.Show("alerts/announcepage") local few = 0 for _, b in ipairs(f.boxes) do if b.shown then few = few + 1 end end
 M.Show("alerts/rangepage") local many = 0 for _, b in ipairs(f.boxes) do if b.shown then many = many + 1 end end
 assert(many > few and few >= 1, "section boxes not counted per page: "..few.." / "..many)
 M.Show("bar")
@@ -234,7 +234,7 @@ picked.cancelFunc()
 assert(db.timercolor.r == old, "cancel didn't bring the old colour back")
 
 -- text box, and a setting that only shows when it applies
-M.Show("advanced/announcepage")
+M.Show("alerts/announcepage")
 db.announcetype = "SAY" M.Render()
 assert(not row("targetchannel"), "a hidden setting was shown")
 db.announcetype = "WHISPER" M.Render()
