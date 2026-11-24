@@ -137,29 +137,40 @@ assert(db.width == 260 and said("Setup taken over") and row("importundo"), "past
 row("importundo").onClick()
 assert(db.width == 300 and not row("importundo"), "the undo button should put it back and go away")
 
--- THE LIST ON THE LEFT shows everything from the start; Alerts is in three groups under clear headings
-local order, heads
+-- THE LIST ON THE LEFT: every section and page in view from the start, and every section looks alike.
+-- The alerts are three sections of their own (there is no "Alerts" row above them).
+local order, titles
 local function list()
-  order, heads = {}, {}
-  for _, b in ipairs(f.nav) do if b.shown then order[#order + 1] = b.page end end
-  for _, t in ipairs(f.navHeads or {}) do if t.shown then heads[#heads + 1] = t.txt end end
+  order, titles = {}, {}
+  for _, b in ipairs(f.nav) do if b.shown then
+    if b.group then order[#order + 1] = "[" .. b.text.txt .. "]" titles[#titles + 1] = b.text.txt else order[#order + 1] = b.page end
+  end end
 end
 local function at(id) for i, p in ipairs(order) do if p == id then return i end end end
 M.Show("home") list()
-assert(at("bar/lookpage") and at("alerts/petpage") and at("advanced/timingpage") and at("profile"), "every page should be in view from the start")
-assert(order[1] == "home" and order[2] == "changed", "What I changed should sit right under Home")
-assert(#heads == 3 and heads[1] == "Warnings" and heads[2] == "Timers and icons" and heads[3] == "Tools", "the three groups: "..table.concat(heads, ", "))
-assert(at("alerts/rangepage") < at("alerts/feignpage") and at("alerts/ammopage") < at("alerts/procspage"), "warnings should come first")
-assert(at("alerts/procspage") < at("alerts/meleepage") and at("alerts/meleepage") < at("alerts/trackerpage"), "then the timers, then the tools")
-assert(at("alerts/announcepage") and at("alerts/announcepage") > at("alerts/trackerpage") and not at("advanced/announcepage"), "Tranquilizing Shot announce belongs with the tools")
+assert(table.concat(order, " ") == "home changed bar bar/lookpage bar/textpage bar/effectspage bar/lonewolfpage [Warnings] alerts/rangepage alerts/feignpage alerts/petpage alerts/aspectpage alerts/ammopage [Timers and icons] alerts/procspage alerts/hawkpage alerts/multicastpage alerts/meleepage [Tools] alerts/trackerpage alerts/announcepage advanced advanced/timingpage profile",
+  "the list: "..table.concat(order, " "))
+assert(not at("alerts") and not at("advanced/announcepage"), "no Alerts row; Tranquilizing Shot announce is with the tools")
+-- a section title of the alerts looks like "The bar" and opens its first page; it is never the lit row
+local bar, warn
+for _, b in ipairs(f.nav) do if b.shown then if b.page == "bar" then bar = b elseif b.group and b.text.txt == "Warnings" then warn = b end end end
+assert(warn.rest == bar.rest, "the alerts' sections should look like the other sections")
+warn.scripts.OnClick(warn)
+assert(M.current == "alerts/rangepage", "a section title should open its first page, opened "..tostring(M.current))
+local lit = 0
+for _, b in ipairs(f.nav) do if b.shown and b.on then lit = lit + 1 assert(b.page == "alerts/rangepage" and not b.group, "the wrong row is lit") end end
+assert(lit == 1, "exactly one row should be lit, "..lit.." are")
+-- search and What I changed say where a setting lives by its section, not by "Alerts"
+M.Search("low on health")
+local where
+for _, r in ipairs(M.rows) do if r.item and r.item.custom == "section" then where = r.item.text end end
+assert(where and where:find("Warnings", 1, true) and where:find("Pet", 1, true) and not where:find("Alerts", 1, true), "search should file Pet under Warnings: "..tostring(where))
+M.Show("home")
 -- everything fits in the list, also with the six proc pages open
 M.Show("alerts/procspage/mongoosepage") list()
 local rows, low = 0, 0
 for _, b in ipairs(f.nav) do if b.shown then rows = rows + 1 low = low + b.rowH end end
-assert(rows == 28 and low + 3 * 22 + 16 <= 700 - 50 - 10 + 1, "the list doesn't fit: "..rows.." rows, "..low.." high")
--- "Alerts" in the list opens its first page
-for _, b in ipairs(f.nav) do if b.shown and b.page == "alerts" then b.scripts.OnClick(b) end end
-assert(M.current == "alerts/rangepage", "Alerts should open its first page, opened "..tostring(M.current))
+assert(rows == 30 and low + 16 <= 700 - 50 - 10 + 1, "the list doesn't fit: "..rows.." rows, "..low.." high")
 
 -- WHAT I CHANGED: empty to start with, then everything that is off its default, each once
 YaHT.db:ResetProfile() db = YaHT.db.profile

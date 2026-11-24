@@ -313,7 +313,9 @@ local function Find(keys)
 	return path
 end
 
--- The long list under Alerts is in three groups: a small heading sits above the first page of each.
+-- The alerts are three sections in the list on the left, each starting at the page named here.
+-- ("Alerts" itself is not listed: it has no page of its own, and a title above three titles only
+-- made the list harder to read.)
 local NAV_HEADINGS = {
 	["alerts/rangepage"] = "Warnings",
 	["alerts/procspage"] = "Timers and icons",
@@ -322,6 +324,7 @@ local NAV_HEADINGS = {
 
 -- every group is a page; the list on the left shows them in order
 local function BuildPages()
+	local section -- (the alerts section the pages being walked belong to)
 	pages, pageById = {{id = "home", name = L["Home"], depth = 1}, {id = "changed", name = L["What I changed"], depth = 1}}, {}
 	pageById.home, pageById.changed = pages[1], pages[2]
 	local function walk(args, path, depth, parent)
@@ -332,7 +335,10 @@ local function BuildPages()
 				for i, n in ipairs(p) do keys[i] = n.key end
 				local page = {id = table.concat(keys, "/"), name = node.opt.name, path = p, depth = depth, parent = parent}
 				page.heading = NAV_HEADINGS[page.id] and L[NAV_HEADINGS[page.id]] or nil
-				if parent then parent.kids = true end
+				if parent and parent.id == "alerts" then
+					section = page.heading or section
+					page.group = section
+				end
 				pages[#pages + 1] = page
 				pageById[page.id] = page
 				walk(node.opt.args, p, depth + 1, page)
@@ -408,7 +414,9 @@ end
 local function Trail(page)
 	local names = {}
 	while page do
-		table.insert(names, 1, page.name)
+		-- (a page of the alerts is filed under its section in the list: Warnings, Timers and icons, Tools)
+		table.insert(names, 1, (page.id == "alerts" and names.group) or page.name)
+		names.group = page.group or names.group
 		page = page.parent
 	end
 	return table.concat(names, "  >  ")
@@ -1647,47 +1655,28 @@ end
 ---------------------------------------------------------------------------
 -- The list of pages on the left
 ---------------------------------------------------------------------------
-local NAV_HEAD = 22 -- a group's heading in the list: a fine rule, then its name in gold
 function Menu.DrawNav()
 	local current = pageById[Menu.current] or pages[1]
 	local searching = Menu.query ~= nil
-	-- Which pages show: all of them, so everything YaHT has is in view from the start (a list that
-	-- only opened the section you were in was tried, and seeing it all was liked better). Only the
-	-- single procs wait inside Procs.
-	local shown, heads = {}, 0
+	-- What the list shows: every section and its pages, all in view from the start (a list that only
+	-- opened the section you were in was tried, and seeing it all was liked better). Sections all
+	-- look alike: The bar, Warnings, Timers and icons, Tools, Advanced. The three in the middle are
+	-- the alerts' groups; clicking one opens its first page. Only the single procs wait inside Procs.
+	local shown = {}
 	for _, page in ipairs(pages) do
-		if page.depth < 3 or page.parent == current or (current.depth == 3 and current.parent == page.parent) then
-			shown[#shown + 1] = page
-			if page.heading then heads = heads + 1 end
+		if page.id == "alerts" then
+			-- not listed (see NAV_HEADINGS)
+		elseif page.depth < 3 or page.parent == current or (current.depth == 3 and current.parent == page.parent) then
+			if page.heading then shown[#shown + 1] = {title = page.heading, page = page} end
+			shown[#shown + 1] = {page = page}
 		end
 	end
 	-- the rows take their usual height, or a little less when the list would not fit
 	local room = VIEW_H - 16 -- (the list is as tall as the page beside it)
-	local rowH = math.max(18, math.min(NAV_ROW, math.floor((room - heads * NAV_HEAD) / math.max(1, #shown))))
-	frame.navHeads = frame.navHeads or {}
-	local n, h, y = 0, 0, -8
-	for _, page in ipairs(shown) do
-		if page.heading then
-			h = h + 1
-			local t = frame.navHeads[h]
-			if not t then
-				-- gold like a card's title on the page, so it reads as a heading (in grey it looked
-				-- like a row that was switched off); a fine rule above sets the group apart
-				t = Text(frame.navHolder, "GameFontNormalSmall", C.gold)
-				t.rule = Tex(frame.navHolder, "ARTWORK", C.line)
-				t.rule:SetHeight(1)
-				frame.navHeads[h] = t
-			end
-			t.rule:ClearAllPoints()
-			t.rule:SetPoint("TOPLEFT", frame.navHolder, "TOPLEFT", 6 + 13 + 13, y - 4)
-			t.rule:SetPoint("RIGHT", frame.navHolder, "RIGHT", -12, 0)
-			t.rule:Show()
-			t:ClearAllPoints()
-			t:SetPoint("BOTTOMLEFT", frame.navHolder, "TOPLEFT", 6 + 13 + 13, y - NAV_HEAD + 3)
-			t:SetText(page.heading)
-			t:Show()
-			y = y - NAV_HEAD
-		end
+	local rowH = math.max(18, math.min(NAV_ROW, math.floor(room / math.max(1, #shown))))
+	local n, y = 0, -8
+	for _, entry in ipairs(shown) do
+		local page = entry.page
 		n = n + 1
 		local b = frame.nav[n]
 		if not b then
@@ -1698,10 +1687,9 @@ function Menu.DrawNav()
 			b.mark = Tex(b, "ARTWORK", C.gold)
 			b.mark:SetPoint("LEFT", b, "LEFT", 4, 0)
 			b.text = Text(b, "GameFontHighlightSmall", C.muted)
-			-- ("Alerts" has no page of its own to show: its switches are on Home, so it opens its first page)
 			On(b, "OnClick", function(self)
 				Click()
-				Menu.Show(self.page == "alerts" and "alerts/rangepage" or self.page)
+				Menu.Show(self.page)
 			end)
 			On(b, "OnEnter", function(self) if not self.on then self.text:SetTextColor(1, 1, 1) end end)
 			On(b, "OnLeave", function(self)
@@ -1716,15 +1704,20 @@ function Menu.DrawNav()
 		b:SetPoint("RIGHT", frame.navHolder, "RIGHT", -6, 0)
 		b.mark:SetSize(2, rowH - 12)
 		y = y - rowH
+		-- a section's title looks like "The bar"; its pages sit one step in (the alerts' pages too,
+		-- now that their sections stand where "Alerts" stood)
+		local isTitle = entry.title ~= nil or page.depth == 1
+		local step = isTitle and 0 or (page.depth - 1)
 		b.page = page.id
-		b.on = (page == current) and not searching
-		b.rest = page.depth == 1 and C.text or C.muted
+		b.group = entry.title ~= nil -- (a section title that opens its first page)
+		b.on = (page == current) and not searching and not b.group
+		b.rest = isTitle and C.text or C.muted
 		b.text:ClearAllPoints()
-		b.text:SetPoint("LEFT", b, "LEFT", 13 + (page.depth - 1) * 13, 0)
+		b.text:SetPoint("LEFT", b, "LEFT", 13 + step * 13, 0)
 		if b.text.SetFontObject then
-			b.text:SetFontObject(page.depth == 1 and GameFontHighlight or GameFontHighlightSmall)
+			b.text:SetFontObject(isTitle and GameFontHighlight or GameFontHighlightSmall)
 		end
-		local name = page.name
+		local name = entry.title or page.name
 		if page.id == "changed" then
 			-- how many, so you see at a glance whether anything is off its default
 			local count = Menu.ChangedCount()
@@ -1738,7 +1731,8 @@ function Menu.DrawNav()
 		b:Show()
 	end
 	for i = n + 1, #frame.nav do frame.nav[i]:Hide() end
-	for i = h + 1, #frame.navHeads do frame.navHeads[i]:Hide() frame.navHeads[i].rule:Hide() end
+	-- (the gold headings of an earlier layout)
+	for _, t in ipairs(frame.navHeads or {}) do t:Hide() if t.rule then t.rule:Hide() end end
 end
 
 ---------------------------------------------------------------------------

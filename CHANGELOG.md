@@ -5,7 +5,7 @@
   can track opens around it as a pie, one piece each: move the mouse into the piece you want (the
   whole piece lights up) and on out of the pie, and you track it. A click on the one you track switches tracking off, and a click in
   the middle closes the wheel. Drag the button anywhere while the bar is unlocked. Its own page
-  (Alerts, "Tracking wheel"): choose by moving out of the pie or by clicking, size, and whether
+  (Tools, "Tracking wheel"): choose by moving out of the pie or by clicking, size, and whether
   the minimap's other filters join the wheel. The button sits behind your bags and other windows.
 - The deadzone and too-far warnings are gone the moment you are out of them, instead of fading away
   over half a second.
@@ -15,9 +15,9 @@
   place, with how many there are.
 - Options: share your setup. The Profiles page shows it as one line of text to copy, and takes one
   that someone sent you (with an undo). The places things sit on your screen are not part of it.
-- Options: the long Alerts list is in three groups under gold headings (Warnings, Timers and
-  icons, Tools), Tranquilizing Shot announce moved from Advanced to Tools, and a back button takes
-  you to the page before.
+- Options: in the list on the left the alerts are three sections of their own (Warnings, Timers
+  and icons, Tools) instead of one long "Alerts" list. Tranquilizing Shot announce moved from
+  Advanced to Tools, and a back button takes you to the page before.
 - Options: the window opens on the page you left, also after a reload.
 - Options: Ctrl + mouse wheel moves a slider one step (the wheel alone still scrolls the page), and
   switches, lists and buttons click like the game's own.
