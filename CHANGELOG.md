@@ -11,8 +11,10 @@
   over half a second.
 - Options: a gold dot marks every setting you changed from its default. Right-click a setting to put
   just that one back.
-- Options: a "My changes" button next to the search box lists every setting that is off its default
-  in one place, and shows how many there are. Next to it, "Back" takes you to the page before.
+- Options: a "What's new" button next to the search box shows what changed in the version you
+  have. Next to it, "Back" takes you to the page before.
+- Options: "Show my changes" on the Profiles page lists every setting that is off its default in
+  one place, and says how many there are.
 - Options: share your setup. The Profiles page shows it as one line of text to copy, and takes one
   that someone sent you (with an undo). The places things sit on your screen are not part of it.
 - Options: in the list on the left the alerts are three sections of their own (Warnings, Timers
@@ -21,8 +23,8 @@
 - Options: the window opens on the page you left, also after a reload.
 - Options: Ctrl + mouse wheel moves a slider one step (the wheel alone still scrolls the page), and
   switches, lists and buttons click like the game's own.
-- After an update, a line in chat says so and the options' Home page shows what is new, once.
-  /yaht new shows it again.
+- After an update, a line in chat says so and the options open on What's new, once. /yaht new
+  shows it again.
 
 ## 1.5.1
 - New: a Raptor Strike icon. While Raptor Strike is queued for your next melee swing, its icon shows

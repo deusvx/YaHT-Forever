@@ -1571,7 +1571,7 @@ local function HandleSlash(msg)
 		YaHT.newsDue = YaHT.news ~= nil
 		if YaHT.OpenMenu then
 			YaHT:CloseMenu()
-			YaHT:OpenMenu("home")
+			YaHT:OpenMenu("news")
 		end
 	elseif cmd == "grid" then
 		if YaHT.ToggleGrid then YaHT:ToggleGrid() end

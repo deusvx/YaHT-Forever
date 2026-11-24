@@ -2392,6 +2392,19 @@ function YaHT:CreateConfig()
 			if pa.new then pa.new.order = 13 end
 			pa.cardcopy = {name = L["Copy or delete"], type = "header", order = 50}
 			if pa.reset then pa.reset.order = 95 end
+			-- everything you changed, in one list (YaHT's own window has a page for it)
+			pa.changesheader = {name = L["What you changed"], type = "header", order = 190}
+			pa.showchanges = {
+				name = function()
+					local m = YaHT.menu
+					local n = m and m.ChangedCount and m.ChangedCount() or 0
+					return n > 0 and string.format(L["Show my changes (%d)"], n) or L["Show my changes"]
+				end,
+				desc = L["Every setting you changed from how YaHT comes, in one list. Right-click one to put it back. A gold dot marks the same settings on their own pages."],
+				type = "execute",
+				order = 191,
+				func = function() if YaHT.menu and YaHT.menu.Show then YaHT.menu.Show("changed") end end,
+			}
 			-- sharing a setup belongs with the profiles: both are about your settings as a whole
 			pa.shareheader = {name = L["Share your setup"], type = "header", order = 200}
 			pa.sharedesc = {

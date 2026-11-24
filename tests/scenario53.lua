@@ -23,19 +23,28 @@ local function noteWith(text)
   for _, r in ipairs(M.rows) do if r.item and r.item.text and r.item.text:find(text, 1, true) then return r end end
 end
 
--- WHAT'S NEW: said once in chat, and shown on top of Home until the window is closed once
+-- WHAT'S NEW: said once in chat; after an update the window opens on it, once. A button by the
+-- search box shows it any time (gold until you have looked).
 assert(YaHT.news and YaHT.news.version == YaHT.version, "the news is for another version than the addon's: update share.lua")
 assert(YaHT.newsDue and said("updated to " .. YaHT.version), "an update should be announced once")
 SlashCmdList["YAHT"]("")
 local f = YaHTMenuFrame
-assert(f.shown and M.current == "home" and noteWith("What's new in " .. YaHT.version) and noteWith("Tracking wheel"), "Home should say what is new")
+assert(f.shown and M.current == "news" and noteWith("What's new in " .. YaHT.version) and noteWith("Tracking wheel"), "after an update the window should open on what is new")
+assert(f.news and f.news.text.txt == "What's new" and f.news.on, "the What's new button should be there, and lit while you are on it")
+M.Show("home")
+assert(not noteWith("What's new") and not f.news.on, "Home itself should not carry the news")
 f.scripts.OnHide(f) f.shown = false
 assert(YaHT.newsDue == false and YaHT.db.global.newsSeen == YaHT.version, "closing the window should settle the news")
 SlashCmdList["YAHT"]("")
-assert(not noteWith("What's new"), "the news shouldn't come back")
+assert(M.current == "home" and not noteWith("What's new"), "the window should not open on the news a second time")
+-- the button shows it any time; a second click takes you back
+f.news.scripts.OnClick(f.news)
+assert(M.current == "news" and noteWith("Tracking wheel") and M.helpTitle == "What's new", "the button should show what is new")
+f.news.scripts.OnClick(f.news)
+assert(M.current == "home", "a second click should take you back")
 -- /yaht new brings it back on request
 SlashCmdList["YAHT"]("new")
-assert(f.shown and noteWith("What's new in " .. YaHT.version), "/yaht new should show the news again")
+assert(f.shown and M.current == "news" and noteWith("What's new in " .. YaHT.version), "/yaht new should show the news again")
 f.scripts.OnHide(f)
 
 -- CHANGED SETTINGS: nothing is marked on a fresh profile
@@ -151,7 +160,7 @@ M.Show("home") list()
 assert(table.concat(order, " ") == "home bar bar/lookpage bar/textpage bar/effectspage bar/lonewolfpage [Warnings] alerts/rangepage alerts/feignpage alerts/petpage alerts/aspectpage alerts/ammopage [Timers and icons] alerts/procspage alerts/hawkpage alerts/multicastpage alerts/meleepage [Tools] alerts/trackerpage alerts/announcepage advanced advanced/timingpage profile",
   "the list: "..table.concat(order, " "))
 assert(not at("alerts") and not at("advanced/announcepage"), "no Alerts row; Tranquilizing Shot announce is with the tools")
-assert(not at("changed"), "your changes have a button by the search box, not a row in the list")
+assert(not at("changed") and not at("news"), "your changes and what's new are not rows in the list")
 -- a section title of the alerts looks like "The bar" and opens its first page; it is never the lit row
 local bar, warn
 for _, b in ipairs(f.nav) do if b.shown then if b.page == "bar" then bar = b elseif b.group and b.text.txt == "Warnings" then warn = b end end end
@@ -176,20 +185,21 @@ assert(rows == 29 and low + 16 <= 700 - 50 - 10 + 1, "the list doesn't fit: "..r
 -- WHAT I CHANGED: empty to start with, then everything that is off its default, each once
 YaHT.db:ResetProfile() db = YaHT.db.profile
 M.Show("home")
--- MY CHANGES: a button by the search box (not a row in the list). Empty to start with.
-assert(f.changes and f.changes.text.txt == "My changes" and not f.changes.on, "the button should be there, with no number yet: "..tostring(f.changes and f.changes.text.txt))
-f.changes.scripts.OnClick(f.changes)
-assert(M.current == "changed" and f.changes.on, "the button should open the list of your changes")
-assert(M.helpTitle == "My changes" and noteWith("Nothing yet") and M.ChangedCount() == 0, "the page should say there is nothing yet")
-f.changes.scripts.OnClick(f.changes)
-assert(M.current ~= "changed" and not f.changes.on, "a second click should take you back to where you were")
+-- MY CHANGES: opened from the Profiles page (not a row in the list, not a button in the header). Empty to start with.
+M.Show("profile")
+local show = row("showchanges")
+assert(show and show.tipTitle == "Show my changes" and not f.changes, "Profiles should offer the list of your changes: "..tostring(show and show.tipTitle))
+show.onClick()
+assert(M.current == "changed" and M.helpTitle == "My changes" and noteWith("Nothing yet") and M.ChangedCount() == 0, "the page should say there is nothing yet")
 db.width, db.pet, db.petlowat = 250, false, 20
 M.Show("changed")
 assert(row("width") and row("pet") and row("petlowat") and M.ChangedCount() == 3, "the changed settings should be listed, found "..M.ChangedCount())
 local n = 0
 for _, rr in ipairs(M.rows) do local pth = rr.item and rr.item.path if pth and pth[#pth].key == "pet" then n = n + 1 end end
 assert(n == 1, "a switch that is on two pages should be listed once, is listed "..n.." times")
-assert(f.changes.text.txt == "My changes (3)", "the button should say how many: "..tostring(f.changes.text.txt))
+M.Show("profile")
+assert(row("showchanges").tipTitle == "Show my changes (3)", "the button on Profiles should say how many: "..tostring(row("showchanges").tipTitle))
+M.Show("changed")
 -- a right-click there puts one back, and it leaves the list
 local w = row("width") w.scripts.OnMouseUp(w, "RightButton")
 assert(db.width == 300 and not row("width") and M.ChangedCount() == 2, "putting one back should take it off the list")

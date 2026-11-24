@@ -16,7 +16,7 @@ YaHT.news = {
 		"Tracking wheel: a small button shows what you track. Click it, move into a piece of the pie and on out, and you track it. (Tools, Tracking wheel)",
 		"The deadzone and too-far warnings are gone the moment you are out of them.",
 		"Options: a gold dot marks a setting you changed. Right-click the setting to put it back.",
-		"Options: \"My changes\" by the search box lists it all in one place, with \"Back\" next to it. The alerts are three sections: Warnings, Timers and icons, Tools.",
+		"Options: \"What's new\" and \"Back\" sit next to the search box. The alerts are three sections: Warnings, Timers and icons, Tools. \"Show my changes\" on the Profiles page lists everything you changed.",
 		"Options: share your setup as a line of text (Profiles), and the window opens on the page you left.",
 	},
 }

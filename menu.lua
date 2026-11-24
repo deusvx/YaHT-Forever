@@ -325,8 +325,9 @@ local NAV_HEADINGS = {
 -- every group is a page; the list on the left shows them in order
 local function BuildPages()
 	local section -- (the alerts section the pages being walked belong to)
-	pages, pageById = {{id = "home", name = L["Home"], depth = 1}, {id = "changed", name = L["My changes"], depth = 1}}, {}
-	pageById.home, pageById.changed = pages[1], pages[2]
+	pages, pageById = {{id = "home", name = L["Home"], depth = 1}, {id = "news", name = L["What's new"], depth = 1},
+		{id = "changed", name = L["My changes"], depth = 1}}, {}
+	pageById.home, pageById.news, pageById.changed = pages[1], pages[2], pages[3]
 	local function walk(args, path, depth, parent)
 		for _, node in ipairs(Sorted(args)) do
 			if node.opt.type == "group" then
@@ -389,12 +390,6 @@ local HOME_CARDS = {"presetminimal", "presetclean", "presetflashy"}
 
 local function HomeItems()
 	local items = {}
-	-- after an update: a few lines of what is new, on top, until the window is closed once
-	if YaHT.newsDue and YaHT.news then
-		items[#items + 1] = {custom = "section", text = string.format(L["What's new in %s"], YaHT.news.version)}
-		for _, line in ipairs(YaHT.news.lines) do items[#items + 1] = {custom = "note", text = L[line]} end
-		items[#items + 1] = {custom = "gap"}
-	end
 	-- (the welcome text is in the help column on the right)
 	items[#items + 1] = {custom = "section", text = L["Quick looks"]}
 	items[#items + 1] = {custom = "cards"}
@@ -484,9 +479,19 @@ function Menu.ChangedCount()
 	return n
 end
 
+-- What's new in this version: a few short lines (share.lua)
+local function NewsItems()
+	local news = YaHT.news
+	if not news then return {{custom = "note", text = L["Nothing to tell for this version."]}} end
+	local items = {{custom = "section", text = string.format(L["What's new in %s"], news.version)}}
+	for _, line in ipairs(news.lines) do items[#items + 1] = {custom = "note", text = L[line]} end
+	return items
+end
+
 function Menu.Items()
 	if Menu.query and #Menu.query >= 2 then return SearchItems(Menu.query) end
 	local page = pageById[Menu.current] or pages[1]
+	if page.id == "news" then return NewsItems() end
 	if page.id == "changed" then
 		local items = ChangedItems()
 		if #items == 0 then
@@ -1541,6 +1546,9 @@ function Menu.Render()
 	local hint = L["Point at a setting to see what it does."]
 	if searching then
 		Menu.helpTitle, Menu.helpText = L["Search settings"], hint
+	elseif page.id == "news" then
+		Menu.helpTitle = page.name
+		Menu.helpText = L["What changed in the version you have. Every version's full list is in CHANGELOG.md in the addon's folder, and on its CurseForge page."]
 	elseif page.id == "changed" then
 		Menu.helpTitle = page.name
 		Menu.helpText = L["Everything you changed from the defaults, in one place. Right-click a setting to put it back."] .. "\n\n" .. hint
@@ -1605,14 +1613,11 @@ function Menu.DrawBack()
 	b.can = can
 	local c = can and C.text or C.soft
 	b.text:SetTextColor(c[1], c[2], c[3])
-	-- "My changes (7)": how many settings are off their default; gold while you are on that page
-	local m = frame.changes
+	-- "What's new": gold while you are on it, and after an update until you have looked
+	local m = frame.news
 	if m then
-		local count = Menu.ChangedCount()
-		m.text:SetText(count > 0 and string.format("%s (%d)", L["My changes"], count) or L["My changes"])
-		m:SetWidth(math.max(84, (m.text:GetStringWidth() or 0) + 20))
-		local on = Menu.current == "changed" and not Menu.query
-		local mc = on and C.gold or C.text
+		local on = Menu.current == "news" and not Menu.query
+		local mc = (on or YaHT.newsDue) and C.gold or C.text
 		m.text:SetTextColor(mc[1], mc[2], mc[3])
 		m.on = on
 	end
@@ -1675,8 +1680,9 @@ function Menu.DrawNav()
 	-- the alerts' groups; clicking one opens its first page. Only the single procs wait inside Procs.
 	local shown = {}
 	for _, page in ipairs(pages) do
-		if page.id == "alerts" or page.id == "changed" then
-			-- not listed ("alerts": see NAV_HEADINGS; your changes have a button by the search box)
+		if page.id == "alerts" or page.id == "changed" or page.id == "news" then
+			-- not listed ("alerts": see NAV_HEADINGS; what's new has a button by the search box;
+			-- your changes are opened from the Profiles page)
 		elseif page.depth < 3 or page.parent == current or (current.depth == 3 and current.parent == page.parent) then
 			if page.heading then shown[#shown + 1] = {title = page.heading, page = page} end
 			shown[#shown + 1] = {page = page}
@@ -2656,25 +2662,26 @@ local function Build()
 	back.text = Text(back, "GameFontHighlightSmall", C.soft)
 	back.text:SetPoint("CENTER", back, "CENTER", 0, 0)
 	back.text:SetText("< " .. L["Back"]) -- (a bare arrow didn't say what it was)
-	-- everything you changed from the defaults, one click away (and out of the page list, where
-	-- it only puzzled someone who has changed nothing yet)
-	local changes = CreateFrame("Button", nil, head)
-	f.changes = changes
-	changes:SetHeight(24)
-	changes:SetPoint("RIGHT", back, "LEFT", -8, 0)
-	Plate(changes, "BACKGROUND", C.field):SetAllPoints(changes)
-	Rim(changes, C.soft)
-	changes.text = Text(changes, "GameFontHighlightSmall", C.text)
-	changes.text:SetPoint("CENTER", changes, "CENTER", 0, 0)
-	On(changes, "OnClick", function()
+	-- what's new in this version, one click away; a second click takes you back
+	local news = CreateFrame("Button", nil, head)
+	f.news = news
+	news:SetHeight(24)
+	news:SetPoint("RIGHT", back, "LEFT", -8, 0)
+	Plate(news, "BACKGROUND", C.field):SetAllPoints(news)
+	Rim(news, C.soft)
+	news.text = Text(news, "GameFontHighlightSmall", C.text)
+	news.text:SetPoint("CENTER", news, "CENTER", 0, 0)
+	news.text:SetText(L["What's new"])
+	news:SetWidth(math.max(84, (news.text:GetStringWidth() or 0) + 20))
+	On(news, "OnClick", function()
 		Click()
-		if Menu.current == "changed" and not Menu.query then Menu.Back() else Menu.Show("changed") end
+		if Menu.current == "news" and not Menu.query then Menu.Back() else Menu.Show("news") end
 	end)
-	On(changes, "OnEnter", function(self)
+	On(news, "OnEnter", function(self)
 		self.text:SetTextColor(1, 1, 1)
-		SetHelp(L["My changes"], L["Every setting you changed from how YaHT comes, in one list. Right-click one to put it back. A gold dot marks the same settings on their own pages."])
+		SetHelp(L["What's new"], L["What changed in the version of YaHT you have."])
 	end)
-	On(changes, "OnLeave", function() Menu.DrawBack() HideTip() end)
+	On(news, "OnLeave", function() Menu.DrawBack() HideTip() end)
 	On(back, "OnClick", function(self)
 		if not self.can then return end
 		Click()
@@ -2808,9 +2815,9 @@ function YaHT:OpenMenu(page)
 	end
 	FitScale()
 	frame:Show()
-	-- where you left it (also after a reload); after an update, Home, which says what is new
+	-- where you left it (also after a reload); after an update, once, on what is new
 	local saved = YaHT.db and YaHT.db.global.menupage
-	Menu.Show(page or (YaHT.newsDue and "home") or Menu.current or saved or "home")
+	Menu.Show(page or (YaHT.newsDue and "news") or Menu.current or saved or "home")
 	Click("IG_MAINMENU_OPEN")
 	return true
 end
