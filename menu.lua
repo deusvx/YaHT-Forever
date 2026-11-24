@@ -332,6 +332,7 @@ local function BuildPages()
 				for i, n in ipairs(p) do keys[i] = n.key end
 				local page = {id = table.concat(keys, "/"), name = node.opt.name, path = p, depth = depth, parent = parent}
 				page.heading = NAV_HEADINGS[page.id] and L[NAV_HEADINGS[page.id]] or nil
+				if parent then parent.kids = true end
 				pages[#pages + 1] = page
 				pageById[page.id] = page
 				walk(node.opt.args, p, depth + 1, page)
@@ -1646,14 +1647,19 @@ end
 ---------------------------------------------------------------------------
 -- The list of pages on the left
 ---------------------------------------------------------------------------
-local NAV_HEAD = 17 -- a group's small heading in the list
+local NAV_HEAD = 26 -- a group's heading in the list: a fine rule, then its name in gold
 function Menu.DrawNav()
 	local current = pageById[Menu.current] or pages[1]
 	local searching = Menu.query ~= nil
-	-- which pages show: third-level pages (the single procs) only inside their own section
+	-- Which pages show. The list stays short so it is read at a glance: the main sections always,
+	-- and the pages of a section only while you are in it (the single procs only inside Procs).
+	local function top(page) while page.parent do page = page.parent end return page end
+	local here = top(current)
 	local shown, heads = {}, 0
 	for _, page in ipairs(pages) do
-		if page.depth < 3 or page.parent == current or (current.depth == 3 and current.parent == page.parent) then
+		local inside = top(page) == here
+			and (page.depth < 3 or page.parent == current or (current.depth == 3 and current.parent == page.parent))
+		if page.depth == 1 or inside then
 			shown[#shown + 1] = page
 			if page.heading then heads = heads + 1 end
 		end
@@ -1668,11 +1674,19 @@ function Menu.DrawNav()
 			h = h + 1
 			local t = frame.navHeads[h]
 			if not t then
-				t = Text(frame.navHolder, "GameFontDisableSmall", C.soft)
+				-- gold like a card's title on the page, so it reads as a heading (in grey it looked
+				-- like a row that was switched off); a fine rule above sets the group apart
+				t = Text(frame.navHolder, "GameFontNormalSmall", C.gold)
+				t.rule = Tex(frame.navHolder, "ARTWORK", C.line)
+				t.rule:SetHeight(1)
 				frame.navHeads[h] = t
 			end
+			t.rule:ClearAllPoints()
+			t.rule:SetPoint("TOPLEFT", frame.navHolder, "TOPLEFT", 6 + 13 + 13, y - 6)
+			t.rule:SetPoint("RIGHT", frame.navHolder, "RIGHT", -12, 0)
+			t.rule:Show()
 			t:ClearAllPoints()
-			t:SetPoint("BOTTOMLEFT", frame.navHolder, "TOPLEFT", 6 + 13 + 13, y - NAV_HEAD + 3)
+			t:SetPoint("BOTTOMLEFT", frame.navHolder, "TOPLEFT", 6 + 13 + 13, y - NAV_HEAD + 4)
 			t:SetText(page.heading)
 			t:Show()
 			y = y - NAV_HEAD
@@ -1687,6 +1701,10 @@ function Menu.DrawNav()
 			b.mark = Tex(b, "ARTWORK", C.gold)
 			b.mark:SetPoint("LEFT", b, "LEFT", 4, 0)
 			b.text = Text(b, "GameFontHighlightSmall", C.muted)
+			-- a section that is closed shows that it holds more
+			b.more = Text(b, "GameFontHighlightSmall", C.soft)
+			b.more:SetPoint("RIGHT", b, "RIGHT", -8, 0)
+			b.more:SetText(">")
 			-- ("Alerts" has no page of its own to show: its switches are on Home, so it opens its first page)
 			On(b, "OnClick", function(self)
 				Click()
@@ -1719,6 +1737,7 @@ function Menu.DrawNav()
 			if count > 0 then name = name .. "  (" .. count .. ")" end
 		end
 		b.text:SetText(name)
+		b.more:SetShown(page.depth == 1 and page.kids == true and page ~= here)
 		local c = b.on and C.white or b.rest
 		b.text:SetTextColor(c[1], c[2], c[3])
 		b.bg:SetShown(b.on)
@@ -1726,7 +1745,7 @@ function Menu.DrawNav()
 		b:Show()
 	end
 	for i = n + 1, #frame.nav do frame.nav[i]:Hide() end
-	for i = h + 1, #frame.navHeads do frame.navHeads[i]:Hide() end
+	for i = h + 1, #frame.navHeads do frame.navHeads[i]:Hide() frame.navHeads[i].rule:Hide() end
 end
 
 ---------------------------------------------------------------------------

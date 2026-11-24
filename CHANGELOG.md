@@ -15,7 +15,8 @@
   place, with how many there are.
 - Options: share your setup. The Profiles page shows it as one line of text to copy, and takes one
   that someone sent you (with an undo). The places things sit on your screen are not part of it.
-- Options: the long Alerts list is in three groups (Warnings, Timers and icons, Tools), Tranquilizing
+- Options: a shorter list on the left. It shows the main sections, and a section's pages only
+  while you are in it. Alerts is in three groups (Warnings, Timers and icons, Tools), Tranquilizing
   Shot announce moved from Advanced to Tools, and a back button takes you to the page before.
 - Options: the window opens on the page you left, also after a reload.
 - Options: Ctrl + mouse wheel moves a slider one step (the wheel alone still scrolls the page), and

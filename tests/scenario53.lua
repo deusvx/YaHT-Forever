@@ -137,22 +137,32 @@ assert(db.width == 260 and said("Setup taken over") and row("importundo"), "past
 row("importundo").onClick()
 assert(db.width == 300 and not row("importundo"), "the undo button should put it back and go away")
 
--- THE LIST ON THE LEFT: the long Alerts list is in three groups, each under a small heading
-M.Show("home")
-local order, heads = {}, {}
-for _, b in ipairs(f.nav) do if b.shown then order[#order + 1] = b.page end end
-for _, t in ipairs(f.navHeads) do if t.shown then heads[#heads + 1] = t.txt end end
+-- THE LIST ON THE LEFT stays short: the main sections, and a section's pages only while you are in it
+local order, heads, more
+local function list()
+  order, heads, more = {}, {}, {}
+  for _, b in ipairs(f.nav) do if b.shown then order[#order + 1] = b.page more[b.page] = b.more.shown end end
+  for _, t in ipairs(f.navHeads or {}) do if t.shown then heads[#heads + 1] = t.txt end end
+end
 local function at(id) for i, p in ipairs(order) do if p == id then return i end end end
+M.Show("home") list()
+assert(table.concat(order, " ") == "home changed bar alerts advanced profile", "on Home the list should be just the main sections: "..table.concat(order, " "))
+assert(#heads == 0 and more.bar and more.alerts and more.advanced and not more.home and not more.profile, "closed sections should show that they hold more")
+-- in a section: its pages, and only its pages
+M.Show("bar/lookpage") list()
+assert(at("bar/lookpage") and at("bar/lonewolfpage") and not at("alerts/petpage") and not more.bar and more.alerts, "The bar should be open, Alerts closed")
+-- Alerts is in three groups, each under a clear heading
+M.Show("alerts/petpage") list()
 assert(#heads == 3 and heads[1] == "Warnings" and heads[2] == "Timers and icons" and heads[3] == "Tools", "the three groups: "..table.concat(heads, ", "))
 assert(at("alerts/rangepage") < at("alerts/feignpage") and at("alerts/ammopage") < at("alerts/procspage"), "warnings should come first")
 assert(at("alerts/procspage") < at("alerts/meleepage") and at("alerts/meleepage") < at("alerts/trackerpage"), "then the timers, then the tools")
 assert(at("alerts/announcepage") and at("alerts/announcepage") > at("alerts/trackerpage") and not at("advanced/announcepage"), "Tranquilizing Shot announce belongs with the tools")
-assert(order[1] == "home" and order[2] == "changed", "What I changed should sit right under Home")
--- every row fits in the list, also with the six proc pages open
-M.Show("alerts/procspage/mongoosepage")
+assert(not at("bar/lookpage") and not at("advanced/timingpage") and order[1] == "home" and order[2] == "changed", "other sections should be closed; What I changed sits right under Home")
+-- everything fits in the list, also with the six proc pages open
+M.Show("alerts/procspage/mongoosepage") list()
 local rows, low = 0, 0
 for _, b in ipairs(f.nav) do if b.shown then rows = rows + 1 low = low + b:GetHeight() end end
-assert(rows >= 28 and low + 3 * 17 + 16 <= 700 - 50 - 10 + 1, "the list doesn't fit: "..rows.." rows, "..low.." high")
+assert(rows == 23 and low + 3 * 26 + 16 <= 700 - 50 - 10 + 1, "the list doesn't fit: "..rows.." rows, "..low.." high")
 -- "Alerts" in the list opens its first page
 for _, b in ipairs(f.nav) do if b.shown and b.page == "alerts" then b.scripts.OnClick(b) end end
 assert(M.current == "alerts/rangepage", "Alerts should open its first page, opened "..tostring(M.current))
