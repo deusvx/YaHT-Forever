@@ -34,7 +34,6 @@ assert(hub and wheel and watch, "no tracking wheel")
 hub.GetCenter = function() return 0, 0 end -- (the test rig has no screen positions: the button is at 0, 0)
 local dt = 0.05
 local function run(sec) for k = 1, math.floor(sec/dt + 0.5) do advance(dt)
-  hub.scripts.OnUpdate(hub, dt)
   if wheel.shown then wheel.scripts.OnUpdate(wheel, dt) end end end
 local function mouse(x, y) cursorX, cursorY = x, y end
 local chat = {}
@@ -116,21 +115,18 @@ slices[4].scripts.OnClick(slices[4])
 assert(calls == 1 and list[4].active, "set to clicking, a click should pick")
 db.trackerpick = "MOVE" YaHT:ApplySettings()
 
--- a game that ignores a pick made without a click: said once, and from then on only clicks pick
+-- the game refuses a pick (in flight, for one): nothing changes, nothing is said, and the next pick is
+-- tried like any other (an earlier build switched mouse picks off for the session after one refusal)
 refuse, calls = true, 0
 mouse(0, 0) hub.scripts.OnClick(hub) run(0.3)
 mouse(0, wheel.edge + 5) run(0.1)
-assert(calls == 1 and not wheel.open, "setup: one try")
-run(1.5)
-assert(#chat == 1 and chat[1]:find("on a click", 1, true), "should say once that the game wants a click")
-mouse(0, 0) hub.scripts.OnClick(hub) run(0.3)
-mouse(0, wheel.edge + 5) run(0.1)
-run(1.5)
-assert(calls == 1 and #chat == 1 and not wheel.open, "kept trying after the game ignored a pick")
+assert(calls == 1 and not wheel.open and not list[1].active, "setup: one refused try")
+run(3)
+assert(#chat == 0, "a refused pick should not be reported")
 refuse = false
 mouse(0, 0) hub.scripts.OnClick(hub) run(0.3)
-slices[2].scripts.OnClick(slices[2])
-assert(list[2].active, "a click should still work")
+mouse(0, wheel.edge + 5) run(0.1)
+assert(calls == 2 and list[1].active and hub.current == "Track Beasts", "after a refused pick, moving out must still pick")
 
 -- "also the minimap's other filters"
 db.trackerall = true YaHT:ApplySettings()

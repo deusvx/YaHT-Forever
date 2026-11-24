@@ -5,9 +5,10 @@
 --
 -- Forever keeps tracking in the minimap's own list (C_Minimap), the same list its
 -- tracking button uses, so the wheel reads and sets that list. The game takes a
--- pick made by mouse movement alone (seen in game, 2026-11-24). Should a client
--- ever want a click for it, YaHT notices the pick did not take, says so once, and
--- from then on only clicks pick.
+-- pick made by mouse movement alone (seen in game, 2026-11-24). When the game
+-- refuses a pick (in flight, for one), nothing changes and the next one is tried
+-- like any other: an earlier build gave up on mouse picks after one refusal, which
+-- switched them off for the whole session after a single try on a gryphon.
 if select(2,UnitClass("player")) ~= "HUNTER" then return end
 
 local YaHT = YaHT
@@ -24,7 +25,6 @@ end
 
 local MEDIA = "Interface\\AddOns\\YaHT\\media\\"
 local NOTHING = "Interface\\Icons\\INV_Misc_Spyglass_03"  -- shown while you track nothing
-local GIVE_UP = 1.2       -- no change this long after a pick made without a click: the game wants a click
 local OPEN_TIME = 0.14    -- the pie opens this fast
 local CLOSE_TIME = 0.1    -- and fades away this fast
 local GLIDE = 0.09        -- a piece lights up (and its track grows) over this long
@@ -40,7 +40,6 @@ local TEXT, TEXT_AIMED = {1, 1, 1}, {1, 0.90, 0.62}
 
 local hub, wheel
 local slices = {}
-local moveBlocked = false -- (this session) the game ignored a pick made without a click
 
 ---------------------------------------------------------------------------
 -- What the game tells us
@@ -151,12 +150,6 @@ local function Refresh()
 		end
 		Paint(s)
 	end
-	-- a pick made without a click went through
-	if hub.pending then
-		for _, t in ipairs(list) do
-			if t.index == hub.pending and t.active then hub.pending = nil end
-		end
-	end
 end
 
 -- Closes the pie (it fades away; at once when told to)
@@ -179,7 +172,6 @@ local function Pick(s, byClick)
 		Set(s.index, false) -- a click on the one you track switches it off
 	elseif not s.active then
 		Set(s.index, true)
-		if not byClick then hub.pending, hub.pendingSince = s.index, GetTime() end
 	end
 	Close()
 	Refresh()
@@ -298,7 +290,7 @@ local function Step(self, elapsed)
 	end
 	-- out of the pie: the one you headed for is picked (or, set to clicks, the wheel just closes)
 	if t >= 1 and far > self.edge then
-		if aimed and p.trackerpick ~= "CLICK" and not moveBlocked then
+		if aimed and p.trackerpick ~= "CLICK" then
 			Pick(aimed, false)
 		else
 			Close()
@@ -306,13 +298,6 @@ local function Step(self, elapsed)
 	end
 end
 
--- The game ignored a pick made without a click: say so once, and leave picking to clicks
-local function Watch(self)
-	if not self.pending or GetTime() - self.pendingSince < GIVE_UP then return end
-	self.pending = nil
-	moveBlocked = true
-	YaHT:Print(L["The game only switches tracking on a click: click a track in the wheel instead of moving out past it."])
-end
 
 ---------------------------------------------------------------------------
 -- Setup
@@ -347,7 +332,6 @@ function YaHT:ReportTracker()
 	for _, t in ipairs(list) do
 		self:Print(string.format("Tracking %d: %s%s%s", t.index, t.name, t.spell and " (spell)" or "", t.active and " - ON" or ""))
 	end
-	self:Print("Picks without a click: " .. (moveBlocked and "the game ignored one, clicks only this session" or "not refused so far"))
 end
 
 function YaHT:InitTracker()
@@ -369,10 +353,6 @@ function YaHT:InitTracker()
 	end)
 	hub:SetScript("OnClick", function()
 		if wheel.open then Close() else Open() end
-	end)
-	hub:SetScript("OnUpdate", function(self)
-		local ok, err = pcall(Watch, self)
-		if not ok and YaHT.ReportError then YaHT.ReportError("TrackerWatch", err) end
 	end)
 	hub.dragHint = hub:CreateFontString(nil, "OVERLAY")
 	hub.dragHint:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
