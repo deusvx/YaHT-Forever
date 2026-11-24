@@ -9,6 +9,15 @@
   the minimap's other filters join the wheel. The button sits behind your bags and other windows.
 - The deadzone and too-far warnings are gone the moment you are out of them, instead of fading away
   over half a second.
+- Options: a gold dot marks every setting you changed from its default. Right-click a setting to put
+  just that one back.
+- Options: share your setup. The Advanced page shows it as one line of text to copy, and takes one
+  that someone sent you (with an undo). The places things sit on your screen are not part of it.
+- Options: the window opens on the page you left, also after a reload.
+- Options: Ctrl + mouse wheel moves a slider one step (the wheel alone still scrolls the page), and
+  switches, lists and buttons click like the game's own.
+- After an update, a line in chat says so and the options' Home page shows what is new, once.
+  /yaht new shows it again.
 
 ## 1.5.1
 - New: a Raptor Strike icon. While Raptor Strike is queued for your next melee swing, its icon shows

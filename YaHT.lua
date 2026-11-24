@@ -787,7 +787,12 @@ function YaHT:OnInitialize()
 	-- first install: the bar starts unlocked (preview mode) - say what to do
 	if not self.db.global.welcomed then
 		self.db.global.welcomed = true
+		self.db.global.newsSeen = self.version -- (nothing is "new" to someone who just installed it)
 		self:Print(L["thanks for installing! Drag the bar where you want it, then type /yaht lock. /yaht opens the options."])
+	elseif self.news and self.news.version == self.version and self.db.global.newsSeen ~= self.version then
+		-- an update: the options window opens on Home with a few lines of what is new, once
+		self.newsDue = true
+		self:Print(string.format(L["updated to %s. Type /yaht to see what is new."], self.version))
 	end
 end
 
@@ -1562,6 +1567,12 @@ local function HandleSlash(msg)
 		if YaHT.ReportHawks then YaHT:ReportHawks() end
 	elseif cmd == "minimap" then
 		if YaHT.ToggleMinimapButton then YaHT:ToggleMinimapButton() end
+	elseif cmd == "new" or cmd == "news" then
+		YaHT.newsDue = YaHT.news ~= nil
+		if YaHT.OpenMenu then
+			YaHT:CloseMenu()
+			YaHT:OpenMenu("home")
+		end
 	elseif cmd == "grid" then
 		if YaHT.ToggleGrid then YaHT:ToggleGrid() end
 	elseif cmd == "selftest" or cmd == "test" or cmd == "record" then

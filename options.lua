@@ -2323,6 +2323,44 @@ function YaHT:CreateConfig()
 				type = "description",
 				order = 1,
 			},
+			shareheader = {name = L["Share your setup"], type = "header", order = 5},
+			sharedesc = {
+				name = L["Your setup as one line of text: everything you changed from the defaults, without the places things sit on your screen. Click into the box, press Ctrl+A and Ctrl+C to copy it. To take someone else's, paste theirs into the second box and press Enter."],
+				type = "description",
+				order = 5.1,
+			},
+			exportsetup = {
+				name = L["Your setup"],
+				desc = L["Copy this and send it to someone. It changes nothing here."],
+				type = "input",
+				order = 5.2,
+				get = function() return YaHT:ExportSetup() end,
+				set = function() end,
+			},
+			importsetup = {
+				name = L["Paste a setup"],
+				desc = L["Paste a setup someone sent you and press Enter. This profile's settings are replaced by it; the places things sit on your screen stay. You can undo it afterwards."],
+				type = "input",
+				order = 5.3,
+				get = function() return "" end,
+				set = function(_, text)
+					if type(text) ~= "string" or text:gsub("%s", "") == "" then return end
+					local ok, result = YaHT:ImportSetup(text)
+					if ok then
+						YaHT:Print(string.format(L["Setup taken over (%d settings). \"Undo the import\" on the Advanced page puts yours back."], result))
+					else
+						YaHT:Print(result)
+					end
+				end,
+			},
+			importundo = {
+				name = L["Undo the import"],
+				desc = L["Puts back the settings you had before you pasted a setup."],
+				type = "execute",
+				order = 5.4,
+				hidden = function() return not YaHT.importBackup end,
+				func = function() YaHT:UndoImport() end,
+			},
 			debugheader = {name = L["Debug log"], type = "header", order = 10},
 			debugdesc = {
 				name = L["For bug reports: writes down every shot and alert while it is on. /yaht copy opens the log so you can copy it."],

@@ -199,6 +199,13 @@ local function On(widget, script, fn)
 	widget:SetScript(script, Guard(fn))
 end
 
+-- The game's own interface sounds, so the window feels like part of it
+local function Click(which)
+	if not (PlaySound and SOUNDKIT) then return end
+	local kit = SOUNDKIT[which or "IG_MAINMENU_OPTION"]
+	if kit then pcall(PlaySound, kit) end
+end
+
 -- The column on the right explains the setting under the mouse. At rest it
 -- says what the page is for (Menu.helpTitle / helpText, set when a page is drawn).
 local function SetHelp(title, text)
@@ -366,11 +373,17 @@ local HOME_BUTTONS = {{"alerts", "preview"}}
 local HOME_CARDS = {"presetminimal", "presetclean", "presetflashy"}
 
 local function HomeItems()
-	local items = { -- (the welcome text is in the help column on the right)
-		{custom = "section", text = L["Quick looks"]},
-		{custom = "cards"},
-		{custom = "section", text = L["Main switches"]},
-	}
+	local items = {}
+	-- after an update: a few lines of what is new, on top, until the window is closed once
+	if YaHT.newsDue and YaHT.news then
+		items[#items + 1] = {custom = "section", text = string.format(L["What's new in %s"], YaHT.news.version)}
+		for _, line in ipairs(YaHT.news.lines) do items[#items + 1] = {custom = "note", text = L[line]} end
+		items[#items + 1] = {custom = "gap"}
+	end
+	-- (the welcome text is in the help column on the right)
+	items[#items + 1] = {custom = "section", text = L["Quick looks"]}
+	items[#items + 1] = {custom = "cards"}
+	items[#items + 1] = {custom = "section", text = L["Main switches"]}
 	for _, keys in ipairs(HOME_SWITCHES) do
 		local path = Find(keys)
 		if path then items[#items + 1] = OptionItem(path) end
@@ -615,7 +628,15 @@ local function NewRow(parent, reserve, bare)
 	row.label:SetPoint("LEFT", row.plate, "LEFT", PAD, 0)
 	row.label:SetPoint("RIGHT", row.plate, "RIGHT", -(PAD + (reserve or 0) + 10), 0)
 	row.label:SetWordWrap(false)
+	-- a small gold dot at the left edge: you changed this setting (right-click puts it back)
+	row.mark = Dot(row, "ARTWORK", C.gold)
+	row.mark:SetSize(5, 5)
+	row.mark:SetPoint("LEFT", row.plate, "LEFT", 3, 0)
+	row.mark:Hide()
 	row:EnableMouse(true)
+	On(row, "OnMouseUp", function(self, button)
+		if button == "RightButton" then Menu.ResetRow(self) end
+	end)
 	On(row, "OnEnter", function(self)
 		self.hover:Show()
 		ShowTip(self)
@@ -719,7 +740,10 @@ Make.toggle = function(parent)
 	b.knob = Dot(b, "ARTWORK", C.muted)
 	b.knob:SetSize(14, 14)
 	On(b, "OnClick", function() if row.onClick then row.onClick() end end)
-	On(row, "OnMouseUp", function() if not row.off and row.onClick then row.onClick() end end)
+	On(row, "OnMouseUp", function(self, button)
+		if button == "RightButton" then return Menu.ResetRow(self) end
+		if not row.off and row.onClick then row.onClick() end
+	end)
 	Hook(row, b)
 	row.widget = b
 	-- "Edit": a switch that has a page of its own (Home, Alerts, Procs) leads straight to it
@@ -767,6 +791,7 @@ Fill.toggle = function(row, item)
 	b.knob:ClearAllPoints()
 	if on then b.knob:SetPoint("RIGHT", b, "RIGHT", -2, 0) else b.knob:SetPoint("LEFT", b, "LEFT", 2, 0) end
 	row.onClick = function()
+		Click(on and "IG_MAINMENU_OPTION_CHECKBOX_OFF" or "IG_MAINMENU_OPTION_CHECKBOX_ON")
 		Call(item.path, "set", not on)
 		Menu.Changed()
 	end
@@ -905,6 +930,16 @@ Make.range = function(parent)
 	end)
 	-- the page is only redrawn once you let go, so the drag isn't interrupted
 	On(s, "OnMouseUp", function() if row.onDone then row.onDone() end end)
+	-- the wheel: with Ctrl it moves the slider one step; on its own it scrolls the page as
+	-- everywhere else (so scrolling past a slider never changes a setting by accident)
+	s:EnableMouseWheel(true)
+	On(s, "OnMouseWheel", function(_, delta)
+		if IsControlKeyDown and IsControlKeyDown() and not row.off and row.onNudge then
+			row.onNudge(delta > 0 and 1 or -1)
+		else
+			Menu.Wheel(delta)
+		end
+	end)
 	Hook(row, s)
 	row.widget = s
 	row.extras = {row.up, row.down, vb}
@@ -936,7 +971,7 @@ Fill.range = function(row, item)
 	s.silent = false
 	show(v)
 	row.last = v
-	row.tip = (row.tip and (row.tip .. "\n\n") or "") .. L["Double-click the number to type a value."]
+	row.tip = (row.tip and (row.tip .. "\n\n") or "") .. L["Double-click the number to type a value. Ctrl + mouse wheel moves it one step."]
 	row.onSlide = function(x)
 		x = snap(x, nudge)
 		if x == row.last then return end
@@ -995,6 +1030,7 @@ Fill.select = function(row, item)
 	row.widget.text:SetText(shown ~= nil and tostring(shown) or "")
 	row.values = values
 	row.onPick = function(key)
+		Click()
 		Call(item.path, "set", key)
 		Menu.Changed()
 	end
@@ -1055,6 +1091,7 @@ Fill.execute = function(row, item)
 	b:SetWidth(math.max(130, (b.text:GetStringWidth() or 0) + 32))
 	row.onClick = function()
 		local function run()
+			Click()
 			Call(item.path, "func")
 			Menu.Changed()
 		end
@@ -1340,6 +1377,21 @@ local function ClampScroll()
 	end
 end
 
+function Menu.Wheel(delta)
+	Menu.CloseList()
+	Menu.scrollY = (Menu.scrollY or 0) - delta * 48
+	ClampScroll()
+end
+
+-- Right-click on a setting you changed: back to its default
+function Menu.ResetRow(row)
+	if not row or row.off or not row.resetKey then return end
+	if YaHT:ResetSetting(row.resetKey) then
+		Click()
+		Menu.Changed()
+	end
+end
+
 local function SetOff(row, off)
 	row.off = off
 	row:SetAlpha(off and 0.4 or 1)
@@ -1410,8 +1462,17 @@ function Menu.Render()
 				row.tip = type(desc) == "string" and desc or nil
 				if row.label then row.label:SetText(row.tipTitle) end
 				SetOff(row, Flag(item.path, "disabled"))
+				-- changed from its default: a gold dot, and a right-click puts it back
+				local key = item.path[#item.path].key
+				local changed = BOXED[kind] and YaHT.IsChanged and YaHT:IsChanged(key) or false
+				row.resetKey = changed and key or nil
+				if row.mark then row.mark:SetShown(changed) end
+				if changed then
+					row.tip = (row.tip and (row.tip .. "\n\n") or "") .. L["You changed this. Right-click to put it back to its default."]
+				end
 			else
-				row.tipTitle, row.tip = nil, nil
+				row.tipTitle, row.tip, row.resetKey = nil, nil, nil
+				if row.mark then row.mark:Hide() end
 			end
 			local h = Fill[kind](row, item)
 			row:SetHeight(h)
@@ -1454,6 +1515,7 @@ end
 
 function Menu.Show(id)
 	Menu.current = pageById[id] and id or "home"
+	if YaHT.db then YaHT.db.global.menupage = Menu.current end -- (the window opens here next time)
 	Menu.viewing = nil -- (a look is viewed on the page where it was clicked)
 	Menu.query = nil
 	Menu.scrollY = 0
@@ -1537,7 +1599,10 @@ function Menu.DrawNav()
 				b.mark:SetSize(2, NAV_ROW - 12)
 				b.text = Text(b, "GameFontHighlightSmall", C.muted)
 				-- ("Alerts" has no page of its own to show: its switches are on Home, so it opens its first page)
-				On(b, "OnClick", function(self) Menu.Show(self.page == "alerts" and "alerts/procspage" or self.page) end)
+				On(b, "OnClick", function(self)
+					Click()
+					Menu.Show(self.page == "alerts" and "alerts/procspage" or self.page)
+				end)
 				On(b, "OnEnter", function(self) if not self.on then self.text:SetTextColor(1, 1, 1) end end)
 				On(b, "OnLeave", function(self)
 					if not self.on then self.text:SetTextColor(self.rest[1], self.rest[2], self.rest[3]) end
@@ -2506,11 +2571,7 @@ local function Build()
 	content:SetSize(VIEW_W, VIEW_H)
 	scroll:SetScrollChild(content)
 	scroll:EnableMouseWheel(true)
-	On(scroll, "OnMouseWheel", function(_, delta)
-		Menu.CloseList()
-		Menu.scrollY = (Menu.scrollY or 0) - delta * 48
-		ClampScroll()
-	end)
+	On(scroll, "OnMouseWheel", function(_, delta) Menu.Wheel(delta) end)
 	f.scrollMark = Tex(f, "OVERLAY", C.soft)
 	f.scrollMark:SetWidth(3)
 	f.scrollMark:Hide()
@@ -2567,6 +2628,12 @@ local function Build()
 	On(f, "OnHide", function()
 		Menu.CloseList()
 		HideTip()
+		Click("IG_MAINMENU_CLOSE")
+		-- what's new has been shown: not again until the next update
+		if YaHT.newsDue then
+			YaHT.newsDue = false
+			if YaHT.db then YaHT.db.global.newsSeen = YaHT.version end
+		end
 	end)
 	-- Escape closes it
 	if UISpecialFrames then table.insert(UISpecialFrames, "YaHTMenuFrame") end
@@ -2590,7 +2657,10 @@ function YaHT:OpenMenu(page)
 	end
 	FitScale()
 	frame:Show()
-	Menu.Show(page or Menu.current or "home")
+	-- where you left it (also after a reload); after an update, Home, which says what is new
+	local saved = YaHT.db and YaHT.db.global.menupage
+	Menu.Show(page or (YaHT.newsDue and "home") or Menu.current or saved or "home")
+	Click("IG_MAINMENU_OPEN")
 	return true
 end
 
