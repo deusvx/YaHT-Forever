@@ -81,6 +81,7 @@ local TAB_KEYS = {
 	melee = {"melee", "meleemode", "meleeheight", "meleealpha", "meleeglint", "meleeraptor", "meleecolor", "meleeraptorcolor"},
 	feign = {"feign", "feignscale", "feigntime", "feignsound", "feigntargetcheck", "feignthreatcheck", "feigncolor",
 		"feignpoint", "feignrelpoint", "feignx", "feigny"},
+	tracker = {"tracker", "trackerpick", "trackersize", "trackerall", "trackerpoint", "trackerrelpoint", "trackerx", "trackery"},
 	pet = {"pet", "petlow", "petlowat", "petwhen", "petdead", "petidle", "petsound", "petpulse", "pettextsize",
 		"petpoint", "petrelpoint", "petx", "pety"},
 	hawk = {"hawksoundat", "hawk", "hawkmode", "hawkpos", "hawksize", "hawkalpha", "hawknumbers", "hawknumpos", "hawkempty", "hawkpolish", "hawkwarn",
@@ -2220,6 +2221,7 @@ function YaHT:CreateConfig()
 			melee = {name = L["Melee swing line"], type = "toggle", order = 14},
 			ammo = {name = L["Ammo counter"], type = "toggle", order = 15},
 			multicast = {name = L["Multi-Shot cast"], type = "toggle", order = 15.5},
+			tracker = {name = L["Tracking wheel"], type = "toggle", order = 15.7},
 			procsnote = {name = L["The proc icons are switched on and off on the Procs page."], type = "description", order = 16},
 			procspage = A.procs,
 			aspectpage = A.aspect,
@@ -2230,6 +2232,41 @@ function YaHT:CreateConfig()
 			meleepage = A.melee,
 			ammopage = A.ammo,
 			multicastpage = multicastPage,
+			trackerpage = {
+				name = L["Tracking wheel"],
+				type = "group",
+				order = 10,
+				args = {
+					trackerdesc = {
+						name = L["A small button that shows what you are tracking. Click it and everything you can track opens around it as a pie, one piece each: move the mouse into the piece you want and on out of the pie, and you track it. Unlock the bar to drag the button anywhere on your screen."],
+						type = "description",
+						order = 1,
+					},
+					cardtitle = {name = L["Wheel"], type = "header", order = 1.5},
+					trackerpick = {
+						name = L["Choose by"],
+						desc = L["Moving out past it: move into the piece you want and on out of the pie, and it is picked. Clicking: nothing changes until you click one; leaving the pie just closes the wheel. Either way, a click on the one you track switches tracking off, and a click in the middle closes the wheel."],
+						type = "select",
+						order = 2,
+						values = {MOVE = L["Moving out of the pie past it"], CLICK = L["Clicking it"]},
+						sorting = {"MOVE", "CLICK"},
+						disabled = function() return not YaHT.db.profile.tracker end,
+					},
+					trackersize = {
+						name = L["Size"], type = "range", order = 3, min = 20, max = 64, step = 1,
+						disabled = function() return not YaHT.db.profile.tracker end,
+					},
+					trackerall = {
+						name = L["Also the minimap's other filters"],
+						desc = L["Off: only what you track with a spell (Track Beasts, Find Minerals...). On: also the minimap's own filters, where the game has them."],
+						type = "toggle",
+						width = "double",
+						order = 4,
+						disabled = function() return not YaHT.db.profile.tracker end,
+					},
+					reset = resetButton("tracker"),
+				},
+			},
 		},
 	}
 	A.procs.order, A.aspect.order, A.feign.order, A.pet.order, A.hawk.order, A.range.order, A.melee.order, A.ammo.order = 1, 2, 3, 4, 5, 6, 7, 8

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.2
+- New: a tracking wheel. A small button shows what you are tracking. Click it and everything you
+  can track opens around it as a pie, one piece each: move the mouse into the piece you want (the
+  whole piece lights up) and on out of the pie, and you track it. A click on the one you track switches tracking off, and a click in
+  the middle closes the wheel. Drag the button anywhere while the bar is unlocked. Its own page
+  (Alerts, "Tracking wheel"): choose by moving out of the pie or by clicking, size, and whether
+  the minimap's other filters join the wheel.
+
 ## 1.5.1
 - New: a Raptor Strike icon. While Raptor Strike is queued for your next melee swing, its icon shows
   next to the bar (like the lit-up button on your action bar), with a timer that runs down to the

@@ -118,7 +118,7 @@ local ALERTS = {
 	{"aspect", "aspectFrame", "aspect badge"}, {"feign", "feignFrame", "Feign Death"}, {"pet", "petFrame", "pet"}, {"hawk", "hawkFrame", "hawks"},
 }
 
-local MEDIA = {"Bar", "Glow", "Spark", "Shine", "Stripes", "Chevron", "Round", "RoundEdge", "Dot", "Arrow", "Stage", "Disc", "Ring", "RingFlat", "RingLine", "Gloss", "Halo", "SquareRing", "SquareLine", "SquareGloss", "SquareHalo", "WolfScope", "WolfScopeShadow"}
+local MEDIA = {"Bar", "Glow", "Spark", "Shine", "Stripes", "Chevron", "Round", "RoundEdge", "Dot", "Arrow", "Stage", "Disc", "Ring", "RingFlat", "RingLine", "Gloss", "Halo", "SquareRing", "SquareLine", "SquareGloss", "SquareHalo", "WolfScope", "WolfScopeShadow", "Wedge1", "Wedge2", "Wedge3", "Wedge4", "Wedge5", "Wedge6", "Wedge7", "Wedge8", "Wedge9", "Wedge10", "Wedge11", "Wedge12"}
 local MEDIA_PATH = "Interface\\AddOns\\YaHT\\media\\"
 
 local report -- the test being written

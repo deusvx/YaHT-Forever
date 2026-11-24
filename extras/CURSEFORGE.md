@@ -34,6 +34,9 @@ A port of Aviana's classic **YaHT** (Yet another Hunter Timer). **Original proje
   pet warnings go quiet. With a pet out, everything is regular.
 - **Ammo counter:** invisible while you have plenty, fades in as you run low, then flashes yellow and
   red with a warning sound.
+- **Tracking wheel:** a small button shows what you are tracking. Click it and your tracking spells
+  open around it as a pie: move the mouse into the piece you want and on out, and you track it. No
+  more digging through the minimap menu.
 
 ## Proc and cooldown icons
 - **Bestial Wrath:** its 18 seconds in the prime spot over the bar, then its cooldown counting down.

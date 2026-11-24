@@ -38,6 +38,8 @@ wrong aspect, and a pet that is low or dead, and it times your procs and your Su
 - **Pet alerts:** movable text for PET LOW, PET DEAD, NO PET and PET NOT ATTACKING.
 - **Ammo counter:** hidden while you have plenty, fades in as ammo runs down, then flashes yellow
   and red with a warning sound.
+- **Tracking wheel:** a small button shows what you are tracking. Click it and your tracking
+  spells open around it as a pie: move the mouse into a piece and on out, and you track it.
 
 **Proc and cooldown icons**
 - **Bestial Wrath** (its 18 seconds, then its cooldown), **Mongoose Bite** (with its cooldown),
@@ -83,7 +85,7 @@ English, German, Simplified and Traditional Chinese.
 | `/yaht minimap` | Show or hide the minimap button |
 | `/yaht selftest` | Check in the game that everything works, and save a report |
 | `/yaht record` | Show the newest lines of the record (pet and aspect warnings, problems) |
-| `/yaht ammo` / `/yaht pet` / `/yaht hawk` / `/yaht buffs` | Show what YaHT sees of your ammo, pet, hawks or buffs |
+| `/yaht ammo` / `/yaht pet` / `/yaht hawk` / `/yaht buffs` / `/yaht track` | Show what YaHT sees of your ammo, pet, hawks, buffs or tracking |
 | `/yaht feign` | Play the Feign Death resist alert once |
 | `/yaht debug` | Print shot timings after every Auto Shot |
 | `/yaht copy` / `/yaht clear` | Copy the debug log (Ctrl+C), or empty it |

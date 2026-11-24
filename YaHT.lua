@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.5.1"
+YaHT.version = "1.5.2"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -776,7 +776,7 @@ function YaHT:OnInitialize()
 	self.debug = self.db.global.debug and true or false -- the debug log stays on until you switch it off
 	self:Load()
 	-- each feature starts on its own: if one fails, the rest (and the options) still load
-	for _, init in ipairs({"InitAmmo", "InitMelee", "InitProcs", "InitFeign", "InitPet", "InitHawks", "InitMinimap", "InitRecord"}) do
+	for _, init in ipairs({"InitAmmo", "InitMelee", "InitProcs", "InitFeign", "InitPet", "InitHawks", "InitTracker", "InitMinimap", "InitRecord"}) do
 		if self[init] then
 			local ok, err = pcall(self[init], self)
 			if not ok then ReportError(init, err) end
@@ -927,6 +927,7 @@ function YaHT:ApplySettings()
 	if self.ApplyFeignSettings then self:ApplyFeignSettings() end
 	if self.ApplyPetSettings then self:ApplyPetSettings() end
 	if self.ApplyHawkSettings then self:ApplyHawkSettings() end
+	if self.ApplyTrackerSettings then self:ApplyTrackerSettings() end
 	if self.ApplyMinimapSettings then self:ApplyMinimapSettings() end
 end
 
@@ -1555,6 +1556,8 @@ local function HandleSlash(msg)
 		if YaHT.ReportBuffs then YaHT:ReportBuffs() end
 	elseif cmd == "pet" then
 		if YaHT.ReportPet then YaHT:ReportPet() end
+	elseif cmd == "track" or cmd == "tracking" then
+		if YaHT.ReportTracker then YaHT:ReportTracker() end
 	elseif cmd == "hawk" or cmd == "hawks" then
 		if YaHT.ReportHawks then YaHT:ReportHawks() end
 	elseif cmd == "minimap" then

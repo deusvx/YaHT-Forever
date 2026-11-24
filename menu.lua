@@ -359,7 +359,7 @@ end
 
 local HOME_SWITCHES = { -- (Lock bar is in the window's header, on every page)
 	{"alerts", "aspect"}, {"alerts", "feign"}, {"alerts", "pet"}, {"alerts", "hawk"},
-	{"alerts", "meleerange"}, {"alerts", "melee"}, {"alerts", "ammo"}, {"alerts", "multicast"}, {"bar", "minimap"},
+	{"alerts", "meleerange"}, {"alerts", "melee"}, {"alerts", "ammo"}, {"alerts", "multicast"}, {"alerts", "tracker"}, {"bar", "minimap"},
 	{"alerts", "roundall"}, {"alerts", "polishall"},
 }
 local HOME_BUTTONS = {{"alerts", "preview"}}
@@ -641,6 +641,7 @@ local SWITCH_PICTURES = {
 	feign = {spell = 5384, file = "Interface\\Icons\\Ability_Rogue_FeignDeath"},
 	pet = {spell = 883, file = "Interface\\Icons\\Ability_Hunter_BeastCall"},
 	hawk = {spell = 1293241, file = "Interface\\Icons\\Spell_Nature_RavenForm"},
+	tracker = {spell = 1494, file = "Interface\\Icons\\Ability_Tracking"},
 	meleerange = {spell = 1130, file = "Interface\\Icons\\Ability_Hunter_SniperShot"},
 	melee = {spell = 2973, file = "Interface\\Icons\\Ability_MeleeDamage"},
 	ammo = {file = "Interface\\Icons\\INV_Ammo_Arrow_02"},
