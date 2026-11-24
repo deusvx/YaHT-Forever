@@ -1647,19 +1647,16 @@ end
 ---------------------------------------------------------------------------
 -- The list of pages on the left
 ---------------------------------------------------------------------------
-local NAV_HEAD = 26 -- a group's heading in the list: a fine rule, then its name in gold
+local NAV_HEAD = 22 -- a group's heading in the list: a fine rule, then its name in gold
 function Menu.DrawNav()
 	local current = pageById[Menu.current] or pages[1]
 	local searching = Menu.query ~= nil
-	-- Which pages show. The list stays short so it is read at a glance: the main sections always,
-	-- and the pages of a section only while you are in it (the single procs only inside Procs).
-	local function top(page) while page.parent do page = page.parent end return page end
-	local here = top(current)
+	-- Which pages show: all of them, so everything YaHT has is in view from the start (a list that
+	-- only opened the section you were in was tried, and seeing it all was liked better). Only the
+	-- single procs wait inside Procs.
 	local shown, heads = {}, 0
 	for _, page in ipairs(pages) do
-		local inside = top(page) == here
-			and (page.depth < 3 or page.parent == current or (current.depth == 3 and current.parent == page.parent))
-		if page.depth == 1 or inside then
+		if page.depth < 3 or page.parent == current or (current.depth == 3 and current.parent == page.parent) then
 			shown[#shown + 1] = page
 			if page.heading then heads = heads + 1 end
 		end
@@ -1682,11 +1679,11 @@ function Menu.DrawNav()
 				frame.navHeads[h] = t
 			end
 			t.rule:ClearAllPoints()
-			t.rule:SetPoint("TOPLEFT", frame.navHolder, "TOPLEFT", 6 + 13 + 13, y - 6)
+			t.rule:SetPoint("TOPLEFT", frame.navHolder, "TOPLEFT", 6 + 13 + 13, y - 4)
 			t.rule:SetPoint("RIGHT", frame.navHolder, "RIGHT", -12, 0)
 			t.rule:Show()
 			t:ClearAllPoints()
-			t:SetPoint("BOTTOMLEFT", frame.navHolder, "TOPLEFT", 6 + 13 + 13, y - NAV_HEAD + 4)
+			t:SetPoint("BOTTOMLEFT", frame.navHolder, "TOPLEFT", 6 + 13 + 13, y - NAV_HEAD + 3)
 			t:SetText(page.heading)
 			t:Show()
 			y = y - NAV_HEAD
@@ -1701,10 +1698,6 @@ function Menu.DrawNav()
 			b.mark = Tex(b, "ARTWORK", C.gold)
 			b.mark:SetPoint("LEFT", b, "LEFT", 4, 0)
 			b.text = Text(b, "GameFontHighlightSmall", C.muted)
-			-- a section that is closed shows that it holds more
-			b.more = Text(b, "GameFontHighlightSmall", C.soft)
-			b.more:SetPoint("RIGHT", b, "RIGHT", -8, 0)
-			b.more:SetText(">")
 			-- ("Alerts" has no page of its own to show: its switches are on Home, so it opens its first page)
 			On(b, "OnClick", function(self)
 				Click()
@@ -1717,6 +1710,7 @@ function Menu.DrawNav()
 			frame.nav[n] = b
 		end
 		b:SetHeight(rowH)
+		b.rowH = rowH
 		b:ClearAllPoints()
 		b:SetPoint("TOPLEFT", frame.navHolder, "TOPLEFT", 6, y)
 		b:SetPoint("RIGHT", frame.navHolder, "RIGHT", -6, 0)
@@ -1737,7 +1731,6 @@ function Menu.DrawNav()
 			if count > 0 then name = name .. "  (" .. count .. ")" end
 		end
 		b.text:SetText(name)
-		b.more:SetShown(page.depth == 1 and page.kids == true and page ~= here)
 		local c = b.on and C.white or b.rest
 		b.text:SetTextColor(c[1], c[2], c[3])
 		b.bg:SetShown(b.on)
