@@ -216,5 +216,31 @@ assert(f.back.can and #M.history == 2, "the way back should hold the two pages b
 f.back.scripts.OnClick(f.back) assert(M.current == "bar/lookpage", "back should go to the page before")
 f.back.scripts.OnClick(f.back) assert(M.current == "home" and not f.back.can, "back again should reach the start, and then be spent")
 f.back.scripts.OnClick(f.back) assert(M.current == "home", "back with nowhere to go should do nothing")
+
+-- ONLY WHAT YOU CAN USE: with the glow off, its settings and their cards are gone from the page, not greyed
+YaHT.db:ResetProfile() db = YaHT.db.profile
+db.lock = true YaHT:ApplySettings()
+M.Show("bar/effectspage")
+assert(row("glow") and row("glowsize") and row("glowcolor"), "setup: the glow's settings with the glow on")
+local function titles() local t = {} for _, r in ipairs(M.rows) do if r.kind == "header" then t[#t + 1] = r.item.opt and r.item.opt.name or r.item.text end end return table.concat(t, " | ") end
+local withGlow = titles()
+db.glow = false YaHT:ApplySettings() M.Render()
+assert(row("glow") and not row("glowsize") and not row("glowcolor") and not row("glowstyle"), "with the glow off its settings should be gone from the page")
+for _, r in ipairs(M.rows) do assert(not r.off, "a greyed-out row is still on the page: "..tostring(r.tipTitle)) end
+assert(row("sparkmode"), "the spark is its own thing and stays")
+assert(#titles() < #withGlow, "a card left with nothing in it should go too: "..titles())
+db.glow = true YaHT:ApplySettings() M.Render()
+assert(row("glowsize") and titles() == withGlow, "switching the glow on should bring everything back")
+-- Lone Wolf set to Off: only the one setting that switches it on is left
+M.Show("bar/lonewolfpage")
+db.lonewolf = "OFF" YaHT:ApplySettings() M.Render()
+assert(row("lonewolf") and not row("lonewolfcolor") and not row("lonewolfpet") and row("reset"), "Lone Wolf off: its other settings should be gone, Reset stays")
+db.lonewolf = "AUTO" YaHT:ApplySettings() M.Render()
+assert(row("lonewolfcolor"), "Lone Wolf on again: its settings should be back")
+-- your list of changes still shows a setting that is switched off (so you can put it back)
+db.glow, db.glowsize = false, 20 YaHT:ApplySettings()
+M.Show("changed")
+assert(row("glowsize") and row("glowsize").off, "My changes should still list a switched-off setting, greyed")
+db.glow, db.glowsize = true, 10
 DEFAULT_CHAT_FRAME.AddMessage = add
 print("OK53")

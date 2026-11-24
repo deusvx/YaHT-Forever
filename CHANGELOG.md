@@ -20,6 +20,8 @@
 - Options: in the list on the left the alerts are three sections of their own (Warnings, Timers
   and icons, Tools) instead of one long "Alerts" list. Tranquilizing Shot announce moved from
   Advanced to Tools.
+- Options: a page shows only what you can use. Settings of a feature that is switched off are left
+  out instead of sitting there greyed, and come back when you switch it on. A search still finds them.
 - Options: the window opens on the page you left, also after a reload.
 - Options: Ctrl + mouse wheel moves a slider one step (the wheel alone still scrolls the page), and
   switches, lists and buttons click like the game's own.

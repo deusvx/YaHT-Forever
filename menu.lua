@@ -1459,6 +1459,40 @@ end
 -- settings sit in a box: under their section's heading, or in one of their own
 local BOXED = {toggle = true, range = true, select = true, color = true, input = true, cards = true}
 
+-- A page shows only what you can use right now. A setting that is switched off by another one
+-- (the glow's size while the glow is off) is left out instead of sitting there greyed, and a card
+-- left with no setting in it goes too, with its title and the text under it. Switch the feature
+-- on and its settings are back. (A search and the list of your changes still show everything.)
+local CONTROL = {toggle = true, range = true, select = true, color = true, input = true, execute = true, cards = true}
+local function Kind(item) return item.custom or item.opt.type end
+local function IsReset(item) return Kind(item) == "execute" and item.path and item.path[#item.path].key == "reset" end
+local function Tidy(items)
+	local keep = {}
+	for _, item in ipairs(items) do
+		local gone = item.path and (Flag(item.path, "hidden") or (CONTROL[Kind(item)] and Flag(item.path, "disabled")))
+		if not gone then keep[#keep + 1] = item end
+	end
+	local out, i = {}, 1
+	while i <= #keep do
+		local kind = Kind(keep[i])
+		if kind == "header" or kind == "section" then
+			local j, has = i + 1, false
+			while j <= #keep do
+				local k = Kind(keep[j])
+				if k == "header" or k == "section" or k == "gap" or k == "title" or IsReset(keep[j]) then break end
+				if CONTROL[k] or k == "note" then has = true end -- (a note is what a page of text is made of)
+				j = j + 1
+			end
+			if has then for x = i, j - 1 do out[#out + 1] = keep[x] end end
+			i = j
+		else
+			out[#out + 1] = keep[i]
+			i = i + 1
+		end
+	end
+	return out
+end
+
 function Menu.Render()
 	if not frame or not frame:IsShown() then return end
 	Menu.CloseList()
@@ -1486,7 +1520,9 @@ function Menu.Render()
 		boxTop = y
 		y = y - pad
 	end
-	for _, item in ipairs(Menu.Items()) do
+	local items = Menu.Items()
+	if not searching and page.id ~= "changed" then items = Tidy(items) end
+	for _, item in ipairs(items) do
 		local kind = item.custom or item.opt.type
 		if item.path and Flag(item.path, "hidden") then
 			-- doesn't apply right now

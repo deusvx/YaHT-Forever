@@ -169,9 +169,15 @@ r.widget.scripts.OnMouseUp(r.widget)
 assert(row("petlowat").value.txt == "50%", "slider lost its value after the page was drawn again")
 assert(not row("petlowat").off, "slider greyed out while its switch is on")
 click(row("petlow").widget)
-assert(db.petlow == false and row("petlowat").off and row("petlowat").widget.mouse == false, "slider not greyed out with its switch off")
+-- a setting that another one switches off is left out of the page (not shown greyed), and is back with its switch
+assert(db.petlow == false and not row("petlowat") and row("petlow"), "with its switch off the slider should be gone from the page, the switch still there")
+-- ... a search still finds it, greyed, so "where is that setting?" always has an answer
+M.Search("low means")
+assert(row("petlowat") and row("petlowat").off and row("petlowat").widget.mouse == false, "a search should still show a switched-off setting, greyed")
 assert(row("petlowat").up.mouse == false and row("petlowat").valueBtn.mouse == false, "a greyed-out slider's arrows and number still work")
+M.Show("alerts/petpage")
 click(row("petlow").widget)
+assert(db.petlow == true and row("petlowat") and not row("petlowat").off, "the slider should be back with its switch")
 -- the small arrows move one step; at the end of the range they stop
 assert(row("petlowat").up.bars[1].tex:find("media\\Arrow", 1, true) and #row("petlowat").up.bars == 1, "the slider arrows should be the smooth arrow artwork")
 db.petlowat = 35 M.Render()
