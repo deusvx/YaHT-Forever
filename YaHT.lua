@@ -78,31 +78,40 @@ local SCOPE_POP = 0.25    -- seconds the lock-on takes
 ---------------------------------------------------------------------------
 -- Sounds: every sound YaHT makes is one you choose from this list
 ---------------------------------------------------------------------------
--- YaHT's own hunter sounds come first (files in media, made for it: no recordings), then three
--- of the game's. The game's are named as the game knows them; a client that lacks one doesn't offer it.
-local SOUND_FILE = {
-	PUMP = "Sound-Pump.ogg", BOLT = "Sound-Bolt.ogg", BOW = "Sound-Bow.ogg", THUD = "Sound-Thud.ogg",
-	HORN = "Sound-Horn.ogg", DRUM = "Sound-Drum.ogg", BLADE = "Sound-Blade.ogg",
+-- First the game's own weapon sounds, the ones a hunter already knows: they are part of the
+-- game's data and are played by their file number (the same on every client that has them), so
+-- nothing is shipped for them. Then three sounds made for YaHT (files in media, no recordings),
+-- then three of the game's interface sounds.
+local SOUND_GAME = {
+	GUN1 = 567719, GUN2 = 567720, GUN3 = 567723,   -- sound/item/weapons/gun/gunload01..03
+	SHOT = 567721,                                 -- .../gun/gunfire01
+	BOWPULL = 567677, BOWREL = 567674,             -- sound/item/weapons/bow/bowpullback, bowrelease
+	ARROW = 567672,                                -- .../bow/arrowhita
 }
+local SOUND_FILE = {HORN = "Sound-Horn.ogg", DRUM = "Sound-Drum.ogg", BLADE = "Sound-Blade.ogg"}
 local SOUND_KIT = {PING = "MAP_PING", ALARM = "ALARM_CLOCK_WARNING_3", WARNING = "RAID_WARNING"}
+-- (names an earlier test build used for sounds that were replaced by the game's own)
+local SOUND_WAS = {PUMP = "GUN1", BOLT = "GUN2", BOW = "BOWREL", THUD = "ARROW"}
 local SOUND_DIR = "Interface\\AddOns\\YaHT\\media\\"
-YaHT.SOUND_ORDER = {"PUMP", "BOLT", "BOW", "THUD", "BLADE", "HORN", "DRUM", "PING", "ALARM", "WARNING"}
+YaHT.SOUND_ORDER = {"GUN1", "GUN2", "GUN3", "SHOT", "BOWPULL", "BOWREL", "ARROW", "BLADE", "HORN", "DRUM", "PING", "ALARM", "WARNING"}
 YaHT.SOUND_NAME = {
-	PUMP = "Shotgun pump", BOLT = "Rifle bolt", BOW = "Bow twang", THUD = "Arrow hit", BLADE = "Blade drawn",
-	HORN = "Hunting horn", DRUM = "Drum",
-	PING = "Ping (game)", ALARM = "Alarm (game)", WARNING = "Raid warning (game)",
+	GUN1 = "Gun cocking", GUN2 = "Gun cocking (2)", GUN3 = "Gun cocking (3)", SHOT = "Gunshot",
+	BOWPULL = "Bow drawn", BOWREL = "Bow released", ARROW = "Arrow hit",
+	BLADE = "Blade drawn", HORN = "Hunting horn", DRUM = "Drum",
+	PING = "Ping", ALARM = "Alarm", WARNING = "Raid warning",
 }
 function YaHT.SoundExists(id)
-	if SOUND_FILE[id] then return true end
+	if SOUND_GAME[id] or SOUND_FILE[id] then return true end
 	local name = SOUND_KIT[id]
 	return name ~= nil and SOUNDKIT ~= nil and SOUNDKIT[name] ~= nil
 end
--- Plays the chosen sound. If it can't be played (a file the game hasn't loaded yet, a sound this
--- client lacks, a choice from an older version), the one that sound stood for before choices existed.
+-- Plays the chosen sound. If it can't be played (the game doesn't have that file, a file the game
+-- hasn't loaded yet, a choice from an older version), the one that sound stood for before choices existed.
 function YaHT:PlayChoice(id, usual)
-	local file = SOUND_FILE[id]
-	if file and type(PlaySoundFile) == "function" then
-		local ok, played = pcall(PlaySoundFile, SOUND_DIR .. file, "Master")
+	id = SOUND_WAS[id] or id
+	local what = SOUND_GAME[id] or (SOUND_FILE[id] and SOUND_DIR .. SOUND_FILE[id])
+	if what and type(PlaySoundFile) == "function" then
+		local ok, played = pcall(PlaySoundFile, what, "Master")
 		if ok and played then return true end
 	end
 	if not (PlaySound and SOUNDKIT) then return false end

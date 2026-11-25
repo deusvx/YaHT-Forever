@@ -1,10 +1,10 @@
 # Changelog
 
 ## 1.5.4
-- New: YaHT's own hunter sounds: a shotgun pump, a rifle bolt, a bow twang, an arrow hit, a blade
-  drawn, a hunting horn and a drum.
+- New: hunter sounds. The game's own gun cocking (three kinds), gunshot, bow drawn, bow released
+  and arrow hit, plus a blade drawn, a hunting horn and a drum made for YaHT.
 - Every sound is a choice now. Wherever YaHT had a switch for a sound there is a list instead: No
-  sound, one of YaHT's hunter sounds, or one of three of the game's (ping, alarm, raid warning).
+  sound, one of the hunter sounds, or the game's ping, alarm or raid warning.
   Picking one plays it, and a "Hear it" button beside the list plays it again. That
   covers the sound when a proc icon or the hawks pop up, the Feign Death resist, the pet and aspect
   warnings, and both ammo warnings; "sound at seconds left" has its own choice on every icon.

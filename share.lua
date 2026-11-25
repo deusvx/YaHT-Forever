@@ -15,7 +15,7 @@ local L = YaHT.L
 YaHT.news = {
 	version = "1.5.4",
 	lines = {
-		{"Hunter sounds", "YaHT has its own sounds now: shotgun pump, rifle bolt, bow twang, arrow hit, blade drawn, hunting horn, drum."},
+		{"Hunter sounds", "Gun cocking, gunshot, bow drawn, bow released and arrow hit from the game, plus a blade, a horn and a drum."},
 		{"Sounds", "Every sound is a choice: no sound, one of the hunter sounds, or the game's ping, alarm or raid warning."},
 		{"Hear it", "Picking a sound plays it, and the Hear it button beside the list plays it again."},
 		{"Seconds left", "The sound at seconds left has its own choice, on every icon and on the hawks."},
