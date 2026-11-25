@@ -27,7 +27,7 @@ end
 -- The record
 ---------------------------------------------------------------------------
 local RECORD_MAX = 500
-local TAG_MAX = {aspect = 60} -- a talkative kind of line can't push the rare ones out
+local TAG_MAX = {sound = 40, proc = 40, aspect = 60} -- a talkative kind of line can't push the rare ones out
 local fightStart -- when the current fight began (lines written in a fight say how far in)
 
 function YaHT:Record(tag, msg)

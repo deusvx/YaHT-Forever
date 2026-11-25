@@ -583,7 +583,17 @@ end
 -- sound at the start doesn't play, the one at the end does").
 function Icon:Chime()
 	local p = YaHT.db.profile
-	if self:Setting(p, "sound") then YaHT:PlayChoice(self:Setting(p, "soundkit"), "PING") end
+	local on, choice = self:Setting(p, "sound"), self:Setting(p, "soundkit")
+	local how = "sound off"
+	if on then
+		local _, said = YaHT:PlayChoice(choice, "PING")
+		how = said or "?"
+	end
+	-- (kept in the record: "the icon came up but I heard nothing" needs to be answerable afterwards)
+	if YaHT.Record then
+		YaHT:Record("sound", string.format("%s popped up: %s; its own look %s, choice %s",
+			tostring(self.def.label), how, p[self.key .. "own"] and "on" or "off", tostring(choice)))
+	end
 end
 
 -- The proc just started. startedAt/window come from the game when it says
@@ -1149,6 +1159,7 @@ local function CheckQuickShots()
 	if active then
 		if not f.proc then
 			quick:Start(false, startedAt, length, icon)
+			if YaHT.Record then YaHT:Record("proc", "Quick Shots on, from " .. source) end
 			if YaHT.debug then
 				YaHT:Print(string.format("Quick Shots on, from %s [%s] (%s)", source, source == "buff" and (quickFoundAs or "?") or "",
 					length and string.format("%.1fs of %.0fs left", f.procStart + length - now, length) or "time hidden, assuming 12s"))

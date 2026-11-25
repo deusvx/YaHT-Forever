@@ -110,15 +110,18 @@ end
 function YaHT:PlayChoice(id, usual)
 	id = SOUND_WAS[id] or id
 	local what = SOUND_GAME[id] or (SOUND_FILE[id] and SOUND_DIR .. SOUND_FILE[id])
+	local tried = ""
 	if what and type(PlaySoundFile) == "function" then
 		local ok, played = pcall(PlaySoundFile, what, "Master")
-		if ok and played then return true end
+		if ok and played then return true, "played " .. tostring(id) end
+		tried = string.format("%s would not play (%s), ", tostring(id), ok and "the game said no" or "the game raised an error")
 	end
-	if not (PlaySound and SOUNDKIT) then return false end
+	if not (PlaySound and SOUNDKIT) then return false, tried .. "no way to play a sound" end
+	local name = SOUND_KIT[id] or SOUND_KIT[usual] or "RAID_WARNING"
 	local kit = SOUNDKIT[SOUND_KIT[id] or ""] or SOUNDKIT[SOUND_KIT[usual] or ""] or SOUNDKIT.RAID_WARNING
-	if not kit then return false end
-	pcall(PlaySound, kit, "Master")
-	return true
+	if not kit then return false, tried .. "this game has none of the usual sounds" end
+	local ok, played = pcall(PlaySound, kit, "Master")
+	return true, string.format("%splayed the game's %s%s", tried, name, (ok and played == false) and " (the game said it would not play)" or "")
 end
 
 local warnedChat = {}
