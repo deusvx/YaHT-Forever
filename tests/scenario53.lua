@@ -29,8 +29,18 @@ assert(YaHT.news and YaHT.news.version == YaHT.version, "the news is for another
 assert(YaHT.newsDue and said("updated to " .. YaHT.version), "an update should be announced once")
 SlashCmdList["YAHT"]("")
 local f = YaHTMenuFrame
-assert(f.shown and M.current == "news" and noteWith("What's new in " .. YaHT.version) and noteWith(YaHT.news.lines[1]:sub(1, 24)), "after an update the window should open on what is new")
+assert(f.shown and M.current == "news" and noteWith("What's new in " .. YaHT.version) and noteWith(YaHT.news.lines[1][2]:sub(1, 24)), "after an update the window should open on what is new")
 assert(f.news and f.news.text.txt == "What's new" and f.news.on, "the What's new button should be there, and lit while you are on it")
+-- each point: what it is about (in gold), then one plain sentence; then the two versions before
+local first
+for _, r in ipairs(M.rows) do if r.item and r.item.plain == YaHT.news.lines[1][2] then first = r.item.text end end
+assert(first and first:find("|cff", 1, true) and first:find(YaHT.news.lines[1][1], 1, true), "a point should lead with what it is about, in gold: "..tostring(first))
+assert(#YaHT.news.earlier == 2 and noteWith("In " .. YaHT.news.earlier[1].version) and noteWith("In " .. YaHT.news.earlier[2].version), "the two versions before should be listed too")
+for _, v in ipairs(YaHT.news.earlier) do
+  assert(v.version < YaHT.news.version, "an earlier version is not earlier: "..v.version)
+  for _, line in ipairs(v.lines) do assert(#line[2] <= 130 and #line[1] <= 16, "a point should be short: "..line[2]) end
+end
+for _, line in ipairs(YaHT.news.lines) do assert(#line[2] <= 130 and #line[1] <= 16, "a point should be short: "..line[2]) end
 M.Show("home")
 assert(not noteWith("What's new") and not f.news.on, "Home itself should not carry the news")
 f.scripts.OnHide(f) f.shown = false
@@ -39,7 +49,7 @@ SlashCmdList["YAHT"]("")
 assert(M.current == "home" and not noteWith("What's new"), "the window should not open on the news a second time")
 -- the button shows it any time; a second click takes you back
 f.news.scripts.OnClick(f.news)
-assert(M.current == "news" and noteWith(YaHT.news.lines[1]:sub(1, 24)) and M.helpTitle == "What's new", "the button should show what is new")
+assert(M.current == "news" and noteWith(YaHT.news.lines[1][2]:sub(1, 24)) and M.helpTitle == "What's new", "the button should show what is new")
 f.news.scripts.OnClick(f.news)
 assert(M.current == "home", "a second click should take you back")
 -- /yaht new brings it back on request

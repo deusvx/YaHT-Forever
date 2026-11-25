@@ -8,15 +8,29 @@ local YaHT = YaHT
 local L = YaHT.L
 
 ---------------------------------------------------------------------------
--- What's new (a few short lines; the full list is in CHANGELOG.md)
+-- What's new: a few short points for this version and the two before it. Each point is
+-- {what it is about, one plain sentence}. The full list is in CHANGELOG.md.
+-- EVERY RELEASE: add the new version on top (and drop the oldest), or a test fails.
 ---------------------------------------------------------------------------
 YaHT.news = {
 	version = "1.5.4",
 	lines = {
-		"Every sound is a choice now. Where there was a switch for a sound there is a list: No sound, or a ping, chime, whisper, coins, invite, bell, ready check, alarm or raid warning.",
-		"Picking a sound plays it, and \"Hear it\" beside the list plays it again.",
-		"\"Sound at seconds left\" has its own choice of sound on every icon and on the hawks.",
-		"What you had switched on or off stays as it was, with the sound it made before.",
+		{"Sounds", "Every sound is now a choice: no sound, or a ping, chime, whisper, coins, invite, bell, ready check, alarm or raid warning."},
+		{"Hear it", "Picking a sound plays it, and the Hear it button beside the list plays it again."},
+		{"Seconds left", "The sound at seconds left has its own choice, on every icon and on the hawks."},
+		{"Your settings", "What you had on or off is unchanged, and sounds as it did before."},
+	},
+	earlier = {
+		{version = "1.5.3", lines = {
+			{"Tracking wheel", "Its on/off switch is on its own page, and it has a Layer setting and a polished look."},
+			{"Pop-up sound", "A clear ping instead of a soft click. Quick Shots sounds again when it procs while still up."},
+		}},
+		{version = "1.5.2", lines = {
+			{"Tracking wheel", "A small button shows what you track. Click it, move into a piece of the pie and on out, and you track it."},
+			{"Range warnings", "Deadzone and too far are gone the moment you are out of them."},
+			{"Options", "A page shows only what you can use. A gold dot marks what you changed; right-click it to put it back."},
+			{"Options", "What's new and Back sit by the search box, the alerts are three sections, and you can share your setup."},
+		}},
 	},
 }
 

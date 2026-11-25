@@ -483,8 +483,21 @@ end
 local function NewsItems()
 	local news = YaHT.news
 	if not news then return {{custom = "note", text = L["Nothing to tell for this version."]}} end
+	-- one point per line: a dot, what it is about in gold, then one plain sentence
+	local gold = string.format("|cff%02x%02x%02x", C.gold[1] * 255, C.gold[2] * 255, C.gold[3] * 255)
+	local function points(items, lines)
+		for _, line in ipairs(lines) do
+			items[#items + 1] = {custom = "note", text = string.format("%s%s|r   %s", gold, L[line[1]], L[line[2]]), plain = line[2]}
+		end
+	end
 	local items = {{custom = "section", text = string.format(L["What's new in %s"], news.version)}}
-	for _, line in ipairs(news.lines) do items[#items + 1] = {custom = "note", text = L[line]} end
+	points(items, news.lines)
+	-- the versions before, so someone who skipped an update still sees what they missed
+	for _, old in ipairs(news.earlier or {}) do
+		items[#items + 1] = {custom = "gap"}
+		items[#items + 1] = {custom = "section", text = string.format(L["In %s"], old.version)}
+		points(items, old.lines)
+	end
 	return items
 end
 
@@ -1606,7 +1619,7 @@ function Menu.Render()
 		Menu.helpTitle, Menu.helpText = L["Search settings"], hint
 	elseif page.id == "news" then
 		Menu.helpTitle = page.name
-		Menu.helpText = L["What changed in the version you have. Every version's full list is in CHANGELOG.md in the addon's folder, and on its CurseForge page."]
+		Menu.helpText = L["What changed in the version you have, and in the two before it. Every version's full list is on YaHT's CurseForge page."]
 	elseif page.id == "changed" then
 		Menu.helpTitle = page.name
 		Menu.helpText = L["Everything you changed from the defaults, in one place. Right-click a setting to put it back."] .. "\n\n" .. hint
