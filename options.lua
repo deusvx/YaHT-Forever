@@ -81,7 +81,7 @@ local TAB_KEYS = {
 	melee = {"melee", "meleemode", "meleeheight", "meleealpha", "meleeglint", "meleeraptor", "meleecolor", "meleeraptorcolor"},
 	feign = {"feign", "feignscale", "feigntime", "feignsound", "feigntargetcheck", "feignthreatcheck", "feigncolor",
 		"feignpoint", "feignrelpoint", "feignx", "feigny"},
-	tracker = {"tracker", "trackerpick", "trackersize", "trackerall", "trackerpoint", "trackerrelpoint", "trackerx", "trackery"},
+	tracker = {"tracker", "trackerpick", "trackersize", "trackerall", "trackerlayer", "trackerpolish", "trackerpoint", "trackerrelpoint", "trackerx", "trackery"},
 	pet = {"pet", "petlow", "petlowat", "petwhen", "petdead", "petidle", "petsound", "petpulse", "pettextsize",
 		"petpoint", "petrelpoint", "petx", "pety"},
 	hawk = {"hawksoundat", "hawk", "hawkmode", "hawkpos", "hawksize", "hawkalpha", "hawknumbers", "hawknumpos", "hawkempty", "hawkpolish", "hawkwarn",
@@ -205,7 +205,7 @@ function YaHT:CreateConfig()
 	local SHAPE_SORTING = {"SQUARE", "CIRCLE"}
 	local SHAPE_DESC = L["Square: the icon with a rim and a timer line under it. Circle: the icon cut round inside a ring, and the ring runs down as the timer."]
 	-- every "Polished look" setting there is (the one switch on the Home and Alerts pages sets them all)
-	YaHT.polishKeys = {"procpolish", "raptoriconpolish", "bestialiconpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish",
+	YaHT.polishKeys = {"trackerpolish", "procpolish", "raptoriconpolish", "bestialiconpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish",
 		"aspectpolish", "hawkpolish", "hawkiconpolish"}
 	local SQUARE_POLISH = L["A bevelled frame with fine edges in place of the flat rim, a soft light on the icon and a shadow under it. Off: the standard look, a plain flat rim."]
 
@@ -2244,6 +2244,13 @@ function YaHT:CreateConfig()
 						order = 1,
 					},
 					cardtitle = {name = L["Wheel"], type = "header", order = 1.5},
+					tracker = {
+						name = L["Show the tracking wheel"],
+						desc = L["The button and its wheel. Off: YaHT leaves tracking alone."],
+						type = "toggle",
+						width = "double",
+						order = 1.6,
+					},
 					trackerpick = {
 						name = L["Choose by"],
 						desc = L["Moving out past it: move into the piece you want and on out of the pie, and it is picked. Clicking: nothing changes until you click one; leaving the pie just closes the wheel. Either way, a click on the one you track switches tracking off, and a click in the middle closes the wheel."],
@@ -2255,6 +2262,22 @@ function YaHT:CreateConfig()
 					},
 					trackersize = {
 						name = L["Size"], type = "range", order = 3, min = 20, max = 64, step = 1,
+						disabled = function() return not YaHT.db.profile.tracker end,
+					},
+					trackerlayer = {
+						name = L["Layer"],
+						desc = L["Where the button sits among the game's windows while its wheel is closed. Behind windows: your bags, the map and other windows cover it. Above the minimap: for a button placed on a minimap. In front: nothing covers it. While the wheel is open it is always in front."],
+						type = "select",
+						order = 3.3,
+						values = {BACK = L["Behind windows"], MIDDLE = L["Above the minimap"], FRONT = L["In front of everything"]},
+						sorting = {"BACK", "MIDDLE", "FRONT"},
+						disabled = function() return not YaHT.db.profile.tracker end,
+					},
+					trackerpolish = {
+						name = L["Polished look"],
+						desc = L["A bevelled ring with fine edges and a shadow, like the polished hawk circles. Off: the standard flat look."],
+						type = "toggle",
+						order = 3.6,
 						disabled = function() return not YaHT.db.profile.tracker end,
 					},
 					trackerall = {

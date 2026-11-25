@@ -184,6 +184,8 @@ function YaHT:LoadDefaults()
 			trackerpick = "MOVE",
 			trackersize = 36,
 			trackerall = false,
+			trackerlayer = "BACK",
+			trackerpolish = false,
 			lonewolf = "AUTO",
 			lonewolfstyle = "SCOPE",
 			lonewolfheight = 22,

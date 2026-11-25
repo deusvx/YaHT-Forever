@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.3
+- Tracking wheel: its on/off switch is on its own page now (Tools, "Tracking wheel"), not only on Home.
+- Tracking wheel: a Layer setting for the button. Behind windows (as before), above the minimap (for
+  a button placed on a minimap addon), or in front of everything.
+- Tracking wheel: a polished look, with a bevelled ring and a shadow like the polished hawk circles.
+  The "Polished look on every icon" switch covers it too.
+- Fixed: the sound an icon makes when it pops up was a soft click that was lost in a fight, so it
+  seemed not to play (reported for Quick Shots). It is a clear ping now.
+- Quick Shots: when it procs again while it is still up, the pop-up sound plays again.
+
 ## 1.5.2
 - New: a tracking wheel. A small button shows what you are tracking. Click it and everything you
   can track opens around it as a pie, one piece each: move the mouse into the piece you want (the

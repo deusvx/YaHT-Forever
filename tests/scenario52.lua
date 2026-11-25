@@ -153,6 +153,39 @@ assert(page and opts.args.alerts.args.tracker and page.args.trackerpick and page
 db.trackersize = 50 page.args.reset.func()
 assert(db.trackersize == 36 and db.trackerpoint == nil and db.trackerpick == "MOVE", "Reset this page left something behind")
 
+-- its own page has its on/off switch too (asked for: it was only on Home)
+assert(page.args.tracker and page.args.tracker.type == "toggle", "the Tracking wheel page should have its on/off switch")
+
+-- LAYER: where the closed button sits among the game's windows; open, it is always in front
+mouse(0, 0)
+assert(db.trackerlayer == "BACK" and hub.layer == "LOW", "to start with the button is behind windows")
+db.trackerlayer = "MIDDLE" YaHT:ApplySettings() assert(hub.layer == "MEDIUM", "above the minimap = the middle layer, is "..tostring(hub.layer))
+db.trackerlayer = "FRONT" YaHT:ApplySettings() assert(hub.layer == "HIGH", "in front of everything, is "..tostring(hub.layer))
+hub.scripts.OnClick(hub) run(0.3)
+assert(hub.layer == "DIALOG", "open, the button is in front whatever the setting")
+hub.scripts.OnClick(hub) run(0.3)
+assert(hub.layer == "HIGH", "closed again, it should go back to the layer that is set, is "..tostring(hub.layer))
+db.trackerlayer = "BACK" YaHT:ApplySettings() assert(hub.layer == "LOW", "back behind windows")
+
+-- POLISHED LOOK: a ring, fine lines and a shadow on the button and on every track; off, the flat look
+assert(not hub.polished and not hub.ring.shown and not hub.shadow.shown, "the flat look to start with")
+db.trackerpolish = true YaHT:ApplySettings()
+assert(hub.polished and hub.ring.shown and hub.line.shown and hub.shadow.shown, "the button should take the polished look")
+hub.scripts.OnClick(hub) run(0.3)
+assert(slices[1].polished and slices[1].ring.shown and slices[1].shadow.shown, "the tracks should take the polished look too")
+hub.scripts.OnClick(hub) run(0.3)
+db.trackerpolish = false YaHT:ApplySettings()
+assert(not hub.polished and not hub.ring.shown, "the polished look should come off again")
+hub.scripts.OnClick(hub) run(0.3)
+assert(not slices[1].polished and not slices[1].ring.shown, "the tracks should be flat again")
+hub.scripts.OnClick(hub) run(0.3)
+-- "Polished look on every icon" covers the wheel
+local all = opts.args.alerts.args.polishall
+all.set(nil, true) assert(db.trackerpolish == true, "the switch for every icon should cover the tracking wheel")
+all.set(nil, false) assert(db.trackerpolish == false, "... and switch it off again")
+page.args.reset.func()
+assert(db.trackerlayer == "BACK" and db.trackerpolish == false, "Reset should put the layer and the look back")
+
 -- a client without the tracking list: nothing breaks, the wheel just stays shut
 C_Minimap = nil
 hub.scripts.OnClick(hub)

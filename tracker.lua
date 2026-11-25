@@ -36,6 +36,9 @@ local PIE = {0.15, 0.15, 0.17, 0.72}        -- a piece of the pie: grey, see-thr
 local PIE_ACTIVE = {0.30, 0.25, 0.13, 0.76} -- the piece of what you track now: a breath of gold
 local PIE_AIMED = {1, 0.90, 0.62, 0.50}     -- the piece you are heading for
 local RIM, RIM_ACTIVE, RIM_AIMED = {0, 0, 0}, {0.72, 0.58, 0.24}, {1, 1, 1} -- (the gold is kept quiet)
+local RING, RING_ACTIVE = {0.62, 0.52, 0.34}, {1, 0.80, 0.30} -- the polished look's ring: resting, and what you track
+-- where the closed button sits among the game's windows
+local LAYERS = {BACK = "LOW", MIDDLE = "MEDIUM", FRONT = "HIGH"}
 local TEXT, TEXT_AIMED = {1, 1, 1}, {1, 0.90, 0.62}
 
 local hub, wheel
@@ -114,7 +117,40 @@ local function Icon(parent, size)
 	Try(b.gloss, "SetBlendMode", "ADD")
 	b.gloss:SetAllPoints(b.icon)
 	b.gloss:SetAlpha(0.5)
+	-- the polished look, as on the hawk circles: a bevelled ring with fine edges and a shadow under it
+	b.shadow = b:CreateTexture(nil, "BACKGROUND", nil, -3)
+	b.shadow:SetTexture(MEDIA .. "Halo")
+	b.shadow:SetVertexColor(0, 0, 0)
+	b.shadow:SetAlpha(0.7)
+	b.ring = b:CreateTexture(nil, "OVERLAY")
+	b.ring:SetTexture(MEDIA .. "Ring")
+	b.ring:SetAllPoints(b)
+	b.line = b:CreateTexture(nil, "OVERLAY", nil, 1)
+	b.line:SetTexture(MEDIA .. "RingLine")
+	b.line:SetVertexColor(0, 0, 0)
+	b.line:SetAllPoints(b)
+	b.shadow:Hide() b.ring:Hide() b.line:Hide()
 	return b
+end
+
+-- Sizes a button and gives it the standard or the polished look
+local function Dress(b, size)
+	local polished = YaHT.db.profile.trackerpolish and true or false
+	b:SetSize(size, size)
+	b.polished = polished
+	b.icon:ClearAllPoints()
+	if polished then
+		b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
+		b.icon:SetSize(size * 0.78, size * 0.78) -- (the ring takes the rest)
+		b.shadow:ClearAllPoints()
+		b.shadow:SetPoint("CENTER", b, "CENTER", 0, -size * 0.06)
+		b.shadow:SetSize(size * 1.62, size * 1.62)
+	else
+		b.icon:SetAllPoints(b)
+	end
+	b.shadow:SetShown(polished)
+	b.ring:SetShown(polished)
+	b.line:SetShown(polished)
 end
 
 local function Mix(a, b, k)
@@ -125,7 +161,14 @@ end
 local function Paint(s)
 	local k = s.glow or 0
 	local r, g, b = Mix(s.active and RIM_ACTIVE or RIM, RIM_AIMED, k)
-	s.rim:SetVertexColor(r, g, b)
+	if s.polished then
+		-- the ring carries the colour; the disc behind the icon stays dark
+		s.rim:SetVertexColor(0, 0, 0)
+		r, g, b = Mix(s.active and RING_ACTIVE or RING, RIM_AIMED, k)
+		s.ring:SetVertexColor(r, g, b)
+	else
+		s.rim:SetVertexColor(r, g, b)
+	end
 	if s.piece then
 		-- (a texture has one alpha: SetAlpha would overwrite this one, so the pie's fade-in is part of it)
 		local a
@@ -140,8 +183,14 @@ local function Refresh()
 	local now = Current(list)
 	hub.icon:SetTexture(now and now.texture or NOTHING)
 	hub.icon:SetDesaturated(not now)
-	local c = now and RIM_ACTIVE or RIM
-	hub.rim:SetVertexColor(c[1], c[2], c[3])
+	if hub.polished then
+		local c = now and RING_ACTIVE or RING
+		hub.rim:SetVertexColor(0, 0, 0)
+		hub.ring:SetVertexColor(c[1], c[2], c[3])
+	else
+		local c = now and RIM_ACTIVE or RIM
+		hub.rim:SetVertexColor(c[1], c[2], c[3])
+	end
 	hub.current = now and now.name or nil
 	for _, s in ipairs(slices) do
 		s.active = false
@@ -160,7 +209,7 @@ local function Close(atOnce)
 	wheel.aimed = nil
 	if atOnce then
 		wheel:Hide()
-		hub.layer = "LOW" hub:SetFrameStrata("LOW")
+		hub.layer = hub.rest or "LOW" hub:SetFrameStrata(hub.layer)
 	else
 		wheel.closingAt = wheel.closingAt or GetTime()
 	end
@@ -247,7 +296,7 @@ local function Step(self, elapsed)
 		if left <= 0 then
 			self.closingAt = nil
 			self:Hide()
-			hub.layer = "LOW" hub:SetFrameStrata("LOW")
+			hub.layer = hub.rest or "LOW" hub:SetFrameStrata(hub.layer)
 		else
 			self:SetAlpha(left)
 		end
@@ -282,7 +331,11 @@ local function Step(self, elapsed)
 			Paint(s)
 		end
 		local big = size * (1 + (GROW - 1) * s.glow)
-		s:SetSize(big, big)
+		if s.dressed ~= big or s.polished ~= (p.trackerpolish and true or false) then
+			s.dressed = big
+			Dress(s, big)
+			Paint(s)
+		end
 		s:ClearAllPoints()
 		s:SetPoint("CENTER", hub, "CENTER", math.sin(s.angle) * r, math.cos(s.angle) * r)
 		s:SetAlpha(t)
@@ -305,7 +358,11 @@ end
 function YaHT:ApplyTrackerSettings()
 	if not hub then return end
 	local p = self.db.profile
-	hub:SetSize(p.trackersize, p.trackersize)
+	Dress(hub, p.trackersize)
+	for _, s in ipairs(slices) do s.dressed = nil end -- (drawn again in the look that is set now)
+	-- its place among the game's windows while it is closed (open, it is always in front)
+	hub.rest = LAYERS[p.trackerlayer] or "LOW"
+	if not (wheel and wheel:IsShown()) then hub.layer = hub.rest hub:SetFrameStrata(hub.rest) end
 	hub:ClearAllPoints()
 	if p.trackerpoint then
 		hub:SetPoint(p.trackerpoint, UIParent, p.trackerrelpoint, p.trackerx, p.trackery)

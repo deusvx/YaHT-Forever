@@ -579,10 +579,13 @@ function Icon:OnUpdate(elapsed)
 	end
 end
 
--- the short sound an icon makes when it pops up (when its look says so)
+-- The short sound an icon makes when it pops up (when its look says so). A clear ping: the
+-- first choice used to be a soft click that is lost in a fight (reported for Quick Shots: "the
+-- sound at the start doesn't play, the one at the end does").
 function Icon:Chime()
 	if self:Setting(YaHT.db.profile, "sound") and SOUNDKIT then
-		local kit = SOUNDKIT.UI_COPY_SUCCESSFUL or SOUNDKIT.IG_ABILITY_ICON_DROP or SOUNDKIT.RAID_WARNING
+		local kit = SOUNDKIT.MAP_PING or SOUNDKIT.IG_QUEST_LIST_COMPLETE or SOUNDKIT.TELL_MESSAGE
+			or SOUNDKIT.IG_ABILITY_ICON_DROP or SOUNDKIT.RAID_WARNING
 		if kit then pcall(PlaySound, kit, "Master") end
 	end
 end
@@ -1156,6 +1159,7 @@ local function CheckQuickShots()
 			end
 		elseif startedAt and math.abs(startedAt - f.procStart) > 0.2 then
 			f.procStart, f.window = startedAt, length or QS_LENGTH -- refreshed by a new proc
+			quick:Chime() -- (a new proc is a new proc: it sounds again, not only the first of a chain)
 			if YaHT.debug then YaHT:Print("Quick Shots refreshed") end
 		end
 	elseif quick:End() and YaHT.debug then

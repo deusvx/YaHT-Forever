@@ -11,14 +11,13 @@ local L = YaHT.L
 -- What's new (a few short lines; the full list is in CHANGELOG.md)
 ---------------------------------------------------------------------------
 YaHT.news = {
-	version = "1.5.2",
+	version = "1.5.3",
 	lines = {
-		"Tracking wheel: a small button shows what you track. Click it, move into a piece of the pie and on out, and you track it. (Tools, Tracking wheel)",
-		"The deadzone and too-far warnings are gone the moment you are out of them.",
-		"Options: a gold dot marks a setting you changed. Right-click the setting to put it back.",
-		"Options: a page shows only what you can use. Switch a feature off and its settings step aside until you switch it on again.",
-		"Options: \"What's new\" and \"Back\" sit next to the search box. The alerts are three sections: Warnings, Timers and icons, Tools. \"Show my changes\" on the Profiles page lists everything you changed.",
-		"Options: share your setup as a line of text (Profiles), and the window opens on the page you left.",
+		"Tracking wheel: its on/off switch is now on its own page (Tools, Tracking wheel).",
+		"Tracking wheel: a Layer setting puts the button behind your windows, above the minimap, or in front of everything.",
+		"Tracking wheel: a polished look, with a bevelled ring and a shadow.",
+		"The sound an icon makes when it pops up is a clear ping now. The soft click before was lost in a fight.",
+		"Quick Shots: when it procs again while it is still up, the pop-up sound plays again.",
 	},
 }
 
