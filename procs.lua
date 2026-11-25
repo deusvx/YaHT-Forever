@@ -264,7 +264,7 @@ YaHT.NewProcIcon = NewIcon
 -- The look (size, opacity, glow style, pulse, sound, polished or not) is shared
 -- by all proc icons ("proc" settings), unless an icon is given its own (<key>own,
 -- then <key>iconsize ...); position, glow color and on/off are always per icon.
-local SHARED = {size = true, alpha = true, glow = true, pulse = true, sound = true, polish = true, shape = true}
+local SHARED = {size = true, alpha = true, glow = true, pulse = true, sound = true, soundkit = true, polish = true, shape = true}
 function Icon:Setting(p, suffix)
 	if SHARED[suffix] then
 		if p[self.key .. "own"] then return p[self.key .. "icon" .. suffix] end
@@ -421,10 +421,9 @@ function Icon:SetIconSize(size)
 end
 
 -- The sound for "its time is running low" (not the pop-up chime, so the two can be told apart)
-local function LowSound()
-	if not SOUNDKIT then return end
-	local kit = SOUNDKIT.ALARM_CLOCK_WARNING_3 or SOUNDKIT.READY_CHECK or SOUNDKIT.RAID_WARNING
-	if kit then pcall(PlaySound, kit, "Master") end
+-- which: the sound chosen for that icon ("<key>soundatkit")
+local function LowSound(which)
+	YaHT:PlayChoice(which, "ALARM")
 end
 YaHT.LowSound = LowSound
 
@@ -472,7 +471,7 @@ function Icon:OnUpdate(elapsed)
 	local at = (not preview and not self.def.ownNumbers and p[self.key .. "soundat"]) or 0
 	if at > 0 and window > at and f.proc and f.secondsLeft > 0 and f.secondsLeft <= at and f.soundFor ~= start then
 		f.soundFor = start
-		LowSound()
+		LowSound(p[self.key .. "soundatkit"])
 	end
 	-- an icon can ask for another colour (the hawks turn red when their time runs low)
 	local tint = self.def.tint and self.def.tint(f.secondsLeft, p) or nil
@@ -583,11 +582,8 @@ end
 -- first choice used to be a soft click that is lost in a fight (reported for Quick Shots: "the
 -- sound at the start doesn't play, the one at the end does").
 function Icon:Chime()
-	if self:Setting(YaHT.db.profile, "sound") and SOUNDKIT then
-		local kit = SOUNDKIT.MAP_PING or SOUNDKIT.IG_QUEST_LIST_COMPLETE or SOUNDKIT.TELL_MESSAGE
-			or SOUNDKIT.IG_ABILITY_ICON_DROP or SOUNDKIT.RAID_WARNING
-		if kit then pcall(PlaySound, kit, "Master") end
-	end
+	local p = YaHT.db.profile
+	if self:Setting(p, "sound") then YaHT:PlayChoice(self:Setting(p, "soundkit"), "PING") end
 end
 
 -- The proc just started. startedAt/window come from the game when it says
@@ -1697,8 +1693,8 @@ local function BadgeUpdate(self, elapsed)
 	if self.judge <= 0 then
 		self.judge = ASPECT_CHECK
 		local level = AspectLevel(p)
-		if level == "DANGER" and self.level ~= "DANGER" and p.aspectsound and SOUNDKIT and SOUNDKIT.RAID_WARNING then
-			pcall(PlaySound, SOUNDKIT.RAID_WARNING, "Master")
+		if level == "DANGER" and self.level ~= "DANGER" and p.aspectsound then
+			YaHT:PlayChoice(p.aspectsoundkit, "WARNING")
 		end
 		self.level = level
 		-- the words with it: only for a speed aspect in a fight (and in "Preview all alerts")

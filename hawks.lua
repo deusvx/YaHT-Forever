@@ -299,7 +299,7 @@ local function Draw()
 				local id = math.floor(h.start * 10 + 0.5)
 				if left > 0 and left <= at and holder.sounded[i] ~= id then
 					holder.sounded[i] = id
-					if YaHT.LowSound then YaHT.LowSound() end
+					if YaHT.LowSound then YaHT.LowSound(p.hawksoundatkit) end
 				end
 			end
 		end

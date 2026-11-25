@@ -11,13 +11,12 @@ local L = YaHT.L
 -- What's new (a few short lines; the full list is in CHANGELOG.md)
 ---------------------------------------------------------------------------
 YaHT.news = {
-	version = "1.5.3",
+	version = "1.5.4",
 	lines = {
-		"Tracking wheel: its on/off switch is now on its own page (Tools, Tracking wheel).",
-		"Tracking wheel: a Layer setting puts the button behind your windows, above the minimap, or in front of everything.",
-		"Tracking wheel: a polished look, with a bevelled ring and a shadow.",
-		"The sound an icon makes when it pops up is a clear ping now. The soft click before was lost in a fight.",
-		"Quick Shots: when it procs again while it is still up, the pop-up sound plays again.",
+		"Every sound is a choice now. Where there was a switch for a sound there is a list: No sound, or a ping, chime, whisper, coins, invite, bell, ready check, alarm or raid warning.",
+		"Picking a sound plays it, and \"Hear it\" beside the list plays it again.",
+		"\"Sound at seconds left\" has its own choice of sound on every icon and on the hawks.",
+		"What you had switched on or off stays as it was, with the sound it made before.",
 	},
 }
 

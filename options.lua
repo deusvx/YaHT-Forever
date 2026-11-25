@@ -2469,6 +2469,113 @@ function YaHT:CreateConfig()
 			}
 		end
 	end
+	-- SOUNDS. Every sound is a choice: its switch becomes one list, "No sound" first, then the
+	-- sounds to pick from (picking one plays it; YaHT's own window has a "Hear it" button too).
+	-- The switch's setting stays as it is (on or off); the sound picked is kept beside it.
+	do
+		local function choices(none)
+			return function()
+				local v = {}
+				if none then v.NONE = L["No sound"] end
+				for _, id in ipairs(YaHT.SOUND_ORDER) do
+					if YaHT.SoundExists(id) then v[id] = L[YaHT.SOUND_NAME[id]] end
+				end
+				return v
+			end
+		end
+		local function order(none)
+			return function()
+				local list = {}
+				if none then list[1] = "NONE" end
+				for _, id in ipairs(YaHT.SOUND_ORDER) do
+					if YaHT.SoundExists(id) then list[#list + 1] = id end
+				end
+				return list
+			end
+		end
+		-- the sound each one made before there was a choice
+		local USUAL = {procsound = "PING", hawkiconsound = "PING", ammosound = "ALARM", feignsound = "WARNING",
+			petsound = "WARNING", aspectsound = "WARNING"}
+		local function usual(key)
+			return USUAL[key] or (key:find("iconsound$") and "PING") or nil
+		end
+		local added = {}
+		local function walk(args)
+			local more = {}
+			for key, opt in pairs(args) do
+				if opt.type == "group" then
+					walk(opt.args)
+				elseif opt.type == "toggle" and usual(key) then
+					-- a switch for a sound: now the list of sounds
+					local kit, was = key .. "kit", usual(key)
+					opt.type, opt.arg, opt.width = "select", "sound", nil
+					opt.values, opt.sorting = choices(true), order(true)
+					opt.get = function()
+						local p = YaHT.db.profile
+						return p[key] and (p[kit] or was) or "NONE"
+					end
+					opt.set = function(_, v)
+						local p = YaHT.db.profile
+						if v == "NONE" then
+							p[key] = false
+						else
+							p[key], p[kit] = true, v
+							YaHT:PlayChoice(v, was)
+						end
+						YaHT:ApplySettings()
+					end
+					added[key] = kit
+				elseif opt.type == "range" and key:find("soundat$") then
+					-- "sound at seconds left": which sound, right under how many seconds
+					local kit = key .. "kit"
+					more[kit] = {
+						name = L["Sound for seconds left"],
+						desc = L["The sound that plays when that much time is left."],
+						type = "select", arg = "sound",
+						order = (opt.order or 0) + 0.01,
+						values = choices(false), sorting = order(false),
+						hidden = opt.hidden,
+						disabled = function() return (YaHT.db.profile[key] or 0) <= 0 end,
+						get = function() return YaHT.db.profile[kit] or "ALARM" end,
+						set = function(_, v)
+							YaHT.db.profile[kit] = v
+							YaHT:PlayChoice(v, "ALARM")
+						end,
+					}
+					added[key] = kit
+				end
+			end
+			for kit, opt in pairs(more) do args[kit] = opt end
+			-- the ammo counter has two sounds: running low, and nearly out
+			if args.ammosound and not args.ammocritkit then
+				args.ammosound.name = L["Sound when ammo runs low"]
+				args.ammocritkit = {
+					name = L["Sound when ammo is nearly out"],
+					type = "select", arg = "sound",
+					order = (args.ammosound.order or 0) + 0.01,
+					values = choices(false), sorting = order(false),
+					disabled = function() return not YaHT.db.profile.ammosound end,
+					get = function() return YaHT.db.profile.ammocritkit or "WARNING" end,
+					set = function(_, v)
+						YaHT.db.profile.ammocritkit = v
+						YaHT:PlayChoice(v, "WARNING")
+					end,
+				}
+				added.ammocrit = "ammocritkit"
+			end
+		end
+		walk(aceoptions.args)
+		-- "Reset this page" puts the chosen sounds back too
+		for _, keys in pairs(TAB_KEYS) do
+			local extra = {}
+			for _, key in ipairs(keys) do
+				if added[key] then extra[#extra + 1] = added[key] end
+				if key == "ammosound" then extra[#extra + 1] = "ammocritkit" end
+			end
+			for _, kit in ipairs(extra) do keys[#keys + 1] = kit end
+		end
+		YaHT.soundKeys = added -- (for tests: every sound setting and where its choice is kept)
+	end
 	AceConfigRegistry:RegisterOptionsTable(Addon, aceoptions, true)
 	self.optionsTable = aceoptions -- YaHT's own window (menu.lua) is drawn from this same table
 

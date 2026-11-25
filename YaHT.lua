@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.5.3"
+YaHT.version = "1.5.4"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -74,6 +74,34 @@ YaHT.Look = Look
 local SCOPE_ART = "Interface\\AddOns\\YaHT\\media\\WolfScope"
 local SCOPE_TICKS = 8     -- the scale's parts (a longer tick at the ends and the middle)
 local SCOPE_POP = 0.25    -- seconds the lock-on takes
+
+---------------------------------------------------------------------------
+-- Sounds: every sound YaHT makes is one you choose from this list
+---------------------------------------------------------------------------
+-- (the game's own sounds, by the name the game knows them under; a client that lacks one
+-- simply doesn't offer it)
+local SOUND_KIT = {
+	PING = "MAP_PING", CHIME = "IG_QUEST_LIST_COMPLETE", WHISPER = "TELL_MESSAGE", COINS = "LOOT_WINDOW_COIN_SOUND",
+	INVITE = "IG_PLAYER_INVITE", BELL = "AUCTION_WINDOW_OPEN", READY = "READY_CHECK",
+	ALARM = "ALARM_CLOCK_WARNING_3", WARNING = "RAID_WARNING",
+}
+YaHT.SOUND_ORDER = {"PING", "CHIME", "WHISPER", "COINS", "INVITE", "BELL", "READY", "ALARM", "WARNING"}
+YaHT.SOUND_NAME = {
+	PING = "Ping (minimap)", CHIME = "Chime (quest done)", WHISPER = "Whisper", COINS = "Coins", INVITE = "Invite",
+	BELL = "Bell (auction house)", READY = "Ready check", ALARM = "Alarm", WARNING = "Raid warning",
+}
+function YaHT.SoundExists(id)
+	local name = SOUND_KIT[id]
+	return name ~= nil and SOUNDKIT ~= nil and SOUNDKIT[name] ~= nil
+end
+-- Plays the chosen sound; if this client lacks it, the one that sound stood for before choices existed.
+function YaHT:PlayChoice(id, usual)
+	if not (PlaySound and SOUNDKIT) then return false end
+	local kit = SOUNDKIT[SOUND_KIT[id] or ""] or SOUNDKIT[SOUND_KIT[usual] or ""] or SOUNDKIT.RAID_WARNING
+	if not kit then return false end
+	pcall(PlaySound, kit, "Master")
+	return true
+end
 
 local warnedChat = {}
 local function ChatWarnOnce(key, text)

@@ -29,7 +29,7 @@ assert(YaHT.news and YaHT.news.version == YaHT.version, "the news is for another
 assert(YaHT.newsDue and said("updated to " .. YaHT.version), "an update should be announced once")
 SlashCmdList["YAHT"]("")
 local f = YaHTMenuFrame
-assert(f.shown and M.current == "news" and noteWith("What's new in " .. YaHT.version) and noteWith("Tracking wheel"), "after an update the window should open on what is new")
+assert(f.shown and M.current == "news" and noteWith("What's new in " .. YaHT.version) and noteWith(YaHT.news.lines[1]:sub(1, 24)), "after an update the window should open on what is new")
 assert(f.news and f.news.text.txt == "What's new" and f.news.on, "the What's new button should be there, and lit while you are on it")
 M.Show("home")
 assert(not noteWith("What's new") and not f.news.on, "Home itself should not carry the news")
@@ -39,7 +39,7 @@ SlashCmdList["YAHT"]("")
 assert(M.current == "home" and not noteWith("What's new"), "the window should not open on the news a second time")
 -- the button shows it any time; a second click takes you back
 f.news.scripts.OnClick(f.news)
-assert(M.current == "news" and noteWith("Tracking wheel") and M.helpTitle == "What's new", "the button should show what is new")
+assert(M.current == "news" and noteWith(YaHT.news.lines[1]:sub(1, 24)) and M.helpTitle == "What's new", "the button should show what is new")
 f.news.scripts.OnClick(f.news)
 assert(M.current == "home", "a second click should take you back")
 -- /yaht new brings it back on request

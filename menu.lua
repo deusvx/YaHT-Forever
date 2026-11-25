@@ -1078,6 +1078,21 @@ Make.select = function(parent)
 	On(b, "OnClick", function() if row.onClick then row.onClick() end end)
 	Hook(row, b)
 	row.widget = b
+	-- a list of sounds has a button beside it that plays the one that is picked
+	local h = CreateFrame("Button", nil, row)
+	h:SetSize(58, 22)
+	h:SetPoint("RIGHT", b, "LEFT", -8, 0)
+	Plate(h, "BACKGROUND", C.field):SetAllPoints(h)
+	Rim(h, C.soft)
+	h.text = Text(h, "GameFontHighlightSmall", C.text)
+	h.text:SetPoint("CENTER", h, "CENTER", 0, 0)
+	h.text:SetText(L["Hear it"])
+	On(h, "OnClick", function() if row.onHear then row.onHear() end end)
+	On(h, "OnEnter", function(self) self.text:SetTextColor(1, 1, 1) row.hover:Show() ShowTip(row) end)
+	On(h, "OnLeave", function(self) self.text:SetTextColor(C.text[1], C.text[2], C.text[3]) row.hover:Hide() HideTip() end)
+	h:Hide()
+	row.hear = h
+	row.extras = {h}
 	return row
 end
 Fill.select = function(row, item)
@@ -1091,6 +1106,13 @@ Fill.select = function(row, item)
 		Call(item.path, "set", key)
 		Menu.Changed()
 	end
+	-- a sound: "Hear it" plays the one that is picked (nothing to hear for "No sound")
+	local isSound = item.opt.arg == "sound" and current ~= nil and current ~= "NONE"
+	row.hear:SetShown(isSound)
+	row.onHear = isSound and function() YaHT:PlayChoice(current) end or nil
+	row.label:ClearAllPoints()
+	row.label:SetPoint("LEFT", row.plate, "LEFT", PAD, 0)
+	row.label:SetPoint("RIGHT", row.plate, "RIGHT", -(PAD + 190 + 10 + (isSound and 66 or 0)), 0)
 	row.onClick = function()
 		if list and list:IsShown() and list.owner == row then return Menu.CloseList() end
 		Menu.OpenList(row.widget, values, Value(item.path, "sorting"), current, MEDIA_OF[item.path[#item.path].key], row.onPick)

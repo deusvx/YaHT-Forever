@@ -218,8 +218,8 @@ local function Judge()
 					tostring(out), tostring(isDead), tostring(PetAttacking())))
 			end
 			local gone = state == "DEAD" or state == "NONE" or state == "OUT"
-			if gone and was ~= "DEAD" and was ~= "NONE" and was ~= "OUT" and p.petsound and SOUNDKIT and SOUNDKIT.RAID_WARNING then
-				pcall(PlaySound, SOUNDKIT.RAID_WARNING, "Master")
+			if gone and was ~= "DEAD" and was ~= "NONE" and was ~= "OUT" and p.petsound then
+				YaHT:PlayChoice(p.petsoundkit, "WARNING")
 			end
 		end
 	end

@@ -101,9 +101,9 @@ local frame -- created in InitAmmo
 local FALLBACK_ICON = {[PROJ_ARROW] = "Interface\\Icons\\INV_Ammo_Arrow_01", [PROJ_BULLET] = "Interface\\Icons\\INV_Ammo_Bullet_01"}
 
 local function PlayWarning(level)
-	if not YaHT.db.profile.ammosound then return end
-	local kit = SOUNDKIT and (level == "CRIT" and SOUNDKIT.RAID_WARNING or SOUNDKIT.ALARM_CLOCK_WARNING_3)
-	if kit then pcall(PlaySound, kit, "Master") end
+	local p = YaHT.db.profile
+	if not p.ammosound then return end
+	if level == "CRIT" then YaHT:PlayChoice(p.ammocritkit, "WARNING") else YaHT:PlayChoice(p.ammosoundkit, "ALARM") end
 end
 
 local function Refresh()

@@ -136,7 +136,7 @@ local function ShowAlert(reason)
 	alert.shownAt = GetTime()
 	alert.reason = reason
 	alert:Show()
-	if p.feignsound and SOUNDKIT and SOUNDKIT.RAID_WARNING then pcall(PlaySound, SOUNDKIT.RAID_WARNING, "Master") end
+	if p.feignsound then YaHT:PlayChoice(p.feignsoundkit, "WARNING") end
 end
 
 local function AlertUpdate(self, elapsed)

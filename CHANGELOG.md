@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.4
+- Every sound is a choice now. Wherever YaHT had a switch for a sound there is a list instead: No
+  sound, or one of the game's sounds (ping, chime, whisper, coins, invite, bell, ready check, alarm,
+  raid warning). Picking one plays it, and a "Hear it" button beside the list plays it again. That
+  covers the sound when a proc icon or the hawks pop up, the Feign Death resist, the pet and aspect
+  warnings, and both ammo warnings; "sound at seconds left" has its own choice on every icon.
+  What you had switched on or off stays as it was, with the sound it made before.
+
 ## 1.5.3
 - Tracking wheel: its on/off switch is on its own page now (Tools, "Tracking wheel"), not only on Home.
 - Tracking wheel: a Layer setting for the button. Behind windows (as before), above the minimap (for
