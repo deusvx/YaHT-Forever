@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.5.5"
+YaHT.version = "1.5.6"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -62,7 +62,18 @@ function YaHT:LoneWolfMode()
 end
 -- A colour of the bar: in Lone Wolf mode the reload colour and the glow have their own
 local WOLF_COLORS = {timercolor = "lonewolfcolor", glowcolor = "lonewolfglowcolor"}
+-- The cast bar style (after Bouk's Hunter Castbar, a WeakAura many hunters know): the reload in
+-- blue, the stand-still part in green, always from the left, with the shot's name and its time
+-- on the bar. It has its own two colours, so the regular look keeps its own.
+local CASTBAR_COLORS = {timercolor = "castbarreload", drawcolor = "castbarwind"}
+local function CastBar(config) return config.barstyle == "CASTBAR" end
+YaHT.CastBarStyle = CastBar
+-- does the bar grow from its middle? (never in the cast bar style)
+local function FromMiddle(config) return config.fill and not CastBar(config) and true or false end
+YaHT.FromMiddle = FromMiddle
 local function Look(config, key)
+	local cast = CASTBAR_COLORS[key]
+	if cast and config[cast] and CastBar(config) then return config[cast] end
 	local wolf = WOLF_COLORS[key]
 	if wolf and config[wolf] and YaHT:LoneWolfMode() then return config[wolf] end
 	return config[key]
@@ -245,6 +256,42 @@ local function IsMoving()
 	return lastMoving -- stat hidden: keep last known state
 end
 
+-- Feigning death holds the shot back just as moving does: the game keeps trying and failing until
+-- you are up. The bar used to run a stand-still part the game was about to refuse (seen in game: a
+-- fill to full with no shot, then an empty wait, then the real one). So for the bar, "feigned" is
+-- "ready, waiting", the same as moving with the shot ready.
+local function Feigning()
+	if not UnitIsFeignDeath then return false end
+	local ok, feigned = pcall(UnitIsFeignDeath, "player")
+	if not ok or IsSecret(feigned) then return false end
+	return feigned and true or false
+end
+-- And for a while after the feign itself, up or not: in the Feign Death record of nine feigns every
+-- Auto Shot attempt up to 2.90 s after the cast failed (the game retrying each half second), and
+-- the one whose next shot was timed went through at about 3.26 s. So the game does not let Auto Shot
+-- start for about three seconds after Feign Death. Until then the bar waits; the stand-still part
+-- then starts at the game's next attempt.
+local FEIGN_HOLD = 3.0
+local function Held()
+	if IsMoving() or Feigning() then return true end
+	local untilT = YaHT.feignHold
+	return untilT ~= nil and GetTime() < untilT
+end
+
+-- What Auto Shot does around a Feign Death, written to the Feign Death record: when it stops and
+-- starts, every failed attempt, and when the next shot leaves (after the feign, after the shot
+-- before it, and how long the game says a shot takes). It answers "does the feign restart the
+-- shot's timer or not", which the bar's timing after a feign depends on.
+local function FeignTrace(what)
+	local at = YaHT.feignAt
+	if not at or not YaHT.FeignLog then return end
+	local now = GetTime()
+	if now - at > 10 then YaHT.feignAt = nil return end
+	local f = YaHT.mainFrame
+	YaHT.FeignLog(string.format("auto shot: %s at %.2fs | feigned %s | moving %s | last shot %.2fs ago | swing %.3f",
+		what, now - at, tostring(Feigning()), tostring(IsMoving()), now - (YaHT.feignShot or f.lastshot), f.speed or 0))
+end
+
 local lastRangedSpeed = 2
 local function GetRangedSpeed()
 	local speed = UnitRangedDamage("player")
@@ -330,8 +377,26 @@ local function OnUpdate(self, elapsed)
 	self.readyMoving = false
 	if not config.lock then
 		self.mockTime = self.mockTime + elapsed
+		if CastBar(config) then
+			-- the cast bar style, shown as it runs: the reload drains, then the stand-still part
+			local full = self:GetWidth()
+			if self.mockTime > self.swingtime then
+				local c = Look(config, "drawcolor")
+				self.texture:SetVertexColor(c.r, c.g, c.b)
+				local frac = math.min(self.mockTime2 / SWING_TIME, 1)
+				self.texture:SetWidth(math.max(full * (config.castbardir == "FILL" and frac or (1 - frac)), 0.01))
+				self.mockTime2 = self.mockTime2 + elapsed
+				if self.mockTime2 > SWING_TIME then self.mockTime = 0 end
+			else
+				self.mockTime2 = 0
+				local c = Look(config, "timercolor")
+				self.texture:SetVertexColor(c.r, c.g, c.b)
+				self.texture:SetWidth(math.max(full * (1 - self.mockTime / self.swingtime), 0.01))
+			end
+			return
+		end
 		if self.mockTime > self.swingtime then
-			self.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
+			self.texture:SetVertexColor(Look(config, "drawcolor").r,Look(config, "drawcolor").g,Look(config, "drawcolor").b)
 			self.texture:SetWidth(math.max(self:GetWidth() * (1-(self.mockTime2/SWING_TIME)), 0.01))
 			self.mockTime2 = self.mockTime2 + elapsed
 			if self.mockTime2 > SWING_TIME then
@@ -389,7 +454,7 @@ local function OnUpdate(self, elapsed)
 		-- On WoW Forever Auto Shot keeps firing during Aimed Shot casts, so a
 		-- cast only holds the timer if the user turns that option on.
 		if self.shooting and not (self.casting and config.castholds) then
-			self.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
+			self.texture:SetVertexColor(Look(config, "drawcolor").r,Look(config, "drawcolor").g,Look(config, "drawcolor").b)
 			self:SetAlpha(config.alpha)
 			self.SwingStart, self.fillFrom, self.nextAttempt = curTime, curTime, curTime
 			self.fillBase, self.fillFrac = 0, 0
@@ -399,13 +464,13 @@ local function OnUpdate(self, elapsed)
 			end
 		end
 	elseif self.SwingStart then
-		if IsMoving() then
+		if Held() then
 			self.readyMoving = true -- shot is ready, you just need to stop
 			self.disturbed = true -- this cycle can't be used to learn timing
 			self.wasMoving = true
 			self.SwingStart, self.fillFrom = curTime, curTime
 			self.fillBase, self.fillFrac = 0, 0
-			self.texture:SetWidth(0.01)
+			self.texture:SetWidth((CastBar(config) and config.castbardir ~= "FILL") and config.width or 0.01)
 			self:SetAlpha(config.malpha)
 		else
 			if self.wasMoving then
@@ -427,10 +492,20 @@ local function OnUpdate(self, elapsed)
 			local t = math.min(math.max((curTime - (self.fillFrom or self.SwingStart)) / span, 0), 1)
 			local frac = base + (1 - base) * t
 			self.fillFrac = frac
-			self.texture:SetWidth(math.max(config.width * frac, 0.01))
+			-- (the stand-still part can also be started by a failed attempt or a key press, which
+			-- do not pass the place that colours it: seen in game as a white stand-still part)
+			if not self.drawTinted then
+				self.drawTinted = true
+				local c = Look(config, "drawcolor")
+				self.texture:SetVertexColor(c.r, c.g, c.b)
+			end
+			-- (the cast bar style can run the stand-still part down instead of up)
+			local shown = (CastBar(config) and config.castbardir ~= "FILL") and (1 - frac) or frac
+			self.texture:SetWidth(math.max(config.width * shown, 0.01))
 			self:SetAlpha(config.alpha)
 		end
 	else
+		self.drawTinted = nil
 		self.texture:SetWidth(math.max(config.width * (1 - math.min(math.max((curTime - self.lastshot) / self.swingtime, 0), 1)), 0.01))
 		self:SetAlpha(config.alpha)
 	end
@@ -486,6 +561,48 @@ local function UpdateText(self)
 		self.lastTenths = tenths
 		self.text:SetText(tenths >= 0 and string.format("%.1f", tenths / 10) or "")
 	end
+end
+
+-- The cast bar style's words: the shot's name on the left, "time left / whole time" on the right
+local autoShotName
+local function UpdateCastText(self)
+	local ct = self.castText
+	if not ct or not ct.on then return end
+	local config = YaHT.db.profile
+	local windup = self.windup or Windup(self.speed)
+	local left, whole
+	if not config.lock then
+		if self.mockTime > self.swingtime then left, whole = windup - self.mockTime2, windup
+		else left, whole = self.swingtime - self.mockTime, self.swingtime end
+	elseif self.SwingStart then
+		left, whole = (self.SwingStart + windup) - GetTime(), windup
+	else
+		left, whole = self.swingtime - (GetTime() - self.lastshot), self.swingtime
+	end
+	local a = math.floor(math.max(left or 0, 0) * 10 + 0.5)
+	local b = math.floor(math.max(whole or 0, 0) * 10 + 0.5)
+	if a ~= ct.a or b ~= ct.b then
+		ct.a, ct.b = a, b
+		ct.time:SetText(string.format("%.1f / %.1f", a / 10, b / 10))
+	end
+end
+
+function YaHT:ApplyCastText()
+	local config = self.db.profile
+	local f = self.mainFrame
+	local ct = f.castText
+	ct.on = CastBar(config) and config.castbartext and true or false
+	ct:SetShown(ct.on)
+	if not ct.on then return end
+	local font = self:GetMedia("font", config.font) or STANDARD_TEXT_FONT
+	local size = math.max(8, math.min(config.height - 8, 14))
+	for _, fs in ipairs({ct.name, ct.time}) do
+		if not fs:SetFont(font, size, "OUTLINE") then fs:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE") end
+		fs:SetTextColor(1, 1, 1, 1)
+	end
+	autoShotName = autoShotName or GetSpellName(AUTO_SHOT_ID) or "Auto Shot"
+	ct.name:SetText(autoShotName)
+	ct.a, ct.b = nil, nil
 end
 
 function YaHT:ApplyTextSettings()
@@ -665,7 +782,7 @@ local function UpdateSpark(self, standing)
 	if w and w < 1 then active = false end -- nothing to put a spark on yet
 	self.sparks.RIGHT:SetShown(active)
 	-- with "fill from middle" the bar grows both ways, so both edges spark
-	self.sparks.LEFT:SetShown(active and config.fill)
+	self.sparks.LEFT:SetShown(active and FromMiddle(config))
 end
 
 local function IsStanding(self)
@@ -937,7 +1054,7 @@ function YaHT:ApplySettings()
 	f.background:SetVertexColor(config.backgroundcolor.r, config.backgroundcolor.g, config.backgroundcolor.b, config.backgroundcolor.a)
 
 	f.texture:ClearAllPoints()
-	if config.fill then
+	if FromMiddle(config) then
 		f.texture:SetPoint("CENTER", f, "CENTER")
 	else
 		f.texture:SetPoint("LEFT", f, "LEFT")
@@ -949,7 +1066,7 @@ function YaHT:ApplySettings()
 		f:Show()
 		f:SetAlpha(config.alpha)
 		if f.SwingStart then
-			f.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
+			f.texture:SetVertexColor(Look(config, "drawcolor").r,Look(config, "drawcolor").g,Look(config, "drawcolor").b)
 		else
 			f.texture:SetVertexColor(Look(config, "timercolor").r, Look(config, "timercolor").g,Look(config, "timercolor").b)
 		end
@@ -974,6 +1091,7 @@ function YaHT:ApplySettings()
 		s:SetShown(f.scopeOn)
 	end
 	if f.textHolder then self:ApplyTextSettings() end
+	if f.castText then self:ApplyCastText() end
 	if f.glow then self:ApplyGlowSettings() end
 	if self.ApplyAmmoSettings then self:ApplyAmmoSettings() end
 	if self.ApplyMeleeSettings then self:ApplyMeleeSettings() end
@@ -1013,6 +1131,8 @@ function YaHT:Load()
 		if not ok then ReportError("UpdateGlow", err) end
 		ok, err = pcall(UpdateScope, frame)
 		if not ok then ReportError("UpdateScope", err) end
+		ok, err = pcall(UpdateCastText, frame)
+		if not ok then ReportError("UpdateCastText", err) end
 	end)
 
 	f.background = f:CreateTexture("YaHTMainFrameBackground", "BACKGROUND")
@@ -1051,6 +1171,19 @@ function YaHT:Load()
 		if ACR then ACR:NotifyChange("YaHT") end
 	end)
 
+	-- the cast bar style's words, on the bar
+	local ct = CreateFrame("Frame", "YaHTMainFrameCastText", f)
+	ct:SetAllPoints(f)
+	ct:SetFrameLevel(f:GetFrameLevel() + 4)
+	ct.name = ct:CreateFontString(nil, "OVERLAY")
+	ct.name:SetFont(STANDARD_TEXT_FONT, 11, "OUTLINE")
+	ct.name:SetPoint("LEFT", ct, "LEFT", 5, 0)
+	ct.time = ct:CreateFontString(nil, "OVERLAY")
+	ct.time:SetFont(STANDARD_TEXT_FONT, 11, "OUTLINE")
+	ct.time:SetPoint("RIGHT", ct, "RIGHT", -5, 0)
+	ct:Hide()
+	f.castText = ct
+
 	f.border = CreateFrame("Frame", "YaHTMainFrameBorder", f, BackdropTemplateMixin and "BackdropTemplate" or nil)
 	f.border:SetPoint("CENTER", f, "CENTER")
 
@@ -1088,7 +1221,7 @@ end
 local function WindupUnderway(f, now)
 	-- 0.15s grace: the game's messages can arrive ~0.1s late, so a real retry
 	-- can land just after the wind-up "started"; true duplicates come later
-	return f.SwingStart and not IsMoving() and now - f.SwingStart > 0.15
+	return f.SwingStart and not Held() and now - f.SwingStart > 0.15
 		and now < f.SwingStart + (f.windup or 0.5)
 end
 
@@ -1318,11 +1451,16 @@ function YaHT:UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
 		return
 	end
 
-	-- Feign Death restarts the ranged swing (same as WeaponSwingTimer)
+	-- Feign Death does NOT restart the ranged swing on Forever. (Classic addons assume it does, and
+	-- YaHT did too: the bar then showed a whole new reload while the game was already trying to
+	-- shoot. Seen in the Feign Death log: Auto Shot attempts 1.2 s and 1.6 s after the feign, every
+	-- half second from there, far sooner than a new reload would allow.) The reload carries on
+	-- from the last shot; the cycle is only kept out of the learned delay.
 	if name and name == FeignDeath then
-		local f = self.mainFrame
-		f.lastshot = GetTime()
-		f.SwingStart = nil
+		self.mainFrame.disturbed = true
+		self.feignAt, self.feignShot = GetTime(), self.mainFrame.lastshot
+		self.feignHold, self.feignHoldFrom = GetTime() + FEIGN_HOLD, GetTime()
+		FeignTrace("feign cast, shooting " .. tostring(self.mainFrame.shooting and true or false))
 		return
 	end
 
@@ -1382,6 +1520,7 @@ function YaHT:OnAutoShot(duration, source)
 		self:Print(string.format("shot left %.3fs after SENT (wind-up %.3f)", now - f.sentAt, Windup(f.speed)))
 	end
 	f.sentAt, f.pendingSent = nil, nil
+	f.failRun = 0
 	f.cycleSpeed = f.speed
 	f.speedSettling = speedChanged and true or false
 	-- An Aimed/Multi-Shot cast still running pushes the next shot back a bit
@@ -1406,6 +1545,10 @@ function YaHT:PLAYER_SWING(duration, swingType)
 	if IsSecret(duration) or IsSecret(swingType) then return end
 	if type(duration) ~= "number" or duration <= 0 then return end
 	if Enum and Enum.PlayerSwingType and swingType ~= Enum.PlayerSwingType.Ranged then return end
+	if self.feignAt then
+		FeignTrace(string.format("SHOT LEFT (next shot in %.3f)", duration))
+		self.feignAt = nil
+	end
 	self:OnAutoShot(duration, "PLAYER_SWING")
 end
 
@@ -1416,6 +1559,13 @@ function YaHT:UNIT_SPELLCAST_FAILED_QUIET(unit, castGUID, spellID)
 	-- the attempt didn't start: the game retries after 0.5s, then winds up
 	local f = self.mainFrame
 	local now = GetTime()
+	FeignTrace("attempt failed")
+	-- An attempt that still fails right after the feign's three seconds (the hold is a little longer
+	-- some times; seen in game as a short empty pause before the fill): keep waiting until the
+	-- game's next attempt.
+	if self.feignHold and self.feignHoldFrom and now >= self.feignHold - 0.6 and now < self.feignHoldFrom + 5 then
+		self.feignHold = now + 0.5
+	end
 	-- the game often sends FAILED twice for one refused request
 	if f.refusedAt and now - f.refusedAt < 0.05 then return end
 	if f.pendingSent and now - f.pendingSent < 0.05 then
@@ -1424,7 +1574,7 @@ function YaHT:UNIT_SPELLCAST_FAILED_QUIET(unit, castGUID, spellID)
 		-- already track, that changes nothing: keep the bar as it is.
 		f.pendingSent = nil
 		local reloading = not f.SwingStart and now < f.lastshot + (f.swingtime or 0) - 0.25
-		local inWindup = f.SwingStart and not IsMoving() and now >= f.SwingStart - 0.05
+		local inWindup = f.SwingStart and not Held() and now >= f.SwingStart - 0.05
 			and now < f.SwingStart + (f.windup or 0.5) + 0.05
 		if reloading or inWindup then
 			f.refusedAt = now
@@ -1442,9 +1592,28 @@ function YaHT:UNIT_SPELLCAST_FAILED_QUIET(unit, castGUID, spellID)
 	local nearReady = f.SwingStart or (now >= f.lastshot + (f.swingtime or 0) - 0.25)
 	if f.shooting and nearReady and YaHT.db.profile.lock then
 		f.nextAttempt = now + 0.5
-		if not IsMoving() then
-			f.fillBase = f.SwingStart and (f.fillFrac or 0) or 0
-			f.SwingStart, f.fillFrom = now + 0.5, now
+		-- (only the game's own retries count, half a second apart: failures from hammering a
+		-- key come faster, and for those the bar must never jump back)
+		local since = f.lastFail and (now - f.lastFail)
+		f.failRun = (since and since > 0.4 and since < 0.7) and ((f.failRun or 0) + 1) or 1
+		f.lastFail = now
+		if not Held() then
+			-- The same when the stand-still part had not really begun (the failure comes right as the
+			-- reload ends): there is nothing to jump back from, and stretching the fill over the
+			-- retry made that shot's bar run at half speed.
+			local sofar = f.SwingStart and (f.fillFrac or 0) or 0
+			if f.failRun >= 3 or sofar < 0.04 then
+				-- Attempt after attempt fails while you stand (feigning, in melee, in the deadzone, no
+				-- line of sight): no shot is winding up. Carrying the fill on from where it was made
+				-- the bar creep ever slower toward full (half of what was left with each failure), and
+				-- the shot that finally came had nothing left to show. So: empty until the game's
+				-- next attempt, and from there the real stand-still part, at its real speed.
+				f.fillBase, f.fillFrac = 0, 0
+				f.SwingStart, f.fillFrom = now + 0.5, now + 0.5
+			else
+				f.fillBase = f.SwingStart and (f.fillFrac or 0) or 0
+				f.SwingStart, f.fillFrom = now + 0.5, now
+			end
 		end
 	end
 	if self.debug then self:Print("Auto Shot attempt failed (retry delay)") end
@@ -1458,6 +1627,7 @@ end
 function YaHT:START_AUTOREPEAT_SPELL()
 	local config = YaHT.db.profile
 	if self.debug then self:Print("START_AUTOREPEAT_SPELL") end
+	FeignTrace("started")
 	local f = self.mainFrame
 	local curTime = GetTime()
 	f.shooting = true
@@ -1466,10 +1636,10 @@ function YaHT:START_AUTOREPEAT_SPELL()
 	if curTime - f.lastshot < f.swingtime then
 		f.texture:SetVertexColor(Look(config, "timercolor").r,Look(config, "timercolor").g,Look(config, "timercolor").b)
 	else
-		f.texture:SetVertexColor(config.drawcolor.r,config.drawcolor.g,config.drawcolor.b)
+		f.texture:SetVertexColor(Look(config, "drawcolor").r,Look(config, "drawcolor").g,Look(config, "drawcolor").b)
 		f.SwingStart, f.fillFrom, f.nextAttempt = curTime, curTime, curTime
 		f.fillBase, f.fillFrac = 0, 0
-		if IsMoving() then
+		if Held() then
 			f.lastshot = curTime - f.swingtime
 		end
 	end
@@ -1480,6 +1650,7 @@ end
 function YaHT:STOP_AUTOREPEAT_SPELL()
 	local f = self.mainFrame
 	if self.debug then self:Print("STOP_AUTOREPEAT_SPELL") end
+	FeignTrace("stopped")
 	f.shooting = nil
 	f.disturbed = true
 	f.pendingSent = nil

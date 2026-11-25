@@ -332,7 +332,8 @@ local function YardsUpdate()
 	if not lo then f:Hide() return end
 	local c = ZoneColor(p, zone)
 	local style = p.rangeyardsstyle or "NUMBER"
-	local showNum, showRuler = style ~= "RULER", style ~= "NUMBER"
+	local boxes = style == "BOXES"
+	local showNum, showRuler = (style == "NUMBER" or style == "BOTH"), style ~= "NUMBER"
 	if showNum then
 		local text = hi and string.format(L["%d-%d yd"], lo, hi) or string.format(L["%d+ yd"], lo)
 		if f.shownText ~= text then f.shownText = text f.text:SetText(text) end
@@ -340,7 +341,37 @@ local function YardsUpdate()
 	end
 	f.text:SetShown(showNum)
 	f.ruler:SetShown(showRuler)
-	if showRuler then
+	if f.boxLabels then for i = 1, 4 do f.boxLabels[i]:SetShown(showRuler and boxes) end end
+	f.mark:SetShown(not boxes)
+	f.tickMin:SetShown(not boxes)
+	f.tickMax:SetShown(not boxes)
+	if showRuler and boxes then
+		-- Boxes: one box per range band, each with its yards, and only the one your target is in is
+		-- lit (asked for by weavers who knew this from a WeakAura of the first Classic).
+		local w, gap = f.rulerW, 3
+		local bw = (w - gap * 3) / 4
+		local cols = {p.meleecolor, p.meleedeadcolor, OK_GREEN, p.meleefarcolor}
+		local lit = zone == "MELEE" and 1 or zone == "DEAD" and 2 or zone == "OK" and 3 or zone == "FAR" and 4 or 0
+		local words = {string.format("0-%d", meleeMax), string.format("%d-%d", meleeMax, autoMin),
+			string.format("%d-%d", autoMin, autoMax), string.format("%d+", autoMax)}
+		for i = 1, 4 do
+			local seg, on = f.segs[i], i == lit
+			seg:ClearAllPoints()
+			seg:SetPoint("LEFT", f.ruler, "LEFT", (i - 1) * (bw + gap), 0)
+			seg:SetSize(bw, f.rulerH)
+			local col = cols[i]
+			if on then
+				seg:SetVertexColor(col.r + (1 - col.r) * 0.25, col.g + (1 - col.g) * 0.25, col.b + (1 - col.b) * 0.25, 1)
+			else
+				seg:SetVertexColor(col.r * 0.45, col.g * 0.45, col.b * 0.45, 0.35)
+			end
+			local label = f.boxLabels[i]
+			if label.shownText ~= words[i] then label.shownText = words[i] label:SetText(words[i]) end
+			label:ClearAllPoints()
+			label:SetPoint("CENTER", seg, "CENTER", 0, 0)
+			if on then label:SetTextColor(1, 1, 1, 1) else label:SetTextColor(0.75, 0.75, 0.75, 0.6) end
+		end
+	elseif showRuler then
 		-- The zones as a strip (melee, deadzone, shooting, too far) and a bright block over the band the
 		-- target is in. Not to scale: the two short zones are drawn wide enough to see (RULER_AT), with
 		-- the yards spread evenly inside each zone.
@@ -425,6 +456,12 @@ local function LayoutYards(p)
 		end
 		f.mark = f.ruler:CreateTexture(nil, "OVERLAY")
 		f.mark:SetTexture(WHITE)
+		f.boxLabels = {}
+		for i = 1, 4 do
+			f.boxLabels[i] = f.ruler:CreateFontString(nil, "OVERLAY")
+			f.boxLabels[i]:SetFont(font, 9, "OUTLINE")
+			f.boxLabels[i]:Hide()
+		end
 		f.dragHint = f:CreateFontString(nil, "OVERLAY")
 		f.dragHint:SetPoint("TOP", f, "BOTTOM", 0, -2)
 		f.dragHint:SetFont(font, 11, "OUTLINE")
@@ -446,8 +483,14 @@ local function LayoutYards(p)
 	local tick = math.max(8, math.floor(size * 0.7))
 	if not f.tickMin:SetFont(font, tick, "OUTLINE") then f.tickMin:SetFont(STANDARD_TEXT_FONT, tick, "OUTLINE") end
 	if not f.tickMax:SetFont(font, tick, "OUTLINE") then f.tickMax:SetFont(STANDARD_TEXT_FONT, tick, "OUTLINE") end
-	local textH = style ~= "RULER" and (size + 4) or 0
-	local rulerH = style ~= "NUMBER" and (f.rulerH + 8 + tick) or 0
+	if style == "BOXES" then
+		f.rulerH = math.max(13, size + 2) -- (tall enough for the yards inside each box)
+		for i = 1, 4 do
+			if not f.boxLabels[i]:SetFont(font, tick, "OUTLINE") then f.boxLabels[i]:SetFont(STANDARD_TEXT_FONT, tick, "OUTLINE") end
+		end
+	end
+	local textH = (style == "NUMBER" or style == "BOTH") and (size + 4) or 0
+	local rulerH = style == "BOXES" and (f.rulerH + 6) or style ~= "NUMBER" and (f.rulerH + 8 + tick) or 0
 	f:SetSize(f.rulerW, textH + rulerH)
 	-- (the ruler on top, next to the bar; the number under it)
 	f.ruler:ClearAllPoints()

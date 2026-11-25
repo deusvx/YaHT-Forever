@@ -13,20 +13,22 @@ local L = YaHT.L
 -- EVERY RELEASE: add the new version on top (and drop the oldest), or a test fails.
 ---------------------------------------------------------------------------
 YaHT.news = {
-	version = "1.5.5",
+	version = "1.5.6",
 	lines = {
-		{"Quick Shots", "Fixed: it could stay hidden all session when it came on your first shot after a reload."},
-		{"Tracking wheel", "Its page shows the wheel being used in the live preview, step by step."},
-		{"Options", "Right-click a changed setting's control to put it back, not only the row beside it."},
+		{"Feign Death", "The bar waits through the three seconds the game holds your shot back, then shows one real stand-still part."},
+		{"Bar timing", "Fixed: the shot after a refused attempt crawled on the bar, and could be drawn in the reload color."},
+		{"Quick Shots", "Shows the moment a fight ends, and one proc sounds once."},
+		{"Bar style", "New: Cast bar (Bouk's), blue reload and green stand-still part with name and time. The bar > Look."},
+		{"Distance", "New look: Boxes, one per range band, the one your target is in lights up. Warnings > Range."},
 	},
 	earlier = {
+		{version = "1.5.5", lines = {
+			{"Quick Shots", "Fixed: it could stay hidden all session when it came on your first shot after a reload."},
+			{"Tracking wheel", "Its page shows the wheel being used in the live preview, step by step."},
+		}},
 		{version = "1.5.4", lines = {
 			{"Hunter sounds", "Gun cocking, gunshot, bow drawn, bow released and arrow hit from the game, plus a blade, a horn and a drum."},
 			{"Sounds", "Every sound is a choice, with a Hear it button: no sound, a hunter sound, or the game's ping, alarm or raid warning."},
-		}},
-		{version = "1.5.3", lines = {
-			{"Tracking wheel", "Its on/off switch is on its own page, and it has a Layer setting and a polished look."},
-			{"Pop-up sound", "A clear ping instead of a soft click. Quick Shots sounds again when it procs while still up."},
 		}},
 	},
 }

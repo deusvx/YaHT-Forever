@@ -1077,6 +1077,8 @@ local quickHiddenSaid = false
 -- Rapid Fire (40%) and Berserking are cast spells, so they're recognised
 -- and not mistaken for it.
 local QS_LENGTH = 12
+local QS_LATE = 4   -- found more than this long after it started: shown without its sound
+local QS_SAME = 3   -- buff and shot speed can disagree by this much about when one proc started
 local QS_RATIO = 1 / 1.3 -- swing time with Quick Shots, relative to normal
 local RF_RATIO = 1 / 1.4 -- ... with Rapid Fire
 local HASTE_SPELLS = {[3045] = "RAPID", [20554] = "OTHER", [26296] = "OTHER", [26297] = "OTHER"} -- Rapid Fire, Berserking
@@ -1165,7 +1167,11 @@ local function OnRangedSwing(duration)
 		-- a fast shot after the 12 seconds ran out means it procced again
 		if not speed.fast or (speed.fastStart and now - speed.fastStart > QS_LENGTH) then
 			speed.fast = true
+			speed.fromBuff = false
 			speed.fastStart = previous or now -- it procced on the shot before this one
+			-- (kept for the record: what made it count as Quick Shots)
+			speed.why = string.format("next shot %.3fs = %.0f%% of normal %.3fs, real gap %s, by %s", duration, r * 100, base,
+				gap and string.format("%.3fs", gap) or "-", fastest == r and "the game's number" or "the gap")
 		end
 		speed.lastQuick = now
 	elseif rel >= 0.9 then
@@ -1196,6 +1202,14 @@ local function CheckQuickShots()
 		quickHiddenSaid = true
 		YaHT:Print("Quick Shots: the game hides your buffs right now, following your shot speed instead")
 	end
+	if active and startedAt then
+		-- Seen as a buff: the shot-speed side follows it, so the icon carries on (and stays quiet)
+		-- when a fight starts and hides the buff again.
+		speed.fast, speed.fastStart, speed.fromBuff = true, startedAt, true
+	elseif active == false and speed.fromBuff then
+		-- (your buffs can be read and it is not there: what was taken from the buff ends with it)
+		speed.fast, speed.fromBuff = false, false
+	end
 	if not active then
 		-- the buff can't be seen: go by shot speed
 		if speed.fast and speed.fastStart and now - speed.fastStart < QS_LENGTH then
@@ -1206,16 +1220,33 @@ local function CheckQuickShots()
 	end
 	if active then
 		if not f.proc then
-			quick:Start(false, startedAt, length, icon)
-			if YaHT.Record then YaHT:Record("proc", "Quick Shots on, from " .. source) end
+			-- Found late (a fight hid it and no shot gave it away, then the fight ended): the icon
+			-- shows what is left, but the sound would only say "it procced now", which is not true.
+			local late = source == "buff" and startedAt and now - startedAt > QS_LATE
+			quick:Start(false, startedAt, length, icon, late)
+			f.procSource = source
+			if YaHT.Record then
+				YaHT:Record("proc", "Quick Shots on, from " .. source .. (source == "shot speed" and speed.why and (": " .. speed.why) or "")
+					.. (late and string.format(" (found %.1fs late, no sound)", now - startedAt) or ""))
+			end
 			if YaHT.debug then
 				YaHT:Print(string.format("Quick Shots on, from %s [%s] (%s)", source, source == "buff" and (quickFoundAs or "?") or "",
 					length and string.format("%.1fs of %.0fs left", f.procStart + length - now, length) or "time hidden, assuming 12s"))
 			end
 		elseif startedAt and math.abs(startedAt - f.procStart) > 0.2 then
-			f.procStart, f.window = startedAt, length or QS_LENGTH -- refreshed by a new proc
-			quick:Chime() -- (a new proc is a new proc: it sounds again, not only the first of a chain)
-			if YaHT.debug then YaHT:Print("Quick Shots refreshed") end
+			-- A later start is a new proc: it sounds again, not only the first of a chain. But the
+			-- same proc read the other way (by shot speed in a fight, as a buff out of one) starts
+			-- at a slightly different moment: that only corrects the time, without a sound.
+			local newer = startedAt - f.procStart
+			local again = newer > 0.2 and (source == f.procSource or newer > QS_SAME)
+			f.procStart, f.window = startedAt, length or QS_LENGTH
+			f.procSource = source
+			if again then
+				quick:Chime()
+				if YaHT.debug then YaHT:Print("Quick Shots refreshed") end
+			end
+		else
+			f.procSource = source
 		end
 	elseif quick:End() and YaHT.debug then
 		YaHT:Print(string.format("Quick Shots off after %.1fs", now - f.procStart))
@@ -2004,12 +2035,17 @@ function YaHT:InitProcs()
 	-- buffs change rarely, so this one wakes on UNIT_AURA and only keeps
 	-- polling while Quick Shots is up (to catch its end)
 	quickWatch = NewWatcher("QuickShots", 0.2,
-		{{"UNIT_AURA", "player"}, "PLAYER_REGEN_DISABLED", "PLAYER_SWING", {"UNIT_SPELLCAST_SUCCEEDED", "player"}},
+		{{"UNIT_AURA", "player"}, "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_SWING", {"UNIT_SPELLCAST_SUCCEEDED", "player"}},
 		CheckQuickShots,
-		function() return quick.frame.proc or speed.fast end,
+		function() return quick.frame.proc or speed.fast or (speed.lookUntil and GetTime() < speed.lookUntil) end,
 		function(event, ...)
-			if event ~= "PLAYER_SWING" then SeedSpeed() end
-			if event == "PLAYER_REGEN_DISABLED" then
+			if event ~= "PLAYER_SWING" and event ~= "PLAYER_REGEN_ENABLED" then SeedSpeed() end
+			if event == "PLAYER_REGEN_ENABLED" then
+				-- The fight is over and your buffs can be read again: look now (and for a moment
+				-- more), not at whatever you happen to do next. (Reported: "I used Mend Pet and
+				-- the Quick Shots sound went off".)
+				speed.lookUntil = GetTime() + 1.5
+			elseif event == "PLAYER_REGEN_DISABLED" then
 				quickHiddenSaid = false
 			elseif event == "PLAYER_SWING" then
 				local duration, swingType = ...

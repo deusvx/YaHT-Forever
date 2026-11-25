@@ -207,6 +207,11 @@ function YaHT:LoadDefaults()
 			trackerlayer = "BACK",
 			trackerpolish = false,
 			lonewolf = "AUTO",
+			barstyle = "YAHT",       -- or CASTBAR: blue reload, green stand-still part, name and time on the bar
+			castbardir = "DRAIN",    -- the stand-still part runs down (DRAIN) or up (FILL)
+			castbartext = true,
+			castbarreload = {r = 0.33, g = 0.35, b = 1},
+			castbarwind = {r = 0.18, g = 1, b = 0.16},
 			lonewolfstyle = "SCOPE",
 			lonewolfheight = 22,
 			lonewolfpet = true,

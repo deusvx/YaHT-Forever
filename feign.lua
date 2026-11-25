@@ -77,7 +77,7 @@ end
 -- around the last few is always kept (a handful of lines each, in the saved
 -- settings): a late or missing alert can then be looked into afterwards
 -- without /yaht debug having been on. debugOnly: too chatty to keep.
-local FD_LOG_MAX = 150
+local FD_LOG_MAX = 400
 local function Log(msg, debugOnly)
 	local g = YaHT.db and YaHT.db.global
 	if g and not debugOnly then
@@ -88,6 +88,7 @@ local function Log(msg, debugOnly)
 	end
 	if YaHT.debug then YaHT:Print("FD: " .. msg) end
 end
+YaHT.FeignLog = Log
 
 -- What the game says about your threat on your target. A feign that worked
 -- should take you off its list; if this is readable in a fight it would

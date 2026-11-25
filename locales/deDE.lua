@@ -549,6 +549,18 @@ local L = {
 ["2. Move into a piece"] = "2. Maus in ein Stück bewegen",
 ["3. Keep going, out of the pie"] = "3. Weiter, aus dem Kreis hinaus",
 ["Now you track it"] = "Jetzt wird es aufgespürt",
+["Bar style"] = "Balkenstil",
+["YaHT: the regular bar. Cast bar: the look of Bouk's Hunter Castbar, a WeakAura many hunters know. The reload runs down in blue, then the part where you stand still shows in green, with the shot's name and its time on the bar."] = "YaHT: der normale Balken. Zauberleiste: das Aussehen von Bouks Hunter Castbar, einer WeakAura, die viele Jäger kennen. Das Nachladen läuft in Blau ab, dann erscheint der Teil, in dem du stillstehst, in Grün, mit dem Namen des Schusses und seiner Zeit auf dem Balken.",
+["YaHT"] = "YaHT",
+["Cast bar (Bouk's)"] = "Zauberleiste (Bouk)",
+["Stand-still part"] = "Stillsteh-Teil",
+["Whether the green part runs down to empty or fills up to the shot."] = "Ob der grüne Teil bis leer abläuft oder sich bis zum Schuss füllt.",
+["Runs down"] = "Läuft ab",
+["Fills up"] = "Füllt sich",
+["Name and time on the bar"] = "Name und Zeit auf dem Balken",
+["The shot's name on the left of the bar, and the time left of the whole time on the right."] = "Links der Name des Schusses, rechts die verbleibende und die gesamte Zeit.",
+["Boxes"] = "Kästchen",
+["Boxes: one box per range band with its yards, and the one your target is in lights up."] = "Kästchen: ein Kästchen je Entfernungsbereich mit seinen Metern; das, in dem dein Ziel steht, leuchtet auf.",
 }
 
 YaHT.L = L

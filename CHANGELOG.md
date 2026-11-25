@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.5.6
+- Feign Death: the bar no longer starts a whole new reload when you feign. Forever does not restart
+  your shot there; it holds Auto Shot back for about three seconds after the feign. The bar now
+  waits through that (the faded "ready, waiting" look, also while you lie feigned) and then shows
+  one real stand-still part, timed to the game's next attempt.
+- Fixed: the shot after a refused attempt (after a feign, out of melee or the deadzone) crawled on
+  the bar. Each refused attempt stretched what was left of the fill; now the bar waits for the
+  game's retry and fills at its real speed. Hammering a key still never makes it jump back.
+- Fixed: the stand-still part could be drawn in the reload color.
+- Quick Shots: found at the end of a fight it shows at once, not at your next cast; one proc sounds
+  once, however it is read; the icon carries on into the next fight; found more than four seconds
+  late it shows without its sound.
+- New bar style "Cast bar (Bouk's)" (The bar > Look), after Bouk's Hunter Castbar: the reload runs
+  down in blue, the stand-still part shows in green (running down or filling up, your choice),
+  always from the left, with the shot's name and its time on the bar. Its two colors are its own.
+- Distance (Warnings > Range) has a fourth look, "Boxes": one box per range band with its yards
+  (melee, deadzone, shooting, too far), and the one your target is in lights up.
+
 ## 1.5.5
 - Fixed: Quick Shots could fail to show for a whole session when it came on your very first shot
   after logging in or a reload. YaHT learned your normal shot speed from that first shot, so the

@@ -90,4 +90,24 @@ db.lock = true db.rangeyardspos = "UNDER" YaHT:ApplySettings()
 local page = YaHT.optionsTable.args.alerts.args.rangepage.args
 for _, key in ipairs({"rangeyards", "rangeyardsstyle", "rangeyardswhen", "rangeyardspos", "rangeyardssize"}) do assert(page[key], "the Range page is missing "..key) end
 assert((YaHT.errorCount or 0) == 0, "YaHT reported a problem")
+-- Boxes: one box per range band with its yards, only the one the target is in lit
+db.rangeyardsstyle = "BOXES" db.lock = true YaHT:ApplySettings()
+local function litBox()
+  local n, which = 0, 0
+  for i = 1, 4 do local c = y.boxLabels[i].tcolor if c and c[1] == 1 and c[2] == 1 and c[3] == 1 then n = n + 1 which = i end end
+  return n, which
+end
+dist = 3 run(0.3)
+assert(y.shown and y.boxLabels[1].shown and not y.text.shown, "the boxes should show, without the number")
+assert(y.boxLabels[1].txt == "0-5" and y.boxLabels[2].txt == "5-8" and y.boxLabels[3].txt == "8-35" and y.boxLabels[4].txt == "35+",
+  "each box should carry its yards, got "..tostring(y.boxLabels[1].txt).." "..tostring(y.boxLabels[2].txt).." "..tostring(y.boxLabels[3].txt).." "..tostring(y.boxLabels[4].txt))
+local wantBox = {{3, 1}, {6, 2}, {20, 3}, {40, 4}}
+for _, wb in ipairs(wantBox) do
+  dist = wb[1] run(0.3)
+  local n, which = litBox()
+  assert(n == 1 and which == wb[2], string.format("at %d yards box %d should be the only one lit, got %d lit (box %d)", wb[1], wb[2], n, which))
+end
+-- back to the ruler: the boxes' words go, the block and the two numbers come back
+db.rangeyardsstyle = "RULER" YaHT:ApplySettings() run(0.3)
+assert(not y.boxLabels[1].shown and y.mark.shown and y.tickMin.shown, "the ruler should be itself again")
 print("OK48")

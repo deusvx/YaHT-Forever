@@ -169,7 +169,7 @@ assert(close == 2, "the next feign should write the message down again")
 
 -- the last feigns are always written down (debug off), so a late alert can be looked into
 local fd = YaHT.db.global.fdlog
-assert(not YaHT.debug and fd and #fd > 10 and #fd <= 150, "no record of the last feigns")
+assert(not YaHT.debug and fd and #fd > 10 and #fd <= 400, "no record of the last feigns")
 local resisted, threat = false, false
 for _, line in ipairs(fd) do
   if line:find("RESISTED", 1, true) then resisted = true end

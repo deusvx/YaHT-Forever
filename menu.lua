@@ -2098,8 +2098,29 @@ BuildPreview = function(strip)
 		local t = self.t
 		local part = t / PREVIEW_CYCLE
 		local standing = part >= PREVIEW_WINDUP
-		self.fill:SetWidth(math.max(1, self.w * part))
-		local c = standing and p.drawcolor or (self.wolf and p.lonewolfcolor) or p.timercolor
+		-- the cast bar style runs as the real bar does: the reload down, then the stand-still part
+		local castbar = p.barstyle == "CASTBAR"
+		local drawn = part
+		if castbar then
+			if standing then
+				local k2 = (part - PREVIEW_WINDUP) / (1 - PREVIEW_WINDUP)
+				drawn = p.castbardir == "FILL" and k2 or (1 - k2)
+			else
+				drawn = 1 - part / PREVIEW_WINDUP
+			end
+			if self.castTime and self.castTime:IsShown() then
+				local whole = (standing and (1 - PREVIEW_WINDUP) or PREVIEW_WINDUP) * PREVIEW_CYCLE
+				local left = standing and (PREVIEW_CYCLE - t) or (PREVIEW_WINDUP * PREVIEW_CYCLE - t)
+				local a = math.floor(math.max(left, 0) * 10 + 0.5)
+				if a ~= self.castA or standing ~= self.castStanding then
+					self.castA, self.castStanding = a, standing
+					self.castTime:SetText(string.format("%.1f / %.1f", a / 10, whole))
+				end
+			end
+		end
+		self.fill:SetWidth(math.max(1, self.w * drawn))
+		local c = standing and ((castbar and p.castbarwind) or p.drawcolor)
+			or (castbar and p.castbarreload) or (self.wolf and p.lonewolfcolor) or p.timercolor
 		self.fill:SetVertexColor(c.r, c.g, c.b)
 		if self.reticle then -- Lone Wolf's scope: the crosshair locks on while you stand still
 			local on = self.scope and standing
@@ -2116,7 +2137,7 @@ BuildPreview = function(strip)
 			self.phase:SetText(standing and L["Stand still"] or L["Reloading"])
 			if standing then
 				-- the stand-still color, lightened enough to read on the dark stage
-				local c = p.drawcolor
+				local c = (p.barstyle == "CASTBAR" and p.castbarwind) or p.drawcolor
 				self.phase:SetTextColor(c.r + (1 - c.r) * 0.4, c.g + (1 - c.g) * 0.4, c.b + (1 - c.b) * 0.4)
 			else
 				self.phase:SetTextColor(C.muted[1], C.muted[2], C.muted[3])
@@ -2155,16 +2176,17 @@ BuildPreview = function(strip)
 		local sparking = p.sparkmode == "ALWAYS" or (p.sparkmode == "STAND" and standing)
 		local right, left = self.sparks[1], self.sparks[2]
 		right:SetShown(sparking)
-		left:SetShown(sparking and p.fill and true or false)
+		local middle = p.fill and not castbar
+		left:SetShown(sparking and middle and true or false)
 		if sparking then
 			right:ClearAllPoints()
-			if p.fill then
-				local half = self.w * part / 2
+			if middle then
+				local half = self.w * drawn / 2
 				right:SetPoint("CENTER", self, "CENTER", half, 0)
 				left:ClearAllPoints()
 				left:SetPoint("CENTER", self, "CENTER", -half, 0)
 			else
-				right:SetPoint("CENTER", self, "LEFT", self.w * part, 0)
+				right:SetPoint("CENTER", self, "LEFT", self.w * drawn, 0)
 			end
 		end
 		-- ON ITS OWN PAGE: Multi-Shot's cast line, filling over and over as its settings say
@@ -2344,8 +2366,33 @@ LayoutPreview = function(pv, p)
 	end
 	pv.fill:SetTexture(YaHT:GetMedia("statusbar", p.statusbar))
 	pv.fill:ClearAllPoints()
-	pv.fill:SetPoint(p.fill and "CENTER" or "LEFT", pv, p.fill and "CENTER" or "LEFT")
+	local fromMiddle = p.fill and p.barstyle ~= "CASTBAR"
+	pv.fill:SetPoint(fromMiddle and "CENTER" or "LEFT", pv, fromMiddle and "CENTER" or "LEFT")
 	pv.fill:SetHeight(h)
+	-- the cast bar style's words
+	local words = p.barstyle == "CASTBAR" and p.castbartext and not pv.mini and h >= 12
+	if words and not pv.castName then
+		-- (on a frame of their own above the fill, which sits on a child frame: on the bar itself
+		-- the fill covered the name)
+		local words = CreateFrame("Frame", nil, pv)
+		words:SetAllPoints(pv)
+		if words.SetFrameLevel and pv.well and pv.well.GetFrameLevel then words:SetFrameLevel((pv.well:GetFrameLevel() or 1) + 3) end
+		pv.castName = words:CreateFontString(nil, "OVERLAY")
+		pv.castName:SetPoint("LEFT", pv, "LEFT", 4, 0)
+		pv.castTime = words:CreateFontString(nil, "OVERLAY")
+		pv.castTime:SetPoint("RIGHT", pv, "RIGHT", -4, 0)
+	end
+	if pv.castName then
+		pv.castName:SetShown(words and true or false)
+		pv.castTime:SetShown(words and true or false)
+		if words then
+			local fsize = math.max(7, math.min(h - 6, 11))
+			pv.castName:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", fsize, "OUTLINE")
+			pv.castTime:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", fsize, "OUTLINE")
+			pv.castName:SetText((YaHT.GetSpellName and YaHT.GetSpellName(75)) or "Auto Shot")
+			pv.castA = nil
+		end
+	end
 	if p.enablebackground then
 		local bc = p.backgroundcolor
 		pv.back:SetTexture(YaHT:GetMedia("background", p.background))

@@ -67,7 +67,7 @@ end
 local TAB_KEYS = {
 	general = {"lock", "width", "height", "scale", "alpha", "malpha", "minimap", "minimapangle"},
 	lonewolf = {"lonewolf", "lonewolfstyle", "lonewolfheight", "lonewolfpet", "lonewolfcolor", "lonewolfglowcolor"},
-	bar = {"statusbar", "timercolor", "drawcolor", "fill", "enablebackground", "background",
+	bar = {"barstyle", "castbardir", "castbartext", "castbarreload", "castbarwind", "statusbar", "timercolor", "drawcolor", "fill", "enablebackground", "background",
 		"backgroundcolor", "enableborder", "border", "bordercolor"},
 	text = {"showtext", "textmode", "textpos", "textsize", "textx", "texty", "font", "textcolor"},
 	glow = {"glow", "glowmode", "glowlook", "glowstyle", "glowkeepbuiltin", "glowpulse", "glowramp",
@@ -651,6 +651,48 @@ function YaHT:CreateConfig()
 						type = "description",
 						order = 0,
 					},
+					barstyle = {
+						name = L["Bar style"],
+						desc = L["YaHT: the regular bar. Cast bar: the look of Bouk's Hunter Castbar, a WeakAura many hunters know. The reload runs down in blue, then the part where you stand still shows in green, with the shot's name and its time on the bar."],
+						type = "select",
+						order = 0.5,
+						values = {YAHT = L["YaHT"], CASTBAR = L["Cast bar (Bouk's)"]},
+						sorting = {"YAHT", "CASTBAR"},
+					},
+					castbardir = {
+						name = L["Stand-still part"],
+						desc = L["Whether the green part runs down to empty or fills up to the shot."],
+						type = "select",
+						order = 0.6,
+						values = {DRAIN = L["Runs down"], FILL = L["Fills up"]},
+						sorting = {"DRAIN", "FILL"},
+						hidden = function() return YaHT.db.profile.barstyle ~= "CASTBAR" end,
+					},
+					castbarreload = {
+						name = L["Reload color"],
+						desc = L["Color of the bar while you reload."],
+						type = "color",
+						order = 0.7,
+						get = getColor,
+						set = setColor,
+						hidden = function() return YaHT.db.profile.barstyle ~= "CASTBAR" end,
+					},
+					castbarwind = {
+						name = L["Stand-still color"],
+						desc = L["Color of the part where you must stand still for the shot."],
+						type = "color",
+						order = 0.8,
+						get = getColor,
+						set = setColor,
+						hidden = function() return YaHT.db.profile.barstyle ~= "CASTBAR" end,
+					},
+					castbartext = {
+						name = L["Name and time on the bar"],
+						desc = L["The shot's name on the left of the bar, and the time left of the whole time on the right."],
+						type = "toggle",
+						order = 0.9,
+						hidden = function() return YaHT.db.profile.barstyle ~= "CASTBAR" end,
+					},
 					statusbar = {
 						name = L["Bar texture"],
 						type = "select",
@@ -663,6 +705,7 @@ function YaHT:CreateConfig()
 						desc = L["Extend the bar from the middle outwards."],
 						type = "toggle",
 						order = 2,
+						hidden = function() return YaHT.db.profile.barstyle == "CASTBAR" end,
 					},
 					timercolor = {
 						name = L["Reload color"],
@@ -671,6 +714,7 @@ function YaHT:CreateConfig()
 						order = 3,
 						get = getColor,
 						set = setColor,
+						hidden = function() return YaHT.db.profile.barstyle == "CASTBAR" end,
 					},
 					drawcolor = {
 						name = L["Stand-still color"],
@@ -679,6 +723,7 @@ function YaHT:CreateConfig()
 						order = 4,
 						get = getColor,
 						set = setColor,
+						hidden = function() return YaHT.db.profile.barstyle == "CASTBAR" end,
 					},
 					lonewolfheader = {
 						name = L["Lone Wolf"],
@@ -2085,10 +2130,11 @@ function YaHT:CreateConfig()
 		}
 		args.rangeyardsstyle = {
 			name = L["Show as"],
-			desc = L["Number: the yards in one color. Ruler: a strip of the zones (melee, deadzone, shooting, too far) with a bright block where your target is."],
+			desc = L["Number: the yards in one color. Ruler: a strip of the zones (melee, deadzone, shooting, too far) with a bright block where your target is."]
+				.. " " .. L["Boxes: one box per range band with its yards, and the one your target is in lights up."],
 			type = "select", order = 7.2,
-			values = {NUMBER = L["Number"], RULER = L["Ruler"], BOTH = L["Number and ruler"]},
-			sorting = {"NUMBER", "RULER", "BOTH"},
+			values = {NUMBER = L["Number"], RULER = L["Ruler"], BOTH = L["Number and ruler"], BOXES = L["Boxes"]},
+			sorting = {"NUMBER", "RULER", "BOTH", "BOXES"},
 			disabled = yardsOff,
 		}
 		args.rangeyardswhen = {

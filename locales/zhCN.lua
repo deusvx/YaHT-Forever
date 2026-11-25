@@ -546,6 +546,18 @@ local L = {
 ["2. Move into a piece"] = "2. 移入其中一块",
 ["3. Keep going, out of the pie"] = "3. 继续移出圆盘",
 ["Now you track it"] = "现在已在追踪",
+["Bar style"] = "计时条样式",
+["YaHT: the regular bar. Cast bar: the look of Bouk's Hunter Castbar, a WeakAura many hunters know. The reload runs down in blue, then the part where you stand still shows in green, with the shot's name and its time on the bar."] = "YaHT：常规计时条。施法条：Bouk 的 Hunter Castbar（许多猎人熟悉的 WeakAura）的外观。装填以蓝色递减，随后需要站定的部分以绿色显示，条上有射击名称和时间。",
+["YaHT"] = "YaHT",
+["Cast bar (Bouk's)"] = "施法条（Bouk）",
+["Stand-still part"] = "站定部分",
+["Whether the green part runs down to empty or fills up to the shot."] = "绿色部分是递减到空，还是填充到射击。",
+["Runs down"] = "递减",
+["Fills up"] = "填充",
+["Name and time on the bar"] = "条上显示名称和时间",
+["The shot's name on the left of the bar, and the time left of the whole time on the right."] = "左侧显示射击名称，右侧显示剩余时间和总时间。",
+["Boxes"] = "方格",
+["Boxes: one box per range band with its yards, and the one your target is in lights up."] = "方格：每个距离段一个方格并标出码数，目标所在的那一格会亮起。",
 }
 
 YaHT.L = L
