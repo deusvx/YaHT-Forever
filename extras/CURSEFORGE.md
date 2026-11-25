@@ -51,6 +51,8 @@ A port of Aviana's classic **YaHT** (Yet another Hunter Timer). **Original proje
 - **Sound at seconds left:** on any timed icon or the hawks, set a number of seconds and a warning
   sound plays once when that much time is left. Hawks at 6 seconds, for example.
 - **Seconds on the icon:** the time left as a number, on any icon you like.
+- **Pick your sounds:** every sound is a choice, with a button to hear it. The game's own gun cocking,
+  gunshot, bow and arrow sounds, a blade, a horn, a drum, or the usual ping, alarm and raid warning.
 - Place each icon above, left or right of the bar, or drag it anywhere. Give them one shared look
   (size, glow, pulse, sound) or give any icon its own.
 - **Round or square:** a round icon sits in a ring that runs down as its timer, a square one has its

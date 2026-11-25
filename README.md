@@ -48,6 +48,8 @@ wrong aspect, and a pet that is low or dead, and it times your procs and your Su
   running down to the swing.
 - **Multi-Shot cast line:** a thin line under the bar that fills while Multi-Shot casts.
 - **Sound at seconds left** and **seconds on the icon** for any timed icon and the hawks.
+- **Pick your sounds:** every sound is a choice, with a button to hear it: the game's own gun
+  cocking, gunshot, bow and arrow sounds, a blade, a horn, a drum, or a ping, alarm or raid warning.
 - **Summon Hawk:** each hawk that is out, with its 18 seconds running down. It turns red under 6
   seconds, when it is time to summon again before you spend the shared cooldown on Arcane Shot.
   One icon per hawk, or one with a count.
