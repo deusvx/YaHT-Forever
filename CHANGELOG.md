@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.5
+- Fixed: Quick Shots could fail to show for a whole session when it came on your very first shot
+  after logging in or a reload. YaHT learned your normal shot speed from that first shot, so the
+  fast one was taken for normal. It now reads your normal speed before the fight and keeps the last
+  one it learned with your character.
+- Tracking wheel: on its options page the live preview now shows the wheel being used, step by
+  step (click the button, move into a piece, keep going out of the pie), instead of the bar.
+- Options: a right-click on a changed setting's control (its list, slider or switch) puts it back
+  to its default too, not only a right-click on the row beside it.
+
 ## 1.5.4
 - New: hunter sounds. The game's own gun cocking (three kinds), gunshot, bow drawn, bow released
   and arrow hit, plus a blade drawn, a hunting horn and a drum made for YaHT.

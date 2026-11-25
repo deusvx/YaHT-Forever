@@ -1086,13 +1086,59 @@ YaHT.quickSpeed = speed
 
 local QUICK_MIN, QUICK_MAX = 0.60, 0.86 -- a speed-up this big (and not Rapid Fire) counts as Quick Shots
 
+-- Your normal shot speed has to be known BEFORE the first shot, or a Quick Shots that comes on
+-- the very first shot after logging in (or a reload) is taken for your normal speed and never
+-- shows. So it is read from the game while nothing is speeding you up (it can be read out of a
+-- fight), and the last one learned is kept with the character.
+local HASTED = {QS_RATIO, RF_RATIO, QS_RATIO * RF_RATIO}
+local function SeedSpeed()
+	if speed.fast or (quick and quick.frame and quick.frame.proc) then return end
+	local now = GetTime()
+	if now < speed.rapidUntil or now < speed.otherUntil then return end
+	if UnitAffectingCombat then
+		local ok, fighting = pcall(UnitAffectingCombat, "player")
+		if not ok or IsSecret(fighting) or fighting then return end
+	end
+	if not UnitRangedDamage then return end
+	local ok, s = pcall(UnitRangedDamage, "player")
+	if ok and not IsSecret(s) and type(s) == "number" and s > 0.5 then speed.seed = s end
+end
+
+-- the first shot: is it your normal speed, or already a faster one?
+local function FirstBase(duration)
+	local char = YaHT.db and YaHT.db.char
+	for _, known in ipairs({speed.seed or false, char and char.quickBase or false}) do
+		if known then
+			local r = duration / known
+			if math.abs(r - 1) < 0.03 then return known end
+			for _, h in ipairs(HASTED) do
+				if math.abs(r - h) < 0.012 then return known end -- (this shot is already a fast one)
+			end
+		end
+	end
+	return duration
+end
+
 local function OnRangedSwing(duration)
 	local now = GetTime()
 	local previous = speed.lastShot
 	speed.lastShot = now
 	if type(duration) ~= "number" or duration <= 0 then return end
 	local base = speed.base
-	if not base then speed.base = duration return end
+	if not base then
+		base = FirstBase(duration)
+		speed.base = base
+		if base == duration then return end
+	end
+	-- A shot slower than "normal" by exactly a speed-up's share: "normal" was learned while that
+	-- speed-up was on. Take this one as the normal speed.
+	for _, h in ipairs(HASTED) do
+		if math.abs(duration / base - 1 / h) < 0.03 then
+			base = duration
+			speed.base = duration
+			break
+		end
+	end
 	-- Two measurements: the time the game gives for the next shot, and the
 	-- real time since the last one. Only a speed-up can make shots come early
 	-- (moving and casting only make them late), so long gaps are ignored.
@@ -1112,6 +1158,8 @@ local function OnRangedSwing(duration)
 	if not rapid and math.abs(fastest - RF_RATIO) < 0.02 then quickNow = false end
 	if r >= 0.95 and r <= 1.08 and (not rGap or rGap > 0.92) then
 		speed.base = base * 0.7 + duration * 0.3 -- normal speed: keep learning it (gear changes)
+		local char = YaHT.db and YaHT.db.char
+		if char then char.quickBase = speed.base end
 	end
 	if quickNow then
 		-- a fast shot after the 12 seconds ran out means it procced again
@@ -1960,6 +2008,7 @@ function YaHT:InitProcs()
 		CheckQuickShots,
 		function() return quick.frame.proc or speed.fast end,
 		function(event, ...)
+			if event ~= "PLAYER_SWING" then SeedSpeed() end
 			if event == "PLAYER_REGEN_DISABLED" then
 				quickHiddenSaid = false
 			elseif event == "PLAYER_SWING" then

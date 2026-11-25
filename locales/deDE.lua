@@ -545,6 +545,10 @@ local L = {
 ["Bigger and flashing when you are hit"] = "Größer und blinkend, wenn du getroffen wirst",
 ["While Pack or Cheetah is on in a fight: each time you take a hit, the kind that can daze you, the warning doubles in size and flashes for a moment. (The game hides the Dazed effect itself from addons in a fight, so this goes by the hits.)"] = "Während Rudel oder Gepard im Kampf an ist: bei jedem Treffer, der dich benommen machen kann, verdoppelt die Warnung kurz ihre Größe und blinkt. (Das Spiel verbirgt den Benommen-Effekt selbst im Kampf vor Addons, daher richtet sich dies nach den Treffern.)",
 ["%s does not hit right away: it waits for your next melee swing. While it is waiting, its icon shows next to the bar, like the lit-up button on your action bar, and the timer under it runs down to the swing. It goes away when the swing lands or you cancel it."] = "%s trifft nicht sofort: es wartet auf deinen nächsten Nahkampfschlag. Solange es wartet, zeigt sich sein Symbol neben der Leiste, wie die leuchtende Taste auf deiner Aktionsleiste, und der Timer darunter läuft bis zum Schlag ab. Es verschwindet, wenn der Schlag trifft oder du es abbrichst.",
+["1. Click the button"] = "1. Klick auf die Schaltfläche",
+["2. Move into a piece"] = "2. Maus in ein Stück bewegen",
+["3. Keep going, out of the pie"] = "3. Weiter, aus dem Kreis hinaus",
+["Now you track it"] = "Jetzt wird es aufgespürt",
 }
 
 YaHT.L = L

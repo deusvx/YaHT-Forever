@@ -722,6 +722,12 @@ end
 local function Hook(row, widget)
 	On(widget, "OnEnter", function() row.hover:Show() ShowTip(row) end)
 	On(widget, "OnLeave", function() row.hover:Hide() HideTip() end)
+	-- a right-click on the control itself puts the setting back too, not only one beside it
+	if widget.HookScript then
+		widget:HookScript("OnMouseUp", Guard(function(_, button)
+			if button == "RightButton" then Menu.ResetRow(row) end
+		end))
+	end
 end
 
 -- A small picture in front of the switches people look for most, so they are found at a glance
@@ -2619,10 +2625,166 @@ LayoutPreview = function(pv, p)
 	pv:SetPoint("CENTER", pv.box, "CENTER", (used.LEFT - used.RIGHT) / 2, PREVIEW_DY)
 end
 
+---------------------------------------------------------------------------
+-- On the Tracking wheel's page the preview box shows the wheel itself, being used: the button, a
+-- click, the pie opening, the mouse going into a piece and on out, and what you track changing.
+-- (It covers the bar's preview, which has nothing to say on that page.)
+---------------------------------------------------------------------------
+local WHEEL_ICONS = {
+	"Interface\\Icons\\Ability_Tracking", "Interface\\Icons\\Spell_Holy_PrayerOfHealing",
+	"Interface\\Icons\\Spell_Frost_SummonWaterElemental", "Interface\\Icons\\Ability_Stealth",
+	"Interface\\Icons\\Spell_Shadow_DarkSummoning", "Interface\\Icons\\Spell_Shadow_SummonFelHunter",
+}
+local WHEEL_PICK = 2          -- the piece the demo heads for
+local WHEEL_R = 63            -- the pie's edge (as big as the box allows, clear of the caption and the step)
+local WHEEL_CYCLE = 6.2
+local WHEEL_PIE, WHEEL_AIMED = {0.15, 0.15, 0.17, 0.72}, {1, 0.90, 0.62, 0.50}
+
+local function WheelIcon(d, size)
+	local ic = {}
+	ic.rim = d:CreateTexture(nil, "ARTWORK", nil, 1)
+	ic.rim:SetTexture(DISC_TEX)
+	ic.rim:SetVertexColor(0, 0, 0)
+	ic.rim:SetSize(size + 3, size + 3)
+	ic.tex = d:CreateTexture(nil, "ARTWORK", nil, 2)
+	ic.tex:SetSize(size, size)
+	ic.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	ic.tex:SetPoint("CENTER", ic.rim, "CENTER", 0, 0)
+	-- cut round, where the game can
+	if d.CreateMaskTexture and ic.tex.AddMaskTexture then
+		local ok, m = pcall(d.CreateMaskTexture, d)
+		if ok and m then
+			pcall(m.SetTexture, m, DISC_TEX, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+			pcall(m.SetAllPoints, m, ic.tex)
+			pcall(ic.tex.AddMaskTexture, ic.tex, m)
+		end
+	end
+	return ic
+end
+
+local function BuildWheelDemo(strip)
+	local d = CreateFrame("Frame", nil, strip)
+	d:SetAllPoints(strip)
+	if d.SetFrameLevel and strip.GetFrameLevel then d:SetFrameLevel((strip:GetFrameLevel() or 1) + 30) end
+	local bg = Plate(d, "BACKGROUND", C.preview)
+	bg:SetPoint("TOPLEFT", d, "TOPLEFT", 1, -1)
+	bg:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -1, 1)
+	local light = d:CreateTexture(nil, "BACKGROUND", nil, 2)
+	light:SetTexture(STAGE_TEX)
+	light:SetBlendMode("ADD")
+	light:SetVertexColor(1, 0.82, 0.52, 0.14)
+	light:SetSize(PREVIEW_BOX_W * 1.1, PREVIEW_H * 1.3)
+	light:SetPoint("CENTER", d, "CENTER", 0, 6)
+	local caption = Text(d, "GameFontHighlightSmall", C.goldDim)
+	caption:SetPoint("TOPLEFT", d, "TOPLEFT", 10, -7)
+	caption:SetText(L["Live preview"])
+	local n = #WHEEL_ICONS
+	d.cx, d.cy = 0, 5
+	d.pieces, d.tracks = {}, {}
+	for i = 1, n do
+		local angle = (i - 1) / n * 2 * math.pi
+		local piece = d:CreateTexture(nil, "BORDER")
+		piece:SetTexture("Interface\\AddOns\\YaHT\\media\\Wedge" .. n)
+		piece:SetPoint("CENTER", d, "CENTER", d.cx, d.cy)
+		if piece.SetRotation then pcall(piece.SetRotation, piece, -angle) end
+		piece.angle = angle
+		d.pieces[i] = piece
+		local ic = WheelIcon(d, 20)
+		ic.tex:SetTexture(WHEEL_ICONS[i])
+		ic.angle = angle
+		d.tracks[i] = ic
+	end
+	d.hub = WheelIcon(d, 25)
+	d.hub.rim:SetPoint("CENTER", d, "CENTER", d.cx, d.cy)
+	d.cursor = d:CreateTexture(nil, "OVERLAY", nil, 6)
+	d.cursor:SetTexture("Interface\\Cursor\\Point")
+	d.cursor:SetSize(22, 22)
+	d.click = d:CreateTexture(nil, "OVERLAY", nil, 5) -- a ring that widens where the click lands
+	d.click:SetTexture(RING_TEX)
+	d.click:SetVertexColor(1, 0.9, 0.62)
+	d.step = Text(d, "GameFontHighlightSmall", C.text or C.white)
+	d.step:SetPoint("BOTTOM", d, "BOTTOM", 0, 9)
+	d.step:SetJustifyH("CENTER")
+	d.t = 0
+	local function Ease(x) x = math.max(0, math.min(1, x)) return x * x * (3 - 2 * x) end
+	On(d, "OnUpdate", function(self, elapsed)
+		self.t = (self.t + elapsed) % WHEEL_CYCLE
+		local t = self.t
+		-- the pie: closed, opening after the click (1.0), fading once the track is picked (3.9)
+		local open = Ease((t - 1.0) / 0.25) * (1 - Ease((t - 3.9) / 0.3))
+		-- the mouse: to the button, a click, into the piece, on out past the edge, then resting
+		local pa = self.pieces[WHEEL_PICK].angle
+		local sx, sy = math.sin(pa), math.cos(pa)
+		local dist
+		if t < 0.7 then dist = -(1 - Ease(t / 0.7)) * 46      -- (comes in from the lower left)
+		elseif t < 1.5 then dist = 0
+		elseif t < 2.6 then dist = Ease((t - 1.5) / 1.1) * WHEEL_R * 0.62
+		elseif t < 3.0 then dist = WHEEL_R * 0.62
+		else dist = WHEEL_R * 0.62 + Ease((t - 3.0) / 0.9) * WHEEL_R * 0.68 end
+		local mx, my
+		if dist < 0 then mx, my = dist * 0.8, dist * 0.6 else mx, my = sx * dist, sy * dist end
+		self.cursor:ClearAllPoints()
+		self.cursor:SetPoint("TOPLEFT", self, "CENTER", self.cx + mx - 2, self.cy + my + 2)
+		local aimed = Ease((dist - WHEEL_R * 0.25) / (WHEEL_R * 0.2))
+		for i, piece in ipairs(self.pieces) do
+			local k = i == WHEEL_PICK and aimed or 0
+			local c, a2 = WHEEL_PIE, WHEEL_AIMED
+			piece:SetSize(WHEEL_R * 2 * (0.9 + 0.1 * open), WHEEL_R * 2 * (0.9 + 0.1 * open))
+			piece:SetVertexColor(c[1] + (a2[1] - c[1]) * k, c[2] + (a2[2] - c[2]) * k, c[3] + (a2[3] - c[3]) * k,
+				(c[4] + (a2[4] - c[4]) * k) * open)
+			local ic = self.tracks[i]
+			local r = WHEEL_R * 0.62 * (0.7 + 0.3 * open)
+			local grow = 1 + 0.22 * k
+			ic.rim:ClearAllPoints()
+			ic.rim:SetPoint("CENTER", self, "CENTER", self.cx + math.sin(ic.angle) * r, self.cy + math.cos(ic.angle) * r)
+			ic.rim:SetSize(23 * grow, 23 * grow)
+			ic.tex:SetSize(20 * grow, 20 * grow)
+			ic.rim:SetAlpha(open)
+			ic.tex:SetAlpha(open)
+			ic.rim:SetVertexColor(k, k, k)
+		end
+		-- the button shows what you track: the first one, then the one that was picked
+		local picked = t >= 3.9
+		self.hub.tex:SetTexture(WHEEL_ICONS[picked and WHEEL_PICK or 1])
+		local flash = picked and (1 - Ease((t - 3.9) / 0.6)) or 0
+		self.hub.rim:SetVertexColor(0.72 + 0.28 * flash, 0.58 + 0.42 * flash, 0.24 + 0.5 * flash)
+		self.hub.rim:SetSize(28 + 6 * flash, 28 + 6 * flash)
+		self.hub.tex:SetSize(25 + 5 * flash, 25 + 5 * flash)
+		-- the click
+		local c = (t - 0.85) / 0.35
+		local clicking = c >= 0 and c <= 1
+		self.click:SetShown(clicking)
+		if clicking then
+			self.click:ClearAllPoints()
+			self.click:SetPoint("CENTER", self, "CENTER", self.cx, self.cy)
+			self.click:SetSize(28 + 32 * c, 28 + 32 * c)
+			self.click:SetAlpha(1 - c)
+		end
+		local step = t < 1.5 and 1 or t < 3.0 and 2 or t < 3.9 and 3 or 4
+		if step ~= self.shownStep then
+			self.shownStep = step
+			self.step:SetText(step == 1 and L["1. Click the button"] or step == 2 and L["2. Move into a piece"]
+				or step == 3 and L["3. Keep going, out of the pie"] or L["Now you track it"])
+			local gold = step == 4
+			self.step:SetTextColor(gold and 1 or 0.9, gold and 0.82 or 0.9, gold and 0.3 or 0.9)
+		end
+	end)
+	return d
+end
+
 -- The live preview, from the current settings (called after every change)
 function Menu.DrawPreview()
 	local pv = frame and frame.preview
 	if not pv then return end
+	-- the Tracking wheel's page shows the wheel in the box, not the bar
+	local wheelPage = Menu.current == "alerts/trackerpage" and not Menu.query and not Menu.viewing
+	if wheelPage and not frame.wheelDemo and frame.previewBox then frame.wheelDemo = BuildWheelDemo(frame.previewBox) end
+	if frame.wheelDemo then
+		if wheelPage and not frame.wheelDemo.on then frame.wheelDemo.t, frame.wheelDemo.shownStep = 0, nil end
+		frame.wheelDemo.on = wheelPage
+		frame.wheelDemo:SetShown(wheelPage)
+		Menu.wheelDemo = frame.wheelDemo -- (for tests)
+	end
 	local p = YaHT.db.profile
 	-- a look being viewed: the preview shows your settings with that look's laid over them
 	if Menu.viewing and YaHT.LookValues then

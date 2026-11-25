@@ -191,4 +191,15 @@ C_Minimap = nil
 hub.scripts.OnClick(hub)
 assert(not wheel.open, "opened without a tracking list")
 DEFAULT_CHAT_FRAME.AddMessage = add
+-- On its page the options window's preview box shows the wheel being used, not the bar
+SlashCmdList["YAHT"]("")
+local M = YaHT.menu
+M.Show("home") assert(not (M.wheelDemo and M.wheelDemo.shown), "the wheel demo belongs to the Tracking wheel's page only")
+M.Show("alerts/trackerpage")
+local d = M.wheelDemo
+assert(d and d.shown and #d.pieces == 6 and #d.tracks == 6, "no wheel in the preview on the Tracking wheel's page")
+local seen = {}
+for i = 1, 700 do d.scripts.OnUpdate(d, 0.01) seen[d.shownStep] = true end
+assert(seen[1] and seen[2] and seen[3] and seen[4], "the demo should walk through click, move in, move out, tracked")
+M.Show("alerts/rangepage") assert(not d.shown, "the wheel demo should go when you leave the page")
 print("OK52")

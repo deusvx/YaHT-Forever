@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.5.4"
+YaHT.version = "1.5.5"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers

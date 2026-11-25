@@ -13,24 +13,20 @@ local L = YaHT.L
 -- EVERY RELEASE: add the new version on top (and drop the oldest), or a test fails.
 ---------------------------------------------------------------------------
 YaHT.news = {
-	version = "1.5.4",
+	version = "1.5.5",
 	lines = {
-		{"Hunter sounds", "Gun cocking, gunshot, bow drawn, bow released and arrow hit from the game, plus a blade, a horn and a drum."},
-		{"Sounds", "Every sound is a choice: no sound, one of the hunter sounds, or the game's ping, alarm or raid warning."},
-		{"Hear it", "Picking a sound plays it, and the Hear it button beside the list plays it again."},
-		{"Seconds left", "The sound at seconds left has its own choice, on every icon and on the hawks."},
-		{"Your settings", "What you had on or off is unchanged, and sounds as it did before."},
+		{"Quick Shots", "Fixed: it could stay hidden all session when it came on your first shot after a reload."},
+		{"Tracking wheel", "Its page shows the wheel being used in the live preview, step by step."},
+		{"Options", "Right-click a changed setting's control to put it back, not only the row beside it."},
 	},
 	earlier = {
+		{version = "1.5.4", lines = {
+			{"Hunter sounds", "Gun cocking, gunshot, bow drawn, bow released and arrow hit from the game, plus a blade, a horn and a drum."},
+			{"Sounds", "Every sound is a choice, with a Hear it button: no sound, a hunter sound, or the game's ping, alarm or raid warning."},
+		}},
 		{version = "1.5.3", lines = {
 			{"Tracking wheel", "Its on/off switch is on its own page, and it has a Layer setting and a polished look."},
 			{"Pop-up sound", "A clear ping instead of a soft click. Quick Shots sounds again when it procs while still up."},
-		}},
-		{version = "1.5.2", lines = {
-			{"Tracking wheel", "A small button shows what you track. Click it, move into a piece of the pie and on out, and you track it."},
-			{"Range warnings", "Deadzone and too far are gone the moment you are out of them."},
-			{"Options", "A page shows only what you can use. A gold dot marks what you changed; right-click it to put it back."},
-			{"Options", "What's new and Back sit by the search box, the alerts are three sections, and you can share your setup."},
 		}},
 	},
 }
