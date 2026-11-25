@@ -3,9 +3,16 @@
 local ev
 for _,f in ipairs(frames) do if f.events.PLAYER_LOGIN then ev=f end end
 
--- a game that has all the sounds but one (the bell): that one is simply not offered
-SOUNDKIT = {MAP_PING = 1, IG_QUEST_LIST_COMPLETE = 2, TELL_MESSAGE = 3, LOOT_WINDOW_COIN_SOUND = 4, IG_PLAYER_INVITE = 5,
-  READY_CHECK = 7, ALARM_CLOCK_WARNING_3 = 8, RAID_WARNING = 9}
+-- a game that lacks one of the game's sounds (the ping): that one is simply not offered. YaHT's own
+-- sounds are files; the game says whether it could play one.
+SOUNDKIT = {ALARM_CLOCK_WARNING_3 = 8, RAID_WARNING = 9}
+local canPlayFiles = true
+function PlaySoundFile(path, channel)
+  if not canPlayFiles then return nil end
+  assert(channel == "Master", "sounds should play on the Master channel")
+  sounds[#sounds + 1] = path:match("Sound%-(%a+)%.ogg") or path
+  return true, 1
+end
 ev.scripts.OnEvent(ev,"PLAYER_LOGIN")
 local db = YaHT.db.profile
 local R = LibStub("AceConfigRegistry-3.0")
@@ -32,38 +39,39 @@ local pet = opts.args.alerts.args.petpage.args.petsound
 assert(pet.type == "select" and pet.arg == "sound", "the pet sound should be a list of sounds")
 assert(pet.get() == "WARNING", "what was on should show the sound it made before, shows "..tostring(pet.get()))
 local v, order = pet.values(), pet.sorting()
-assert(order[1] == "NONE" and v.NONE == "No sound" and v.PING and v.ALARM and v.WARNING, "the list should start with No sound and offer the sounds")
-assert(v.BELL == nil, "a sound this game lacks should not be offered")
+assert(order[1] == "NONE" and v.NONE == "No sound" and v.ALARM and v.WARNING, "the list should start with No sound and offer the sounds")
+assert(order[2] == "PUMP" and v.PUMP == "Shotgun pump" and v.BOW and v.HORN and v.DRUM and v.BLADE and v.BOLT and v.THUD, "YaHT's own hunter sounds should come first")
+assert(v.PING == nil, "a sound this game lacks should not be offered")
 for _, id in ipairs(order) do assert(v[id], "the order names a sound that isn't offered: "..id) end
 -- picking one plays it and keeps it
 sounds = {}
-pet.set(nil, "PING")
-assert(db.petsound == true and db.petsoundkit == "PING" and #sounds == 1 and last() == 1, "picking a sound should play it and keep it")
-assert(pet.get() == "PING", "the list should show what was picked")
+pet.set(nil, "PUMP")
+assert(db.petsound == true and db.petsoundkit == "PUMP" and #sounds == 1 and last() == "Pump", "picking a sound should play it and keep it")
+assert(pet.get() == "PUMP", "the list should show what was picked")
 -- No sound: silent, and nothing plays when you pick it
 sounds = {}
 pet.set(nil, "NONE")
 assert(db.petsound == false and #sounds == 0 and pet.get() == "NONE", "No sound should switch it off quietly")
-assert(db.petsoundkit == "PING", "the sound picked before should be remembered for when it is switched on again")
-pet.set(nil, "CHIME") assert(db.petsound == true and last() == 2, "picking again should switch it back on")
+assert(db.petsoundkit == "PUMP", "the sound picked before should be remembered for when it is switched on again")
+pet.set(nil, "BOLT") assert(db.petsound == true and last() == "Bolt", "picking again should switch it back on")
 
 -- a proc icon's pop-up sound: off to start with; the shared look and an icon's own look each have theirs
 local procs = opts.args.alerts.args.procspage.args
 assert(procs.procsound.type == "select" and procs.procsound.get() == "NONE", "the pop-up sound is off to start with")
-procs.procsound.set(nil, "COINS")
-assert(db.procsound == true and db.procsoundkit == "COINS", "the shared pop-up sound wasn't kept")
+procs.procsound.set(nil, "BOW")
+assert(db.procsound == true and db.procsoundkit == "BOW", "the shared pop-up sound wasn't kept")
 local mong = procs.mongoosepage.args
 assert(mong.mongooseiconsound.type == "select", "an icon's own pop-up sound should be a list too")
 db.mongooseown = true
-mong.mongooseiconsound.set(nil, "INVITE")
-assert(db.mongooseiconsound == true and db.mongooseiconsoundkit == "INVITE", "an icon's own pop-up sound wasn't kept")
+mong.mongooseiconsound.set(nil, "BLADE")
+assert(db.mongooseiconsound == true and db.mongooseiconsoundkit == "BLADE", "an icon's own pop-up sound wasn't kept")
 -- "sound at seconds left": its own list, right under the seconds, only once a time is set
 local at, kit = mong.mongoosesoundat, mong.mongoosesoundatkit
 assert(at and kit and kit.type == "select" and kit.order > at.order and kit.order < at.order + 0.1, "the seconds-left sound should sit right under the seconds")
 assert(kit.disabled() == true, "no sound to choose while no time is set")
 db.mongoosesoundat = 3 assert(kit.disabled() == false, "with a time set the sound can be chosen")
 assert(kit.get() == "ALARM" and kit.values().NONE == nil, "it starts as the alarm, and has no No sound entry (0 seconds means never)")
-sounds = {} kit.set(nil, "READY") assert(db.mongoosesoundatkit == "READY" and last() == 7, "picking the seconds-left sound should play and keep it")
+sounds = {} kit.set(nil, "HORN") assert(db.mongoosesoundatkit == "HORN" and last() == "Horn", "picking the seconds-left sound should play and keep it")
 -- the hawks have both as well
 local hawk = opts.args.alerts.args.hawkpage.args
 assert(hawk.hawksoundatkit and hawk.hawkiconsound.type == "select", "the hawks should have their sound choices")
@@ -71,10 +79,26 @@ assert(hawk.hawksoundatkit and hawk.hawkiconsound.type == "select", "the hawks s
 local ammo = opts.args.alerts.args.ammopage.args
 assert(ammo.ammosound.type == "select" and ammo.ammocritkit and ammo.ammocritkit.get() == "WARNING" and ammo.ammosound.get() == "ALARM", "the ammo counter should have a choice for each of its two sounds")
 
--- a sound this game lacks falls back to what that warning always sounded like
-sounds = {} YaHT:PlayChoice(db.procsoundkit, "PING") assert(last() == 4, "the chosen sound isn't what plays")
-sounds = {} YaHT:PlayChoice("BELL", "ALARM") assert(last() == 8, "a missing sound should fall back to the usual one")
+-- what plays is what was picked; anything that can't be played falls back to what that warning always sounded like
+sounds = {} YaHT:PlayChoice(db.procsoundkit, "PING") assert(last() == "Bow", "the chosen sound isn't what plays")
+sounds = {} YaHT:PlayChoice("ALARM", "WARNING") assert(last() == 8, "one of the game's sounds should play as before")
+sounds = {} YaHT:PlayChoice("PING", "ALARM") assert(last() == 8, "a sound this game lacks should fall back to the usual one")
+sounds = {} YaHT:PlayChoice("COINS", "WARNING") assert(last() == 9, "a choice from an older version should fall back to the usual sound")
 sounds = {} YaHT:PlayChoice(nil, "WARNING") assert(last() == 9, "no choice kept yet should mean the usual sound")
+-- a file the game hasn't loaded (the addon was updated while the game ran): the usual sound, not silence
+canPlayFiles = false
+sounds = {} YaHT:PlayChoice("PUMP", "ALARM") assert(#sounds == 1 and last() == 8, "a file that won't play should fall back to the usual sound")
+canPlayFiles = true
+-- every hunter sound has its file in the addon
+for _, id in ipairs(YaHT.SOUND_ORDER) do
+  assert(YaHT.SOUND_NAME[id], "a sound without a name: "..id)
+  sounds = {} YaHT:PlayChoice(id, "WARNING")
+  if type(last()) == "string" then
+    local fh = io.open("../media/Sound-" .. last() .. ".ogg", "rb")
+    assert(fh, "the file for " .. id .. " is not in media")
+    assert(fh:read(4) == "OggS", "not an ogg file: " .. id) fh:close()
+  end
+end
 
 -- Reset this page puts the chosen sounds back too
 db.petsoundkit = "COINS" db.petsound = false
@@ -90,11 +114,14 @@ local r = row("petsound")
 assert(r and r.kind == "select" and r.hear and r.hear.shown, "no Hear it button beside the pet sound")
 sounds = {} r.hear.scripts.OnClick(r.hear)
 assert(#sounds == 1 and last() == 9, "Hear it should play the sound that is picked")
+pet.set(nil, "DRUM") M.Render()
+sounds = {} row("petsound").hear.scripts.OnClick(row("petsound").hear)
+assert(#sounds == 1 and last() == "Drum", "Hear it should play a hunter sound that is picked")
 assert(row("petwhen") and not row("petwhen").hear.shown, "a list that isn't a sound must not get the button")
 -- nothing to hear for "No sound"
 pet.set(nil, "NONE") M.Render()
 assert(row("petsound") and not row("petsound").hear.shown, "No sound: no Hear it button")
 -- picking from the list in the window plays it, and the button is back
-sounds = {} row("petsound").onPick("PING")
-assert(db.petsoundkit == "PING" and sounds[1] == 1 and row("petsound").hear.shown, "picking in the window should play the sound and bring the button back")
+sounds = {} row("petsound").onPick("THUD")
+assert(db.petsoundkit == "THUD" and sounds[1] == "Thud" and row("petsound").hear.shown, "picking in the window should play the sound and bring the button back")
 print("OK54")

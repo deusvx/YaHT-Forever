@@ -78,24 +78,33 @@ local SCOPE_POP = 0.25    -- seconds the lock-on takes
 ---------------------------------------------------------------------------
 -- Sounds: every sound YaHT makes is one you choose from this list
 ---------------------------------------------------------------------------
--- (the game's own sounds, by the name the game knows them under; a client that lacks one
--- simply doesn't offer it)
-local SOUND_KIT = {
-	PING = "MAP_PING", CHIME = "IG_QUEST_LIST_COMPLETE", WHISPER = "TELL_MESSAGE", COINS = "LOOT_WINDOW_COIN_SOUND",
-	INVITE = "IG_PLAYER_INVITE", BELL = "AUCTION_WINDOW_OPEN", READY = "READY_CHECK",
-	ALARM = "ALARM_CLOCK_WARNING_3", WARNING = "RAID_WARNING",
+-- YaHT's own hunter sounds come first (files in media, made for it: no recordings), then three
+-- of the game's. The game's are named as the game knows them; a client that lacks one doesn't offer it.
+local SOUND_FILE = {
+	PUMP = "Sound-Pump.ogg", BOLT = "Sound-Bolt.ogg", BOW = "Sound-Bow.ogg", THUD = "Sound-Thud.ogg",
+	HORN = "Sound-Horn.ogg", DRUM = "Sound-Drum.ogg", BLADE = "Sound-Blade.ogg",
 }
-YaHT.SOUND_ORDER = {"PING", "CHIME", "WHISPER", "COINS", "INVITE", "BELL", "READY", "ALARM", "WARNING"}
+local SOUND_KIT = {PING = "MAP_PING", ALARM = "ALARM_CLOCK_WARNING_3", WARNING = "RAID_WARNING"}
+local SOUND_DIR = "Interface\\AddOns\\YaHT\\media\\"
+YaHT.SOUND_ORDER = {"PUMP", "BOLT", "BOW", "THUD", "BLADE", "HORN", "DRUM", "PING", "ALARM", "WARNING"}
 YaHT.SOUND_NAME = {
-	PING = "Ping (minimap)", CHIME = "Chime (quest done)", WHISPER = "Whisper", COINS = "Coins", INVITE = "Invite",
-	BELL = "Bell (auction house)", READY = "Ready check", ALARM = "Alarm", WARNING = "Raid warning",
+	PUMP = "Shotgun pump", BOLT = "Rifle bolt", BOW = "Bow twang", THUD = "Arrow hit", BLADE = "Blade drawn",
+	HORN = "Hunting horn", DRUM = "Drum",
+	PING = "Ping (game)", ALARM = "Alarm (game)", WARNING = "Raid warning (game)",
 }
 function YaHT.SoundExists(id)
+	if SOUND_FILE[id] then return true end
 	local name = SOUND_KIT[id]
 	return name ~= nil and SOUNDKIT ~= nil and SOUNDKIT[name] ~= nil
 end
--- Plays the chosen sound; if this client lacks it, the one that sound stood for before choices existed.
+-- Plays the chosen sound. If it can't be played (a file the game hasn't loaded yet, a sound this
+-- client lacks, a choice from an older version), the one that sound stood for before choices existed.
 function YaHT:PlayChoice(id, usual)
+	local file = SOUND_FILE[id]
+	if file and type(PlaySoundFile) == "function" then
+		local ok, played = pcall(PlaySoundFile, SOUND_DIR .. file, "Master")
+		if ok and played then return true end
+	end
 	if not (PlaySound and SOUNDKIT) then return false end
 	local kit = SOUNDKIT[SOUND_KIT[id] or ""] or SOUNDKIT[SOUND_KIT[usual] or ""] or SOUNDKIT.RAID_WARNING
 	if not kit then return false end
