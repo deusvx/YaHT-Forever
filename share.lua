@@ -12,23 +12,65 @@ local L = YaHT.L
 -- {what it is about, one plain sentence}. The full list is in CHANGELOG.md.
 -- EVERY RELEASE: add the new version on top (and drop the oldest), or a test fails.
 ---------------------------------------------------------------------------
+-- WHAT IS NEW IN THIS VERSION gets a small gold "New" beside it in the options: a page in the
+-- list on the left, a card's title and a setting on its page. It stays for this whole version
+-- (opening the page does not take it away); with the next version the list below is written afresh. So: whenever something new is
+-- made, add its page (as the list calls it) or its setting's key here.
+YaHT.newIn = {
+	version = "1.5.7",
+	-- (everything made on the day 1.5.6 and 1.5.7 were made: the owner asked for all of it to be marked)
+	pages = {
+		"alerts/weavepage", "alerts/macrospage", "alerts/procspage/quickstrikespage", -- new pages
+		"bar/lookpage",       -- the cast bar style
+		"alerts/rangepage",   -- the distance as boxes
+		"alerts/aspectpage",  -- the no-aspect warning
+		"alerts/procspage",   -- Quick Strikes
+		"advanced/timingpage", -- what restarts the reload
+		"alerts/procspage/raptorpage", "alerts/procspage/mongoosepage", -- the cooldown after use
+		"alerts/procspage/sniperpage", "alerts/procspage/trueshotpage", -- Marksmanship: Sniper Shot, Trueshot Aura
+	},
+	keys = {
+		"cuehead", "withhead", "weave", "weaveboxes", "weavemacro", "swaphead", "autoswap",          -- Melee weaving
+		"macroset",                                                           -- Macros (each card says its own version: YaHT.newExtra)
+		"aspectnonebig",                                                      -- Aspect: the no-aspect warning
+		"quickstrikes",                                                       -- Quick Strikes: its switch, on Procs and on its own page
+		"barstyle", "castbardir", "castbarreload", "castbarwind", "castbartext", -- The bar > Look: the cast bar style
+		"rangeyardsstyle",                                                    -- Range > Distance: Boxes
+		"meleeresets", "feignresets",                                         -- Timing: what restarts the reload
+		"raptorafter", "mongooseafter",                                       -- Procs: the cooldown after you use it
+		"sniper", "trueshot",                                                 -- Procs: Sniper Shot's cooldown, the Trueshot Aura reminder
+	},
+}
+function YaHT:IsNew(kind, what)
+	local n = self.newIn
+	if not what then return false end
+	if kind ~= "page" and self.newExtra and self.newExtra[what] == self.version then return true end
+	if not n or n.version ~= self.version then return false end
+	for _, v in ipairs(kind == "page" and n.pages or n.keys) do if v == what then return true end end
+	return false
+end
+
 YaHT.news = {
-	version = "1.5.6",
+	version = "1.5.7",
 	lines = {
-		{"Feign Death", "The bar waits through the three seconds the game holds your shot back, then shows one real stand-still part."},
-		{"Bar timing", "Fixed: the shot after a refused attempt crawled on the bar, and could be drawn in the reload color."},
-		{"Quick Shots", "Shows the moment a fight ends, and one proc sounds once."},
-		{"Bar style", "New: Cast bar (Bouk's), blue reload and green stand-still part with name and time. The bar > Look."},
-		{"Distance", "New look: Boxes, one per range band, the one your target is in lights up. Warnings > Range."},
+		{"Melee weaving", "New page: arrows that say Walk in when your bow fires and Walk out when your weapon swings."},
+		{"Macros", "New page: hunter macros made with one click, onto your cursor and ready for a bar."},
+		{"Quick Strikes", "New icon: the melee twin of Quick Shots, from Aspect of the Beast."},
+		{"Marksmanship", "Sniper Shot's cooldown on an icon, and a Trueshot Aura reminder while it is not on."},
+		{"Raptor, Mongoose", "After you use one, its icon stays and counts its cooldown."},
+		{"No aspect", "The warning is bigger, bounces and says No aspect. An aspect dropped in a fight is noticed."},
+		{"Timing", "A melee swing, and the end of a Feign Death, restart the reload as the game does."},
+		{"Colors", "Every color has a box for its code: paste one like #FF00FF and press Enter."},
+		{"New", "A small yellow New marks what a version brought."},
 	},
 	earlier = {
+		{version = "1.5.6", lines = {
+			{"Feign Death", "The bar waits through the three seconds the game holds your shot back, then shows one real stand-still part."},
+			{"New looks", "Cast bar (Bouk's) for the bar, and Boxes for the distance."},
+		}},
 		{version = "1.5.5", lines = {
 			{"Quick Shots", "Fixed: it could stay hidden all session when it came on your first shot after a reload."},
 			{"Tracking wheel", "Its page shows the wheel being used in the live preview, step by step."},
-		}},
-		{version = "1.5.4", lines = {
-			{"Hunter sounds", "Gun cocking, gunshot, bow drawn, bow released and arrow hit from the game, plus a blade, a horn and a drum."},
-			{"Sounds", "Every sound is a choice, with a Hear it button: no sound, a hunter sound, or the game's ping, alarm or raid warning."},
 		}},
 	},
 }

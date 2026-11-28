@@ -18,7 +18,7 @@ YaHT = select(2, ...)
 local L = YaHT.L
 -- Non-English locale tables only translate some strings; fall back to the key.
 setmetatable(L, {__index = function(t, k) return k end})
-YaHT.version = "1.5.6"
+YaHT.version = "1.5.7"
 
 ---------------------------------------------------------------------------
 -- API compatibility helpers
@@ -266,17 +266,7 @@ local function Feigning()
 	if not ok or IsSecret(feigned) then return false end
 	return feigned and true or false
 end
--- And for a while after the feign itself, up or not: in the Feign Death record of nine feigns every
--- Auto Shot attempt up to 2.90 s after the cast failed (the game retrying each half second), and
--- the one whose next shot was timed went through at about 3.26 s. So the game does not let Auto Shot
--- start for about three seconds after Feign Death. Until then the bar waits; the stand-still part
--- then starts at the game's next attempt.
-local FEIGN_HOLD = 3.0
-local function Held()
-	if IsMoving() or Feigning() then return true end
-	local untilT = YaHT.feignHold
-	return untilT ~= nil and GetTime() < untilT
-end
+local function Held() return IsMoving() or Feigning() end
 
 -- What Auto Shot does around a Feign Death, written to the Feign Death record: when it stops and
 -- starts, every failed attempt, and when the next shot leaves (after the feign, after the shot
@@ -1403,6 +1393,81 @@ end
 
 -- Forever doesn't send UNIT_SPELLCAST_START for Auto Shot, but it does send
 -- SENT when the shot attempt begins (WeaponSwingTimer uses the same signal).
+---------------------------------------------------------------------------
+-- WHAT RESTARTS THE SHOT'S RELOAD ON FOREVER (besides a shot): a melee swing, and Feign Death.
+-- From the Forever Hunter Wiki (Shot Mechanics, Melee Weaving, Ability Mechanics): "a melee swing
+-- resets the ranged swing timer" (a shot does not reset the melee one), and "Feign Death resets
+-- both the ranged and melee swing timers". The bar did not know either: after a melee swing or a
+-- feign it showed a shot as due while the game made the whole reload run again ("the shot after
+-- a feign or melee goes really slow on the bar").
+-- For the feign, the reload restarts when the feign ENDS: the one feign whose next shot was timed
+-- (cast 0.46 s after a shot, up about 1.3 s later, shot 3.68 s after the cast, reload 1.94 s) fits
+-- that and not a restart at the cast. (A fixed three seconds after the cast was tried first: it
+-- only fitted a short feign with that bow.)
+---------------------------------------------------------------------------
+function YaHT:RestartReload(why, at)
+	local f = self.mainFrame
+	if not f then return end
+	local now = GetTime()
+	f.lastshot = at or now
+	f.SwingStart, f.fillFrom, f.nextAttempt = nil, nil, nil
+	f.fillBase, f.fillFrac, f.failRun = 0, 0, 0
+	f.pendingSent, f.sentAt = nil, nil
+	f.disturbed = true -- (this cycle teaches the timing nothing)
+	f.drawTinted = nil
+	local c = Look(self.db.profile, "timercolor")
+	f.texture:SetVertexColor(c.r, c.g, c.b)
+	if self.Record then
+		-- (the first few each session are written down, so the rule can be checked against real play)
+		self.restartsSaid = (self.restartsSaid or 0) + 1
+		if self.restartsSaid <= 6 then self:Record("bar", "reload restarted: " .. tostring(why)) end
+	end
+	if self.debug then self:Print("reload restarted: " .. tostring(why)) end
+end
+
+-- your melee weapon swung (called by the melee line's swing handler, main hand only)
+function YaHT:MeleeSwung()
+	if self.db.profile.meleeresets == false then return end
+	self:RestartReload("melee swing")
+end
+
+-- Feign Death was cast: watch for the moment it ends (the bar's own clock does not run while the
+-- bar is hidden, and Auto Shot stops at a feign, so this has a small clock of its own)
+local feignEnd
+function YaHT:WatchFeignEnd()
+	if not feignEnd then
+		feignEnd = CreateFrame("Frame")
+		feignEnd:Hide()
+		feignEnd:SetScript("OnUpdate", function(self, elapsed)
+			self.sum = (self.sum or 0) + elapsed
+			if self.sum < 0.05 then return end
+			self.sum = 0
+			local ok, err = pcall(function()
+				local now = GetTime()
+				local down = Feigning()
+				if down then
+					self.seen = true
+				elseif self.seen then
+					-- up again: the reload starts over from here
+					FeignTrace("feign ended")
+					YaHT:RestartReload(string.format("Feign Death ended %.2fs after its cast", now - self.castAt))
+					self:Hide()
+				elseif now - self.castAt > 0.6 then
+					-- never seen lying down (up at once, or the game does not say): count from the cast
+					FeignTrace("feign not seen: counting from the cast")
+					YaHT:RestartReload("Feign Death (its end was not seen)", self.castAt)
+					self:Hide()
+				end
+				if now - self.castAt > 370 then self:Hide() end -- (a feign lasts six minutes at most)
+			end)
+			if not ok then self:Hide() ReportError("WatchFeignEnd", err) end
+		end)
+		self.feignEndWatch = feignEnd
+	end
+	feignEnd.castAt, feignEnd.seen, feignEnd.sum = GetTime(), false, 0
+	feignEnd:Show()
+end
+
 function YaHT:UNIT_SPELLCAST_SENT(unit, target, castGUID, spellID)
 	if unit == "player" and IsMultiShot(spellID) then self:MultiCastStart(castGUID, "SENT") return end
 	if unit ~= "player" or IsSecret(spellID) or spellID ~= AUTO_SHOT_ID then return end
@@ -1459,8 +1524,8 @@ function YaHT:UNIT_SPELLCAST_SUCCEEDED(unit, castGUID, spellID)
 	if name and name == FeignDeath then
 		self.mainFrame.disturbed = true
 		self.feignAt, self.feignShot = GetTime(), self.mainFrame.lastshot
-		self.feignHold, self.feignHoldFrom = GetTime() + FEIGN_HOLD, GetTime()
 		FeignTrace("feign cast, shooting " .. tostring(self.mainFrame.shooting and true or false))
+		if YaHT.db.profile.feignresets ~= false then self:WatchFeignEnd() end
 		return
 	end
 
@@ -1534,6 +1599,7 @@ function YaHT:OnAutoShot(duration, source)
 			jitter and string.format("%+.3f", jitter) or "-", tostring(f.casting)))
 	end
 	f.lastshot = anchor
+	if self.WeaveShot then self:WeaveShot() end -- (weave cues: your bow just fired)
 	f.SwingStart, f.fillFrom, f.nextAttempt, f.wasMoving = nil, nil, nil, false
 	f.fillBase, f.fillFrac = 0, 0
 	f.awaitFirstSent = false -- a shot went out, so later SENTs aren't "the first"
@@ -1560,12 +1626,6 @@ function YaHT:UNIT_SPELLCAST_FAILED_QUIET(unit, castGUID, spellID)
 	local f = self.mainFrame
 	local now = GetTime()
 	FeignTrace("attempt failed")
-	-- An attempt that still fails right after the feign's three seconds (the hold is a little longer
-	-- some times; seen in game as a short empty pause before the fill): keep waiting until the
-	-- game's next attempt.
-	if self.feignHold and self.feignHoldFrom and now >= self.feignHold - 0.6 and now < self.feignHoldFrom + 5 then
-		self.feignHold = now + 0.5
-	end
 	-- the game often sends FAILED twice for one refused request
 	if f.refusedAt and now - f.refusedAt < 0.05 then return end
 	if f.pendingSent and now - f.pendingSent < 0.05 then

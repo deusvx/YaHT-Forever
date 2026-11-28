@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.5.7
+- New page "Melee weaving" (Tools): arrows beside the bar say Walk in when your bow fires and Walk
+  out when your weapon swings, as arrows, words or both, above, below or beside the bar or dragged
+  anywhere, each with its own sound. Off to start with. Walk in stays away while Aimed Shot or
+  Arcane Shot is about to be ready. The page also has the game's own switch for swapping between
+  Auto Attack and Auto Shot by itself.
+- New page "Macros" (Tools): 21 hunter macros in three lists (PvE, pet, PvP). One click makes the
+  macro and puts it on your cursor for a bar; its text is on the card to select and copy.
+- New icon: Quick Strikes, the melee twin of Quick Shots, from Aspect of the Beast. It takes its
+  place in the row once your hunter has had it.
+- Marksmanship: Sniper Shot's cooldown on an icon after you fire it, and a Trueshot Aura reminder
+  that shows only while the aura is not on. Both only for a hunter who has the spell.
+- Raptor Strike and Mongoose Bite: after you use one, its icon stays and counts its cooldown, and
+  goes when the cooldown is over. A switch on each icon's page.
+- No aspect: the warning is bigger, bounces and says "No aspect" above it (a switch on the Aspect
+  page keeps the plain badge). Dropping your aspect in the middle of a fight is now noticed.
+- Timing: a melee swing restarts the reload, as Forever does, so the shot after a swing no longer
+  crawls on the bar. Feign Death: the reload restarts the moment the feign ends, in place of the
+  fixed three second wait. A switch for each under Advanced > Timing.
+- Colors: every color has a box for its code. Paste one like #FF00FF and press Enter.
+- A small gold "New" in the options marks what a version brought, on the page list and on the
+  settings themselves.
+
 ## 1.5.6
 - Feign Death: the bar no longer starts a whole new reload when you feign. Forever does not restart
   your shot there; it holds Auto Shot back for about three seconds after the feign. The bar now

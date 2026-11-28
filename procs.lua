@@ -50,7 +50,7 @@ local PULSES = {
 
 -- Icons that sit around the bar, in this order. When several share a spot
 -- (above, left or right), each later one moves over past the earlier ones.
-local SLOT_ORDER = {"bestial", "mongoose", "quickshots", "rapidfire", "racial", "aspect", "raptor"}
+local SLOT_ORDER = {"bestial", "mongoose", "quickshots", "quickstrikes", "rapidfire", "racial", "aspect", "raptor", "sniper", "trueshot"}
 
 -- Bestial Wrath has the prime spot (first in the row), but only for a hunter who has it: for
 -- everyone else its place is not kept free. Known = in your spellbook, or cast once on this character.
@@ -68,6 +68,53 @@ local function BestialKnown()
 	return false
 end
 YaHT.BestialKnown = BestialKnown
+-- Quick Strikes too keeps a place in the row only for a hunter who gets it: once it has been seen
+-- on this character. (Most hunters never melee under Aspect of the Beast: no gap for them.)
+local function StrikesKnown()
+	local char = YaHT.db and YaHT.db.char
+	return (char and char.strikesSeen) and true or false
+end
+YaHT.StrikesKnown = StrikesKnown
+
+-- Sniper Shot and Trueshot Aura (Marksmanship): their icons, and their places in the row, are only
+-- for a hunter who has them: in the spellbook now (asked again when your spells change), or seen
+-- cast this session.
+local TRUESHOT_IDS = {19506, 20905, 20906} -- the Classic ranks (Forever added lower ones: found by name)
+local SNIPER_NAME = "Sniper Shot"          -- (new in Forever: no Classic number to ask its name by)
+local bookKnown = {} -- spell name -> true / false; emptied when your spells change
+local castSeen = {}  -- sniper / trueshot: you were seen casting it this session
+local function InBook(name)
+	if not name then return false end
+	local known = bookKnown[name]
+	if known ~= nil then return known end
+	known = false
+	local get = C_Spell and C_Spell.GetSpellInfo
+	local ok, info = false, nil
+	if get then ok, info = pcall(get, name) end
+	if ok and type(info) == "table" and not IsSecret(info) then
+		known = true -- (the game finds a spell by its name only when it is yours)
+		local id = info.spellID
+		if not IsSecret(id) and type(id) == "number" then
+			local ask = (type(IsPlayerSpell) == "function" and IsPlayerSpell) or (type(IsSpellKnown) == "function" and IsSpellKnown) or nil
+			if ask then
+				local ok2, has = pcall(ask, id)
+				if ok2 and not IsSecret(has) then known = has and true or false end
+			end
+		end
+	end
+	bookKnown[name] = known
+	return known
+end
+local function TrueshotName()
+	return YaHT.GetSpellName(TRUESHOT_IDS[1]) or "Trueshot Aura"
+end
+local function SniperKnown()
+	return (castSeen.sniper or InBook(SNIPER_NAME)) and true or false
+end
+local function TrueshotKnown()
+	return (castSeen.trueshot or InBook(TrueshotName()) or InBook("Trueshot Aura")) and true or false
+end
+YaHT.SniperKnown, YaHT.TrueshotKnown = SniperKnown, TrueshotKnown
 -- the size an icon around the bar takes up (the aspect badge has its own)
 local function IconSize(p, key)
 	if key == "aspect" then return p.aspectsize end
@@ -80,7 +127,8 @@ local function SlotShift(p, key)
 	if pos == "FREE" then return 0 end -- placed by hand: not in the row
 	for _, other in ipairs(SLOT_ORDER) do
 		if other == key then break end
-		if p[other] and p[other .. "pos"] == pos and (other ~= "bestial" or BestialKnown()) then
+		if p[other] and p[other .. "pos"] == pos and (other ~= "bestial" or BestialKnown()) and (other ~= "quickstrikes" or StrikesKnown())
+			and (other ~= "sniper" or SniperKnown()) and (other ~= "trueshot" or TrueshotKnown()) then
 			shift = shift + IconSize(p, other) + 2 + GAP
 		end
 	end
@@ -469,7 +517,7 @@ function Icon:OnUpdate(elapsed)
 	-- "Sound at seconds left": once per run, as the time left passes that mark (never for a run that
 	-- is shorter than the mark, never while placing things; the hawks ring for themselves)
 	local at = (not preview and not self.def.ownNumbers and p[self.key .. "soundat"]) or 0
-	if at > 0 and window > at and f.proc and f.secondsLeft > 0 and f.secondsLeft <= at and f.soundFor ~= start then
+	if at > 0 and window > at and f.proc and not f.afterUse and f.secondsLeft > 0 and f.secondsLeft <= at and f.soundFor ~= start then
 		f.soundFor = start
 		LowSound(p[self.key .. "soundatkit"])
 	end
@@ -603,6 +651,7 @@ function Icon:Start(noMana, startedAt, window, texture, quiet)
 	local f = self.frame
 	f.proc, f.noMana = true, noMana
 	f.drawnCD, f.wasOnCD, f.readyAt, f.cdEnd = nil, false, nil, nil
+	f.afterUse, f.endedAt = nil, nil
 	f.procStart = startedAt or GetTime()
 	f.window = window or self.def.window
 	f.drawnK = nil
@@ -615,6 +664,7 @@ function Icon:End()
 	local f = self.frame
 	if not f.proc then return false end
 	f.proc = false
+	f.afterUse = nil
 	return true
 end
 
@@ -930,6 +980,41 @@ local function ReadCooldown(spell)
 	return s, d
 end
 
+-- AFTER YOU USED IT (asked for: "after it's queued and successfully went off I want to see its
+-- cooldown and when it expires it goes away. same with mongoose"). The icon's chance is over because
+-- you pressed it: it stays, grey, with the clock sweep and the countdown, for its cooldown, then goes.
+-- That it was USED (and did not just run out, or get cancelled) is told two ways: its cooldown began
+-- during the chance, or the game said the spell was cast (f.usedAt, see OnCast). When the game hides
+-- the cooldown, the cast and the spell's usual cooldown (fallback) stand in.
+-- since: when the chance began. Says whether the cooldown is showing now.
+local AFTER_LATE = 0.5 -- (the cooldown or the cast may come a moment after the chance ends)
+local function ShowAfterUse(icon, spell, fallback, since)
+	local f = icon.frame
+	local now = GetTime()
+	local s, d = ReadCooldown(spell)
+	if s and s > 0 and s >= since - AFTER_LATE then
+		-- (its own cooldown, begun in this chance)
+	elseif f.usedAt and now - f.usedAt < 1 and f.usedAt >= since - AFTER_LATE and (s == nil or (s and s > 0)) then
+		if s == nil then s, d = f.usedAt, fallback end
+	else
+		return false
+	end
+	if s + d <= now then return false end
+	f.proc, f.afterUse, f.noMana = true, true, false
+	f.cdStart, f.cdDur, f.cdEnd = s, d, s + d
+	f.procStart, f.window = s, d
+	f.drawnCD, f.drawnK, f.endedAt, f.usedAt = nil, nil, nil, nil
+	f:Show()
+	return true
+end
+-- an icon showing its cooldown after use: gone when the cooldown is. Says whether it is in that state.
+local function AfterUseRuns(icon)
+	local f = icon.frame
+	if not (f.proc and f.afterUse) then return false end
+	if not f.cdEnd or GetTime() >= f.cdEnd then icon:End() end
+	return true
+end
+
 local mongooseWatch
 local function CheckMongoose()
 	local p = YaHT.db.profile
@@ -937,8 +1022,10 @@ local function CheckMongoose()
 	if not p.mongoose or not p.lock then mongoose:End() return end
 	if f.previewUntil and GetTime() < f.previewUntil then return end -- "Preview all alerts" is showing it
 	local usable, noMana = ReadMongoose()
+	if usable ~= true and AfterUseRuns(mongoose) then return end -- (its cooldown after use: runs out by itself)
 	if usable == nil then return end -- hidden: keep what we have
 	if usable then
+		if f.afterUse then f.proc = false end -- (a new dodge while its cooldown shows: a new chance)
 		if not f.proc then
 			mongoose:Start(noMana)
 			if YaHT.debug then YaHT:Print("Mongoose Bite ready") end
@@ -957,8 +1044,17 @@ local function CheckMongoose()
 		elseif f.cdEnd and s ~= nil then
 			f.cdEnd = nil -- ready now
 		end
-	elseif mongoose:End() and YaHT.debug then
-		YaHT:Print(string.format("Mongoose Bite gone after %.1fs", GetTime() - f.procStart))
+	elseif f.proc and p.mongooseafter and ShowAfterUse(mongoose, mongooseName or MONGOOSE_IDS[1], 5, f.procStart) then
+		if YaHT.debug then YaHT:Print(string.format("Mongoose Bite used: cooldown %.1fs", f.cdEnd - GetTime())) end
+	elseif f.proc then
+		local since = f.procStart
+		mongoose:End()
+		f.endedAt, f.endedSince = GetTime(), since
+		if YaHT.debug then YaHT:Print(string.format("Mongoose Bite gone after %.1fs", GetTime() - since)) end
+	elseif f.endedAt and p.mongooseafter then
+		-- (the word that it was used came a moment after the chance ended)
+		if GetTime() - f.endedAt > AFTER_LATE then f.endedAt = nil
+		else ShowAfterUse(mongoose, mongooseName or MONGOOSE_IDS[1], 5, f.endedSince or f.endedAt) end
 	end
 end
 
@@ -977,7 +1073,9 @@ local function CheckRaptor()
 	if not p.raptor or not p.lock then raptor:End() return end
 	if f.previewUntil and GetTime() < f.previewUntil then return end -- "Preview all alerts" is showing it
 	local queued = YaHT.RaptorQueued and YaHT.RaptorQueued() or false
+	if not queued and AfterUseRuns(raptor) then return end -- (its cooldown after the strike: runs out by itself)
 	if queued then
+		if f.afterUse then f.proc = false end
 		if not f.proc then
 			-- its timer: the time left until your next swing, when the melee line knows it
 			local now = GetTime()
@@ -988,8 +1086,17 @@ local function CheckRaptor()
 			raptor:Start(false, now, left)
 			if YaHT.debug then YaHT:Print(string.format("Raptor Strike queued (swing in %.1fs)", left)) end
 		end
-	elseif raptor:End() and YaHT.debug then
-		YaHT:Print("Raptor Strike no longer queued")
+	elseif f.proc and p.raptorafter and ShowAfterUse(raptor, YaHT.GetSpellName(2973) or 2973, 6, f.procStart) then
+		-- the strike landed: its cooldown shows now
+		if YaHT.debug then YaHT:Print(string.format("Raptor Strike landed: cooldown %.1fs", f.cdEnd - GetTime())) end
+	elseif f.proc then
+		local since = f.procStart
+		raptor:End()
+		f.endedAt, f.endedSince = GetTime(), since
+		if YaHT.debug then YaHT:Print("Raptor Strike no longer queued") end
+	elseif f.endedAt and p.raptorafter then
+		if GetTime() - f.endedAt > AFTER_LATE then f.endedAt = nil
+		else ShowAfterUse(raptor, YaHT.GetSpellName(2973) or 2973, 6, f.endedSince or f.endedAt) end
 	end
 end
 
@@ -1254,6 +1361,168 @@ local function CheckQuickShots()
 end
 
 ---------------------------------------------------------------------------
+-- Quick Strikes: +30% melee attack speed for 12s. The same talent as Quick Shots (Deadly Aspects),
+-- under Aspect of the Beast: your melee auto attacks can trigger it. Followed the same way: the
+-- buff when the game shows it, and in a fight (where your buffs are hidden) your main hand's
+-- swings coming 30% faster.
+---------------------------------------------------------------------------
+local strikes = NewIcon({
+	key = "quickstrikes", frameName = "YaHTQuickStrikesFrame", label = "QuickStrikes",
+	spellID = 1299446, fallbackIcon = "Interface\\Icons\\Ability_Mount_PinkTiger", window = 12, -- (Aspect of the Beast's picture until the buff's own is seen)
+	on = function(p) return p.quickstrikes and StrikesKnown() end,
+})
+local strikeWatch
+local strike = {base = nil, lastSwing = nil, fast = false, fastStart = nil}
+YaHT.strikeSpeed = strike
+
+-- true + start, length, icon / false / nil when the game hides your buffs. Found by its name (its
+-- spell number on Forever is not known): "quick strike" anywhere in the name.
+local function ReadStrikes()
+	if not C_UnitAuras then return nil end
+	local data, hidden = nil, false
+	if C_UnitAuras.GetAuraDataByIndex then
+		for i = 1, 40 do
+			local ok, d = pcall(C_UnitAuras.GetAuraDataByIndex, "player", i, "HELPFUL")
+			if not ok or IsSecret(d) then hidden = true break end
+			if not d then break end
+			local name = d.name
+			if not IsSecret(name) and type(name) == "string" and name:lower():find("quick strike", 1, true) then data = d break end
+			if IsSecret(d.spellId) and IsSecret(d.name) then hidden = true end
+		end
+	end
+	if not data and C_UnitAuras.GetAuraDataBySpellName then
+		local ok, d = pcall(C_UnitAuras.GetAuraDataBySpellName, "player", "Quick Strikes", "HELPFUL")
+		if not ok or IsSecret(d) then hidden = true elseif d then data = d end
+	end
+	if data then
+		local expires, length = Readable(data.expirationTime), Readable(data.duration)
+		local icon = data.icon
+		if IsSecret(icon) then icon = nil end
+		local startedAt = (expires and length and length > 0) and (expires - length) or nil
+		return true, startedAt, (length and length > 0) and length or nil, icon
+	end
+	if hidden then return nil end
+	return false
+end
+
+-- your main hand's normal speed, read while nothing is known to speed it up (out of a fight)
+local function SeedStrike()
+	if strike.fast or (strikes.frame and strikes.frame.proc) then return end
+	if GetTime() < speed.otherUntil then return end
+	if UnitAffectingCombat then
+		local ok, fighting = pcall(UnitAffectingCombat, "player")
+		if not ok or IsSecret(fighting) or fighting then return end
+	end
+	if not UnitAttackSpeed then return end
+	local ok, s = pcall(UnitAttackSpeed, "player")
+	if ok and not IsSecret(s) and type(s) == "number" and s > 0.5 then strike.seed = s end
+end
+
+-- Quick Strikes needs Aspect of the Beast. When your aspect is known to be another one (or none), a
+-- faster swing is some other speed-up. (Reported: "I see the aspect of the beast icon running down but
+-- I don't have beast aspect on".) Not known at all: the swing is believed, as before.
+local function NotBeast()
+	local a = YaHT.aspectFrame and YaHT.aspectFrame.aspect
+	return a ~= nil and a ~= "BEAST"
+end
+local function OnStrikeSwing(duration)
+	local now = GetTime()
+	local previous = strike.lastSwing
+	strike.lastSwing = now
+	if type(duration) ~= "number" or duration <= 0 then return end
+	if now < speed.otherUntil then return end -- an unknown speed-up (Berserking): don't guess
+	if now < speed.rapidUntil then return end -- (Forever's Rapid Fire speeds up melee too: not Quick Strikes, and not a new weapon)
+	local char = YaHT.db and YaHT.db.char
+	local base = strike.base
+	if not base then
+		-- the first swing: a speed known from before is believed only when this swing fits it
+		base = duration
+		for _, known in ipairs({strike.seed or false, char and char.strikeBase or false}) do
+			if known then
+				local r0 = duration / known
+				if math.abs(r0 - 1) < 0.03 or math.abs(r0 - QS_RATIO) < 0.012 then base = known break end
+			end
+		end
+		strike.base = base
+		if base == duration then return end
+	end
+	local r = duration / base
+	if math.abs(r - 1 / QS_RATIO) < 0.03 then
+		-- slower than "normal" by exactly its share: "normal" was learned while it was on
+		strike.base, strike.fast = duration, false
+	elseif r >= 0.95 and r <= 1.08 then
+		strike.base = base * 0.7 + duration * 0.3 -- normal speed: keep learning it
+		if char then char.strikeBase = strike.base end
+		strike.fast = false
+	elseif math.abs(r - QS_RATIO) < 0.04 and NotBeast() then
+		-- that fast, but not under Aspect of the Beast: not Quick Strikes (and not a new weapon either)
+		strike.fast = false
+		if not strike.saidOther then
+			strike.saidOther = true
+			if YaHT.Record then YaHT:Record("proc", string.format("a melee swing %.0f%% of normal without Aspect of the Beast (aspect %s): not Quick Strikes", r * 100, tostring(YaHT.aspectFrame.aspect))) end
+		end
+	elseif math.abs(r - QS_RATIO) < 0.04 then
+		-- a fast swing after its 12 seconds ran out means it procced again
+		if not strike.fast or (strike.fastStart and now - strike.fastStart > QS_LENGTH) then
+			strike.fast, strike.fromBuff = true, false
+			strike.fastStart = (previous and now - previous < base * 1.5) and previous or now -- (it procced on the swing before)
+			strike.why = string.format("next swing %.3fs = %.0f%% of normal %.3fs", duration, r * 100, base)
+		end
+	else
+		-- another weapon, or a speed-up that is not this one: a new normal speed
+		strike.base, strike.fast = duration, false
+	end
+end
+
+local function CheckStrikes()
+	local p = YaHT.db.profile
+	local f = strikes.frame
+	if not p.quickstrikes or not p.lock then strikes:End() return end
+	local now = GetTime()
+	if f.previewUntil and now < f.previewUntil then return end -- "Preview all alerts" is showing it
+	local active, startedAt, length, icon = ReadStrikes()
+	local source = "buff"
+	if active and startedAt then
+		strike.fast, strike.fastStart, strike.fromBuff = true, startedAt, true
+	elseif active == false and strike.fromBuff then
+		strike.fast, strike.fromBuff = false, false
+	end
+	if not active then
+		if strike.fast and strike.fastStart and now - strike.fastStart < QS_LENGTH then
+			active, startedAt, length, icon, source = true, strike.fastStart, QS_LENGTH, nil, "swing speed"
+		elseif strike.fast then
+			strike.fast = false
+		end
+	end
+	if active then
+		if not f.proc then
+			local late = source == "buff" and startedAt and now - startedAt > QS_LATE
+			local char = YaHT.db.char
+			if char and not char.strikesSeen then
+				char.strikesSeen = true -- from now on its place in the row is kept for it
+				YaHT:ApplyProcSettings()
+			end
+			strikes:Start(false, startedAt, length, icon, late)
+			f.procSource = source
+			if YaHT.Record then
+				YaHT:Record("proc", "Quick Strikes on, from " .. source .. (source == "swing speed" and strike.why and (": " .. strike.why) or "")
+					.. (late and string.format(" (found %.1fs late, no sound)", now - startedAt) or ""))
+			end
+		elseif startedAt and math.abs(startedAt - f.procStart) > 0.2 then
+			local newer = startedAt - f.procStart
+			local again = newer > 0.2 and (source == f.procSource or newer > QS_SAME)
+			f.procStart, f.window = startedAt, length or QS_LENGTH
+			f.procSource = source
+			if again then strikes:Chime() end
+		else
+			f.procSource = source
+		end
+	else
+		strikes:End()
+	end
+end
+
+---------------------------------------------------------------------------
 -- Rapid Fire and Elune's Light (the Night Elf active on Forever): buffs you
 -- cast yourself. The game shows your casts even in combat, so these show the
 -- moment you press them and are timed from the cast.
@@ -1311,6 +1580,36 @@ local racial = NewIcon({
 	spellID = nil, fallbackIcon = "Interface\\Icons\\Spell_Holy_ElunesGrace", window = CAST_BUFF_LENGTH,
 })
 
+---------------------------------------------------------------------------
+-- Sniper Shot (Marksmanship, new in Forever; asked for: "something that tracks cooldown of sniper
+-- shot"). When you fire it its icon shows: grey, with the clock sweep and the countdown, for its
+-- cooldown (15 seconds); when it is ready again the icon is in colour for a moment, then goes.
+---------------------------------------------------------------------------
+local SNIPER_COOLDOWN = 15 -- (used when the game hides the real one)
+local sniper = NewIcon({
+	key = "sniper", frameName = "YaHTSniperShotFrame", label = "SniperShot",
+	spellID = nil, fallbackIcon = "Interface\\Icons\\Ability_Hunter_SniperShot", window = SNIPER_COOLDOWN,
+	on = function(p) return p.sniper and SniperKnown() end, -- (nothing to show a hunter who doesn't have it)
+})
+local function SniperUsed(spellID)
+	local p = YaHT.db.profile
+	if not castSeen.sniper then
+		local had = SniperKnown()
+		castSeen.sniper = true
+		if not had then YaHT:ApplyProcSettings() end -- (its place in the row is kept from now on)
+	end
+	if not p.sniper then return end
+	local now = GetTime()
+	local s, d = ReadCooldown(spellID)
+	local read = (s and s > 0 and d and d > 10) and true or false
+	if not read then s, d = now, SNIPER_COOLDOWN end
+	sniper:Start(false, s, d, SpellIcon(spellID), true)
+	local f = sniper.frame
+	f.afterUse, f.cdRead, f.spell, f.readySaid = true, read, spellID, nil
+	f.cdStart, f.cdDur, f.cdEnd = s, d, s + d
+	if YaHT.debug then YaHT:Print(string.format("Sniper Shot fired: cooldown %.1fs%s", s + d - now, read and "" or " (the usual length: the game hides the real one)")) end
+end
+
 -- which racial a cast is (its table entry), from its spell number or name
 local racialByID, racialByName
 local function WhichRacial(spellID, name)
@@ -1356,6 +1655,12 @@ local function OnCast(spellID)
 	local p = YaHT.db.profile
 	if not p.lock then return end
 	local name = YaHT.GetSpellName(spellID)
+	-- Raptor Strike landed / Mongoose Bite was used: their icons show the cooldown next (ShowAfterUse)
+	if name then
+		if name == YaHT.GetSpellName(2973) or name == "Raptor Strike" then raptor.frame.usedAt = GetTime() return end
+		if name == YaHT.GetSpellName(MONGOOSE_IDS[1]) or name == "Mongoose Bite" then mongoose.frame.usedAt = GetTime() return end
+		if name == SNIPER_NAME then SniperUsed(spellID) return end
+	end
 	if spellID == BESTIAL_WRATH_ID or (name and (name == YaHT.GetSpellName(BESTIAL_WRATH_ID) or name == "Bestial Wrath")) then
 		local char = YaHT.db.char
 		if char and not char.bestialSeen then
@@ -1412,6 +1717,28 @@ local function CheckCastBuffs()
 			bf.drawnCD = nil -- (the clock sweep takes the real length)
 		end
 	end
+	-- Sniper Shot: the game's own word on its cooldown as soon as it gives one; when the cooldown is
+	-- over the icon is in colour for a moment (ready), then goes
+	local sf = sniper.frame
+	if sf.proc and sf.afterUse and sf.cdEnd then
+		if not sf.cdRead then
+			local s, d = ReadCooldown(sf.spell or SNIPER_NAME)
+			if s and s > 0 and d and d > 10 then
+				sf.cdRead = true
+				sf.cdStart, sf.cdDur, sf.cdEnd = s, d, s + d
+				sf.procStart, sf.window = s, d
+				sf.drawnCD = nil
+			end
+		end
+		if now >= sf.cdEnd then
+			if not sf.readySaid then
+				sf.readySaid = true
+				sniper:Chime()
+				if YaHT.debug then YaHT:Print("Sniper Shot ready") end
+			end
+			if now >= sf.cdEnd + READY_SHOWN then sniper:End() end
+		end
+	end
 	for _, icon in ipairs({bestial, rapid, racial}) do
 		local f = icon.frame
 		-- (Bestial Wrath stays for its cooldown, and a moment longer to show it is ready again)
@@ -1422,6 +1749,79 @@ local function CheckCastBuffs()
 				YaHT:Print((icon == racial and cur and cur.r.name or (icon == bestial and "Bestial Wrath" or "Rapid Fire")) .. " off")
 			end
 		end
+	end
+end
+
+---------------------------------------------------------------------------
+-- Trueshot Aura reminder (asked for: "trueshot aura only if its not up"). Its icon shows only while
+-- you do NOT have the buff, and goes the moment it is on. The game hides your buffs in a fight, so
+-- there it goes by what was seen before the fight and by your own cast.
+---------------------------------------------------------------------------
+local TRUESHOT_GRACE = 1.5   -- it must be missing this long before the reminder comes
+local TRUESHOT_LONG = 1e7    -- (the reminder has no time of its own: its timer stays full)
+local TRUESHOT_BUFFS = 40
+local trueshot = NewIcon({
+	key = "trueshot", frameName = "YaHTTrueshotFrame", label = "TrueshotAura",
+	spellID = TRUESHOT_IDS[1], fallbackIcon = "Interface\\Icons\\Ability_TrueShot", window = 5,
+	on = function(p) return p.trueshot and TrueshotKnown() end,
+})
+local aura = {} -- up: true / false / nil (not known yet); since: when it was first seen missing
+local trueshotWatch
+
+-- true / false, or nil when the game will not say (a fight)
+local function ReadTrueshot()
+	if InCombatLockdown and InCombatLockdown() then return nil end
+	local get = C_UnitAuras and C_UnitAuras.GetAuraDataByIndex
+	if not get then return nil end
+	local mine = TrueshotName()
+	for i = 1, TRUESHOT_BUFFS do
+		local ok, d = pcall(get, "player", i, "HELPFUL")
+		if not ok or IsSecret(d) then return nil end
+		if type(d) ~= "table" then break end
+		local id, name = d.spellId, d.name
+		if IsSecret(id) or IsSecret(name) then return nil end
+		if type(name) == "string" and (name == mine or name == "Trueshot Aura") then return true end
+		for _, rank in ipairs(TRUESHOT_IDS) do
+			if id == rank then return true end
+		end
+	end
+	return false
+end
+
+local function PlayerIs(fn)
+	if type(fn) ~= "function" then return false end
+	local ok, v = pcall(fn, "player")
+	return (ok and not IsSecret(v) and v) and true or false
+end
+
+local function CheckTrueshot()
+	local p = YaHT.db.profile
+	local f = trueshot.frame
+	if not f then return end
+	if not p.trueshot or not p.lock or not TrueshotKnown() then
+		aura.since = nil
+		trueshot:End()
+		return
+	end
+	if f.previewUntil and GetTime() < f.previewUntil then return end -- "Preview all alerts" is showing it
+	local now = GetTime()
+	local up = ReadTrueshot()
+	if up ~= nil and up ~= aura.up then
+		aura.up = up
+		if YaHT.debug then YaHT:Print("Trueshot Aura: " .. (up and "on" or "missing")) end
+	end
+	-- no reminder while dead, on a flight path, or just after a loading screen (buffs come a moment late)
+	local missing = aura.up == false and not PlayerIs(UnitIsDeadOrGhost) and not PlayerIs(UnitOnTaxi)
+		and not (aura.holdUntil and now < aura.holdUntil)
+	if not missing then
+		aura.since = nil
+		trueshot:End()
+		return
+	end
+	aura.since = aura.since or now
+	if not f.proc and now - aura.since >= TRUESHOT_GRACE then
+		trueshot:Start(false, now, TRUESHOT_LONG)
+		if YaHT.Record then YaHT:Record("trueshot", "Trueshot Aura is not on: reminder shown") end
 	end
 end
 
@@ -1518,6 +1918,15 @@ end
 -- The aspect you're in ("HAWK", ..., "NONE") and its icon, or nil if hidden.
 -- Looks three ways, since Forever may differ from Classic: through all your
 -- buffs, on the stance bar, and by each aspect's name.
+-- Which of your buffs the aspect is: the game gives every buff a number of its own, and tells
+-- addons which numbers were taken off you, even in a fight (where it hides what the buffs are). So an
+-- aspect that is dropped in a fight (clicked off, /cancelaura, taken by something) can be noticed:
+-- it is not a cast, and nothing else says so. Kept whenever the aspect can be read.
+local aspectInstance
+local function KeepInstance(d)
+	local id = d and d.auraInstanceID
+	if not IsSecret(id) and type(id) == "number" then aspectInstance = id end
+end
 local function ReadAspect()
 	BuildAspectLookup()
 	local hidden = false
@@ -1529,7 +1938,7 @@ local function ReadAspect()
 			if not ok or IsSecret(d) then hidden = true break end
 			if not d then break end
 			local key = WhichAspect(d.spellId, d.name)
-			if key then return key, IconFor(d.icon, d.spellId, d.name) end
+			if key then KeepInstance(d) return key, IconFor(d.icon, d.spellId, d.name) end
 			if IsSecret(d.spellId) and IsSecret(d.name) then hidden = true end
 		end
 	end
@@ -1555,6 +1964,7 @@ local function ReadAspect()
 			if not ok or IsSecret(d) then
 				hidden = true
 			elseif d then
+				KeepInstance(d)
 				return aspectByName[name], IconFor(d.icon, d.spellId, name)
 			end
 		end
@@ -1642,6 +2052,7 @@ end
 -- and put back exactly when it stops.
 local HOP_TIME = 0.6 -- seconds for one up and down
 local HIT_TIME = 1.2 -- seconds the warning stays doubled and flashing after a hit
+local NONE_GROW = 1.5 -- the no-aspect badge's size while it warns
 local function BadgeRest(f)
 	if f.bigK and f.bigK ~= 1 then
 		f.bigK = 1
@@ -1666,14 +2077,15 @@ local function BadgeBounce(f, on)
 end
 -- big: just hit. The badge is drawn at twice its size (its place is given in its own, now doubled,
 -- measure: halved here so it grows where it stands) and its picture flashes red.
-local function BadgeHop(f, elapsed, height, big)
+-- grow: a steady size while it bounces (the no-aspect warning: 1.3), without the flashing.
+local function BadgeHop(f, elapsed, height, big, grow)
 	if not f.hopBase then
 		local point, rel, relPoint, x, y = f:GetPoint(1)
 		if not point then return end
 		f.hopBase = {point, rel, relPoint, x or 0, y or 0}
 		f.hopT = 0
 	end
-	local k = big and 2 or 1
+	local k = big and 2 or (grow or 1)
 	if (f.bigK or 1) ~= k then
 		f.bigK = k
 		f:SetScale((YaHT.db.profile.scale or 1) * k)
@@ -1793,8 +2205,14 @@ local function BadgeUpdate(self, elapsed)
 			local how = level == "DANGER" and SpeedAlert(p, self.aspect) or "OFF"
 			if level == "DANGER" and self.previewUntil then how = "WORDS" end -- ("Preview all alerts" shows the words)
 			Shout((how == "WORDS" or how == "BOTH") and ShoutText(self.previewUntil and "PACK" or self.aspect) or nil)
-			BadgeBounce(self, how == "ICON" or how == "BOTH")
+			-- No aspect at all: a red question mark the size of a quiet badge is easy to overlook. It
+			-- bounces, a third larger, with "No aspect" in small letters above it.
+			local none = (p.aspectnonebig ~= false) and self.aspect == "NONE" and (level == "DANGER" or level == "HINT")
+				and not self.previewUntil
+			self.noneWarn = none or nil
+			BadgeBounce(self, how == "ICON" or how == "BOTH" or none)
 		end
+		if not p.lock then self.noneWarn = nil end
 		-- the saved record notes each real warning as it starts (not previews, and not the
 		-- Hawk / Monkey hints, which come and go all fight long)
 		if p.lock and not self.previewUntil then
@@ -1822,6 +2240,7 @@ local function BadgeUpdate(self, elapsed)
 	if a <= 0 and want <= 0 then
 		if p.lock then Shout(nil) end
 		BadgeBounce(self, false)
+		if self.noneText then self.noneText:Hide() end
 		self:Hide() -- wakes again on the next aspect / combat / Auto Shot change
 		return
 	end
@@ -1831,6 +2250,12 @@ local function BadgeUpdate(self, elapsed)
 	self.rim:SetVertexColor(c[1], c[2], c[3])
 	self.polish.frame:SetVertexColor(c[1], c[2], c[3])
 	self.rpolish.frame:SetVertexColor(c[1], c[2], c[3])
+	if self.noneText then
+		local say = self.noneWarn and shown ~= "OK"
+		self.noneText:SetShown(say and true or false)
+		-- (the warning's colour, lightened: plain red letters this small were hard to read on dark ground)
+		if say then self.noneText:SetTextColor(c[1] + (1 - c[1]) * 0.45, c[2] + (1 - c[2]) * 0.45, c[3] + (1 - c[3]) * 0.45) end
+	end
 	if shown == "OK" then
 		self:SetAlpha(a * p.aspectalpha)
 		self.icon:SetAlpha(1)
@@ -1845,7 +2270,7 @@ local function BadgeUpdate(self, elapsed)
 		self.halo:SetAlpha(self.bouncing and (0.7 + 0.3 * pulse) or (0.35 + 0.55 * pulse)) -- (a bouncing Cheetah glows harder)
 		if self.bouncing then
 			local big = p.aspecthit and self.hitUntil and GetTime() < self.hitUntil
-			BadgeHop(self, elapsed, math.max(6, (p.aspectsize or 22) * 0.45), big)
+			BadgeHop(self, elapsed, math.max(6, (p.aspectsize or 22) * 0.45), big, self.noneWarn and NONE_GROW or nil)
 		end
 		self.halo:Show()
 	end
@@ -1911,6 +2336,12 @@ local function CreateBadge()
 	local f = CreateFrame("Frame", "YaHTAspectFrame", UIParent)
 	f:SetFrameStrata("MEDIUM")
 	MakeDraggable(f, "aspect")
+	-- "No aspect", very small, above the badge (only with the no-aspect warning)
+	f.noneText = f:CreateFontString(nil, "OVERLAY")
+	f.noneText:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", 10, "OUTLINE")
+	f.noneText:SetPoint("BOTTOM", f, "TOP", 0, 6) -- (clear of the badge's glow)
+	f.noneText:SetText(YaHT.L["No aspect"])
+	f.noneText:Hide()
 	f.halo = f:CreateTexture(nil, "BACKGROUND", nil, -1)
 	f.halo:SetTexture(GLOW_TEX)
 	f.halo:SetBlendMode("ADD")
@@ -1955,12 +2386,19 @@ local PREVIEW_TIME = 6
 function YaHT:PreviewAlerts()
 	local now = GetTime()
 	local p = self.db.profile
-	for _, icon in ipairs({bestial, mongoose, quick, rapid, racial, raptor}) do
-		if p[icon.key] and (icon ~= bestial or BestialKnown()) then
+	for _, icon in ipairs({bestial, mongoose, quick, strikes, rapid, racial, raptor}) do
+		if p[icon.key] and (icon ~= bestial or BestialKnown()) and (icon ~= strikes or StrikesKnown()) then
 			icon:Start(false, now, PREVIEW_TIME)
 			icon.frame.previewUntil = now + PREVIEW_TIME
 		end
 	end
+	for _, icon in ipairs({sniper, trueshot}) do
+		if icon.def.on(p) then
+			icon:Start(false, now, PREVIEW_TIME)
+			icon.frame.previewUntil = now + PREVIEW_TIME
+		end
+	end
+	if trueshotWatch then trueshotWatch:Show() end -- (the reminder comes back by itself afterwards, if it is due)
 	if p.aspect and badge then
 		badge.previewUntil = now + PREVIEW_TIME
 		badge.judge = 0
@@ -1980,9 +2418,13 @@ function YaHT:ApplyProcSettings()
 	bestial:Apply()
 	mongoose:Apply()
 	quick:Apply()
+	strikes:Apply()
 	rapid:Apply()
 	racial:Apply()
 	raptor:Apply()
+	sniper:Apply()
+	trueshot:Apply()
+	if trueshotWatch then trueshotWatch:Show() end -- (look again: a setting may have changed)
 	ApplyAspect()
 end
 
@@ -2007,6 +2449,7 @@ function YaHT:InitProcs()
 
 	self.mongooseFrame = mongoose:Create()
 	self.quickShotsFrame = quick:Create()
+	self.quickStrikesFrame = strikes:Create()
 
 	mongooseWatch = NewWatcher("Mongoose", 0.1,
 		{"SPELL_UPDATE_USABLE", "ACTIONBAR_UPDATE_USABLE", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED"},
@@ -2060,6 +2503,27 @@ function YaHT:InitProcs()
 		true)
 	self.quickShotsWatch = quickWatch
 
+	-- Quick Strikes: the same, on your main hand's swings
+	strikeWatch = NewWatcher("QuickStrikes", 0.2,
+		{{"UNIT_AURA", "player"}, "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_SWING"},
+		CheckStrikes,
+		function() return strikes.frame.proc or strike.fast or (strike.lookUntil and GetTime() < strike.lookUntil) end,
+		function(event, ...)
+			if not YaHT.db.profile.quickstrikes then return end
+			if event == "PLAYER_SWING" then
+				local duration, swingType = ...
+				if IsSecret(duration) or IsSecret(swingType) then return end
+				local main = Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.MainHand or 0
+				if swingType == main then OnStrikeSwing(duration) end
+			elseif event == "PLAYER_REGEN_ENABLED" then
+				strike.lookUntil = GetTime() + 1.5 -- (your buffs can be read again: look now)
+			else
+				SeedStrike()
+			end
+		end,
+		true)
+	self.quickStrikesWatch = strikeWatch
+
 	-- Rapid Fire / your racial: start on your cast, end when their time is up
 	self.bestialFrame = bestial:Create()
 	self.rapidFireFrame = rapid:Create()
@@ -2074,12 +2538,67 @@ function YaHT:InitProcs()
 			break
 		end
 	end
+	-- Sniper Shot: started by your cast too (its picture from your spellbook, when it is there)
+	self.sniperFrame = sniper:Create()
+	do
+		local get = C_Spell and C_Spell.GetSpellInfo
+		local ok, info = false, nil
+		if get then ok, info = pcall(get, SNIPER_NAME) end
+		if ok and type(info) == "table" and not IsSecret(info) and Open(info.iconID) then
+			sniper.frame.icon:SetTexture(info.iconID)
+		end
+	end
 	castWatch = NewWatcher("CastBuffs", 0.2,
 		{{"UNIT_SPELLCAST_SUCCEEDED", "player"}},
 		CheckCastBuffs,
-		function() return bestial.frame.proc or rapid.frame.proc or racial.frame.proc end,
+		function() return bestial.frame.proc or rapid.frame.proc or racial.frame.proc or sniper.frame.proc end,
 		function(event, unit, _, spellID) if unit == "player" then OnCast(spellID) end end)
 	self.castBuffWatch = castWatch
+
+	-- Trueshot Aura reminder: looks when your buffs change, when a fight ends, when you come back to
+	-- life; keeps looking only while the buff is missing and the reminder is not up yet
+	self.trueshotFrame = trueshot:Create()
+	trueshotWatch = NewWatcher("Trueshot", 0.5,
+		{{"UNIT_AURA", "player"}, "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "PLAYER_ENTERING_WORLD", "SPELLS_CHANGED",
+			"PLAYER_TALENT_UPDATE", "PLAYER_DEAD", "PLAYER_ALIVE", "PLAYER_UNGHOST", {"UNIT_SPELLCAST_SUCCEEDED", "player"}},
+		CheckTrueshot,
+		function()
+			local f = trueshot.frame
+			if f.previewUntil then return true end
+			local p = YaHT.db.profile
+			if not p.trueshot or not p.lock or not TrueshotKnown() then return false end
+			if aura.up == nil then return not (InCombatLockdown and InCombatLockdown()) end
+			return aura.up == false and not f.proc
+		end,
+		function(event, ...)
+			if event == "SPELLS_CHANGED" or event == "PLAYER_TALENT_UPDATE" or event == "PLAYER_ENTERING_WORLD" then
+				-- your spells may have changed: ask the spellbook again, and give or take the icons' places
+				for k in pairs(bookKnown) do bookKnown[k] = nil end
+				if event == "PLAYER_TALENT_UPDATE" then castSeen.sniper, castSeen.trueshot = nil, nil end
+				if event == "PLAYER_ENTERING_WORLD" then aura.holdUntil = GetTime() + 3 end
+				local now = (SniperKnown() and 1 or 0) + (TrueshotKnown() and 2 or 0)
+				if now ~= aura.known then
+					local first = aura.known == nil
+					aura.known = now
+					if not first or now > 0 then YaHT:ApplyProcSettings() end
+				end
+			elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+				-- you cast it: the game shows that even in a fight, where it hides your buffs
+				local unit, _, spellID = ...
+				spellID = Open(spellID)
+				if unit ~= "player" or not spellID then return end
+				local name = YaHT.GetSpellName(spellID)
+				local is = name and (name == TrueshotName() or name == "Trueshot Aura")
+				for _, rank in ipairs(TRUESHOT_IDS) do if spellID == rank then is = true end end
+				if is then
+					castSeen.trueshot = true
+					aura.up = true
+					if YaHT.debug then YaHT:Print("Trueshot Aura cast") end
+				end
+			end
+		end,
+		true)
+	self.trueshotWatch = trueshotWatch
 
 	-- aspect badge: re-reads your aspect only when your buffs change, and
 	-- re-judges when a fight or Auto Shot starts or stops
@@ -2101,6 +2620,45 @@ function YaHT:InitProcs()
 					badge.hitUntil = untilWhen
 					if shout then shout.hitUntil = untilWhen end
 				end
+			elseif event == "UNIT_AURA" then
+				-- A buff was taken off you. If it is the one the aspect was, you have no aspect now
+				-- (unless you are just changing it: a cast clears the number first, see below).
+				local unit, info = ...
+				if unit == "player" and type(info) == "table" and not IsSecret(info) then
+					local gone = info.removedAuraInstanceIDs
+					if type(gone) == "table" and not IsSecret(gone) and aspectInstance then
+						for _, id in ipairs(gone) do
+							if IsSecret(id) then
+								if not badge.saidHidden then
+									badge.saidHidden = true
+									if YaHT.Record then YaHT:Record("aspect", "the game hides which buffs leave you in a fight: a dropped aspect cannot be seen") end
+								end
+								break
+							elseif id == aspectInstance then
+								aspectInstance = nil
+								badge.aspect, badge.iconTex = "NONE", nil
+								if YaHT.Record then YaHT:Record("aspect", "your aspect was dropped (seen by its buff leaving)") end
+								if YaHT.debug then YaHT:Print("Aspect: dropped") end
+								break
+							end
+						end
+					end
+					-- an aspect you just cast: the buff that arrives with it is the new one
+					local came = info.addedAuras
+					if badge.castAt and GetTime() - badge.castAt < 1.5 and type(came) == "table" and not IsSecret(came) then
+						for _, a in ipairs(came) do
+							if type(a) == "table" and not IsSecret(a) then
+								local sid, id = a.spellId, a.auraInstanceID
+								local known = not IsSecret(sid) and sid and WhichAspect(sid, YaHT.GetSpellName(sid))
+								if (known or #came == 1) and not IsSecret(id) and type(id) == "number" then
+									aspectInstance = id
+									badge.castAt = nil
+									break
+								end
+							end
+						end
+					end
+				end
 			elseif event == "PLAYER_REGEN_DISABLED" then aspectWatch.inCombat = true
 			elseif event == "PLAYER_REGEN_ENABLED" then aspectWatch.inCombat = false
 			elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
@@ -2114,6 +2672,8 @@ function YaHT:InitProcs()
 				if key then
 					if YaHT.debug and key ~= badge.aspect then YaHT:Print("Aspect cast: " .. ASPECT_NAMES[key]) end
 					badge.aspect, badge.iconTex = key, IconFor(nil, spellID, name)
+					-- (the old aspect's buff leaves now: that is a change, not a drop)
+					aspectInstance, badge.castAt = nil, GetTime()
 				end
 			end
 		end,

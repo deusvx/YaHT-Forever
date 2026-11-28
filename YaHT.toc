@@ -2,7 +2,7 @@
 ## Title: YaHT Forever
 ## Notes: Auto Shot timer for WoW Forever hunters: accurate swing bar, countdown, glow, sparks and ammo warning. /yaht
 ## Author: Aviana (original), Tk Deadeye (Forever port and improvements)
-## Version: 1.5.6
+## Version: 1.5.7
 ## IconTexture: Interface\Icons\INV_Weapon_Bow_07
 ## AddonCompartmentFunc: YaHT_OnAddonCompartmentClick
 ## SavedVariables: YaHTdb

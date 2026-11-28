@@ -106,19 +106,19 @@ local GAME = {
 -- YaHT's own parts: where each one keeps its frame once it has started
 local PARTS = {
 	{"mainFrame", "the Auto Shot bar"}, {"ammoFrame", "ammo counter"}, {"meleeFrame", "melee line and range warnings"},
-	{"mongooseFrame", "Mongoose Bite icon"}, {"raptorFrame", "Raptor Strike icon"}, {"quickShotsFrame", "Quick Shots icon"}, {"rapidFireFrame", "Rapid Fire icon"},
+	{"mongooseFrame", "Mongoose Bite icon"}, {"raptorFrame", "Raptor Strike icon"}, {"sniperFrame", "Sniper Shot icon"}, {"trueshotFrame", "Trueshot Aura reminder"}, {"quickShotsFrame", "Quick Shots icon"}, {"quickStrikesFrame", "Quick Strikes icon"}, {"rapidFireFrame", "Rapid Fire icon"},
 	{"racialFrame", "racial icon"}, {"aspectFrame", "aspect badge"}, {"feignFrame", "Feign Death alert"},
 	{"petFrame", "pet alerts"}, {"hawkFrame", "hawk circles"}, {"minimapButton", "minimap button"},
 }
 
 -- the alerts "Preview all alerts" brings up: setting, frame, name
 local ALERTS = {
-	{"mongoose", "mongooseFrame", "Mongoose Bite"}, {"raptor", "raptorFrame", "Raptor Strike"}, {"quickshots", "quickShotsFrame", "Quick Shots"},
+	{"mongoose", "mongooseFrame", "Mongoose Bite"}, {"raptor", "raptorFrame", "Raptor Strike"}, {"quickshots", "quickShotsFrame", "Quick Shots"}, {"quickstrikes", "quickStrikesFrame", "Quick Strikes"},
 	{"rapidfire", "rapidFireFrame", "Rapid Fire"}, {"racial", "racialFrame", "racial"},
 	{"aspect", "aspectFrame", "aspect badge"}, {"feign", "feignFrame", "Feign Death"}, {"pet", "petFrame", "pet"}, {"hawk", "hawkFrame", "hawks"},
 }
 
-local MEDIA = {"Bar", "Glow", "Spark", "Shine", "Stripes", "Chevron", "Round", "RoundEdge", "Dot", "Arrow", "Stage", "Disc", "Ring", "RingFlat", "RingLine", "Gloss", "Halo", "SquareRing", "SquareLine", "SquareGloss", "SquareHalo", "WolfScope", "WolfScopeShadow", "Wedge1", "Wedge2", "Wedge3", "Wedge4", "Wedge5", "Wedge6", "Wedge7", "Wedge8", "Wedge9", "Wedge10", "Wedge11", "Wedge12"}
+local MEDIA = {"Bar", "Glow", "Spark", "Shine", "Stripes", "Chevron", "Round", "RoundEdge", "Dot", "Arrow", "WeaveArrow", "Stage", "Disc", "Ring", "RingFlat", "RingLine", "Gloss", "Halo", "SquareRing", "SquareLine", "SquareGloss", "SquareHalo", "WolfScope", "WolfScopeShadow", "Wedge1", "Wedge2", "Wedge3", "Wedge4", "Wedge5", "Wedge6", "Wedge7", "Wedge8", "Wedge9", "Wedge10", "Wedge11", "Wedge12"}
 local MEDIA_PATH = "Interface\\AddOns\\YaHT\\media\\"
 
 local report -- the test being written

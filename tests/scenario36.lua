@@ -238,6 +238,21 @@ picked.swatchFunc()
 assert(db.timercolor.r == 0.1 and db.timercolor.b == 0.3, "picking a colour didn't set it")
 picked.cancelFunc()
 assert(db.timercolor.r == old, "cancel didn't bring the old colour back")
+-- ... and its code beside the swatch: shown, typed or pasted, and a wrong one put back
+local cr = row("timercolor")
+assert(cr.hex and cr.hex.txt == M.HexOf(db.timercolor.r, db.timercolor.g, db.timercolor.b), "the colour's code should show beside it, got "..tostring(cr.hex and cr.hex.txt))
+local keep = {r = db.timercolor.r, g = db.timercolor.g, b = db.timercolor.b}
+cr.hex.txt = "#FF00FF" cr.hex.scripts.OnEditFocusLost(cr.hex)
+assert(db.timercolor.r == 1 and db.timercolor.g == 0 and db.timercolor.b == 1, "typing a code should set the colour")
+cr = row("timercolor") assert(cr.hex.txt == "#FF00FF")
+cr.hex.txt = "808080" cr.hex.scripts.OnEditFocusLost(cr.hex)
+assert(math.abs(db.timercolor.r - 128/255) < 0.001 and math.abs(db.timercolor.b - 128/255) < 0.001, "a code without # should work too")
+cr = row("timercolor") cr.hex.txt = "#0f8" cr.hex.scripts.OnEditFocusLost(cr.hex)
+assert(db.timercolor.r == 0 and db.timercolor.g == 1 and math.abs(db.timercolor.b - 136/255) < 0.001, "the short form should work")
+cr = row("timercolor") cr.hex.txt = "purple" cr.hex.scripts.OnEditFocusLost(cr.hex)
+assert(db.timercolor.g == 1 and cr.hex.txt == "#00FF88", "a wrong code must change nothing and be put back, got "..tostring(cr.hex.txt))
+db.timercolor.r, db.timercolor.g, db.timercolor.b = keep.r, keep.g, keep.b
+M.Show("bar/lookpage")
 
 -- text box, and a setting that only shows when it applies
 M.Show("alerts/announcepage")
@@ -255,7 +270,7 @@ local function procChildren() local n = 0
   for _, b in ipairs(f.nav) do if b.shown and b.page:find("alerts/procspage/", 1, true) then n = n + 1 end end return n end
 M.Show("alerts") assert(procChildren() == 0, "proc pages listed outside their section")
 assert(f.lock.shown, "Lock bar should stay in view on other pages")
-M.Show("alerts/procspage") assert(procChildren() == 6, "proc pages not listed inside their section")
+M.Show("alerts/procspage") assert(procChildren() == 9, "proc pages not listed inside their section")
 
 -- a dropdown whose order is worked out by a function (the glow styles)
 click(row("procglow").widget)

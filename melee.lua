@@ -675,12 +675,14 @@ local function OnUpdate(self, elapsed)
 end
 
 local LayoutRangeText -- (the warning text, further down)
+local LayoutWeave -- (the weave cues: made further down)
 function YaHT:ApplyMeleeSettings()
 	if not frame then return end
 	local p = self.db.profile
 	local f = self.mainFrame
 	LayoutRangeText(p)
 	LayoutYards(p)
+	LayoutWeave(p)
 	frame:SetScale(p.scale)
 	frame:ClearAllPoints()
 	-- sit just under the bar, clear of its border when that is shown
@@ -714,6 +716,270 @@ function YaHT:ApplyMeleeSettings()
 end
 
 -- A melee swing just landed (or was swung).
+---------------------------------------------------------------------------
+-- Weave cues: "Walk in" and "Walk out", for hunters who weave melee between their shots.
+-- The rhythm: you walk in when your bow has just fired (and no shot of yours is about to come off
+-- cooldown), and you walk out when your melee weapon has swung. YaHT knows all three: the shot, the
+-- swing and where you stand. Small words, off unless you switch them on, dragged where you like.
+---------------------------------------------------------------------------
+local weave
+local WEAVE_IN_TIME = 1.8    -- how long "Walk in" stays if you do not act on it
+local WEAVE_OUT_MAX = 8.0    -- "Walk out" stays until you are out of the deadzone; this is only a last resort
+local WEAVE_SOON = 1.5                          -- a shot this close to ready comes first
+local WEAVE_SHOTS = {19434, 3044}               -- Aimed Shot, Arcane Shot (looked up by name: every rank)
+local WEAVE_IN_COLOR, WEAVE_OUT_COLOR = {0.40, 0.90, 0.45}, {1.00, 0.72, 0.25}
+
+-- is one of your shots ready, or about to be? (then that comes before walking in)
+local function ShotComingUp()
+	if not (C_Spell and C_Spell.GetSpellCooldown) then return false end
+	for _, id in ipairs(WEAVE_SHOTS) do
+		local name = YaHT.GetSpellName and YaHT.GetSpellName(id)
+		if name then
+			local ok, info = pcall(C_Spell.GetSpellCooldown, name)
+			if ok and type(info) == "table" then
+				local s, d = info.startTime, info.duration
+				if not IsSecret(s) and not IsSecret(d) and type(s) == "number" and type(d) == "number" then
+					local left = d > 0 and math.max(0, s + d - GetTime()) or 0
+					if left > 0 and left <= WEAVE_SOON then return true end
+					if left == 0 and C_Spell.IsSpellUsable then
+						-- (ready counts only for a shot you really have: one you could cast now)
+						local ok2, usable = pcall(C_Spell.IsSpellUsable, name)
+						if ok2 and not IsSecret(usable) and usable then return true end
+					end
+				end
+			end
+		end
+	end
+	return false
+end
+
+-- The cue as a picture: three arrows, one above the other, a light running through them the way
+-- you should go: up (forward, at the enemy) for Walk in, down (back) for Walk out. Green in, amber
+-- out. With the word beside them, or without it, or the word alone.
+local WEAVE_ARROW = "Interface\\AddOns\\YaHT\\media\\WeaveArrow" -- (a bold chevron pointing up, YaHT's own)
+local WEAVE_HALO = "Interface\\AddOns\\YaHT\\media\\Halo"         -- (the soft round glow behind them)
+local function WeavePaint(f, which)
+	local c = which == "IN" and WEAVE_IN_COLOR or WEAVE_OUT_COLOR
+	f.text:SetText(which == "IN" and L["Walk in"] or L["Walk out"])
+	f.text:SetTextColor(c[1], c[2], c[3])
+	for _, a in ipairs(f.arrows) do
+		a:SetVertexColor(c[1], c[2], c[3])
+		if which == "IN" then a:SetTexCoord(0, 1, 0, 1) else a:SetTexCoord(0, 1, 1, 0) end
+	end
+	f.glow:SetVertexColor(c[1], c[2], c[3])
+	f.painted = which
+	f.pointing = which == "IN" and "UP" or "DOWN"
+	f.popAt = GetTime() -- (it pops in: a moment larger and brighter, so a new cue is never missed)
+end
+-- the light running through the arrows (every frame while a cue shows: three alphas, nothing more)
+local function WeaveMarch(f)
+	if not f.arrows[1]:IsShown() then return end
+	local now = GetTime()
+	-- the pop: larger for a blink, easing back
+	local pop = f.popAt and math.max(0, 1 - (now - f.popAt) / 0.22) or 0
+	local k = 1 + 0.35 * pop * pop
+	-- a wave of light running through the three: upward for in, downward for out
+	local phase = (now * 1.6) % 1
+	for i = 1, 3 do
+		local place = (f.cue == "IN") and (3 - i) or (i - 1)       -- 0, 1, 2 along the way to go
+		local d = math.abs(((phase * 3 - place + 1.5) % 3) - 1.5)   -- how far the light is from this arrow
+		f.arrows[i]:SetAlpha(0.28 + 0.72 * math.max(0, 1 - d / 1.1))
+		f.arrows[i]:SetSize(f.aw * k, f.ah * k)
+	end
+	f.glow:SetAlpha(0.30 + 0.12 * math.sin(now * 5) + 0.5 * pop)
+end
+
+local function WeaveShow(which)
+	local f = weave
+	if not f then return end
+	local p = YaHT.db.profile
+	f.cue = which
+	if not which then f:Hide() return end
+	WeavePaint(f, which)
+	f.untilT = GetTime() + (which == "IN" and WEAVE_IN_TIME or WEAVE_OUT_MAX)
+	f.sum = 0
+	f:Show()
+	if p.lock then
+		-- each cue has its own sound, a choice like every sound here
+		if which == "IN" and p.weaveinsound then YaHT:PlayChoice(p.weaveinsoundkit, "BLADE")
+		elseif which == "OUT" and p.weaveoutsound then YaHT:PlayChoice(p.weaveoutsoundkit, "BOWPULL") end
+	end
+end
+
+local function WeaveFighting()
+	return (InCombatLockdown and InCombatLockdown()) or (YaHT.mainFrame and YaHT.mainFrame.shooting) or false
+end
+
+-- your bow just fired
+-- THE GAME'S OWN SWAP. Forever has a Combat setting (its name inside the game: autoRangedCombat) that
+-- switches between Auto Attack and Auto Shot for you. For weaving it gets in the way: stepping into
+-- melee with it on can hold back your next swing. So the Melee weaving page says when it is on and
+-- offers to switch it off, and the first cue of a session says so once in chat.
+local SWAP_CVAR = "autoRangedCombat"
+-- true: the game is swapping; false: it is not; nil: this game does not say
+function YaHT:AutoSwapOn()
+	local get = (C_CVar and C_CVar.GetCVar) or GetCVar
+	if not get then return nil end
+	local ok, v = pcall(get, SWAP_CVAR)
+	if not ok or v == nil then return nil end
+	if IsSecret(v) then return nil end
+	return v == "1" or v == 1 or v == true
+end
+-- switch the game's swap on or off; says whether it took
+function YaHT:AutoSwapSet(want)
+	want = want and true or false
+	local set = (C_CVar and C_CVar.SetCVar) or SetCVar
+	if set then pcall(set, SWAP_CVAR, want and "1" or "0") end
+	local on = self:AutoSwapOn()
+	if on ~= want then
+		self:Print(L["That setting could not be changed from here (in a fight, perhaps). It is in the game's Options, under Combat."])
+	end
+	return on == want
+end
+
+function YaHT:WeaveShot()
+	local p = self.db.profile
+	if not weave or not p.weave or not p.lock or not WeaveFighting() then return end
+	if not self.saidSwap and self:AutoSwapOn() then
+		self.saidSwap = true
+		self:Print(L["The game is swapping Auto Attack and Auto Shot for you, which slows weaving. /yaht, Melee weaving has a switch for it."])
+	end
+	local pos = ReadPosition()
+	if pos ~= "OK" and pos ~= "DEAD" then return end       -- (in melee already, too far, or nothing to hit)
+	if p.weavesmart and ShotComingUp() then return end
+	WeaveShow("IN")
+end
+
+-- your melee weapon just swung
+function YaHT:WeaveSwing()
+	local p = self.db.profile
+	if not weave or not p.weave or not p.lock or not WeaveFighting() then return end
+	local pos = ReadPosition()
+	if pos ~= nil and pos ~= "MELEE" then return end        -- (already out)
+	WeaveShow("OUT")
+end
+
+local function WeaveUpdate(self, elapsed)
+	local p = YaHT.db.profile
+	WeaveMarch(self)
+	if not p.lock then return end -- (placing it: the sample stays)
+	self.sum = (self.sum or 0) + elapsed
+	if self.sum < 0.1 then return end
+	self.sum = 0
+	local pos = ReadPosition()
+	-- "Walk out" is not done when you leave melee: between melee and shooting range lies the deadzone,
+	-- where you can do neither. It stays until you can shoot again (or there is nothing left to
+	-- shoot at).
+	local done = GetTime() >= (self.untilT or 0)
+		or (self.cue == "IN" and pos == "MELEE")                                   -- you are in
+		or (self.cue == "OUT" and pos ~= "MELEE" and pos ~= "DEAD")                -- you are out, past the deadzone
+	if done then WeaveShow(nil) end
+end
+
+LayoutWeave = function(p)
+	local f = weave
+	if not f then
+		f = CreateFrame("Frame", "YaHTWeaveFrame", UIParent)
+		weave = f
+		YaHT.weaveFrame = f
+		f:SetFrameStrata("HIGH")
+		f:SetClampedToScreen(true)
+		f:SetMovable(true)
+		f:RegisterForDrag("LeftButton")
+		f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+		f:SetScript("OnDragStop", function(self)
+			self:StopMovingOrSizing()
+			local q = YaHT.db.profile
+			local _
+			q.weavepoint, _, q.weaverelpoint, q.weavex, q.weavey = self:GetPoint()
+		end)
+		f:SetScript("OnUpdate", function(self, elapsed)
+			local ok, err = pcall(WeaveUpdate, self, elapsed)
+			if not ok and YaHT.ReportError then YaHT.ReportError("weave cues", err) end
+		end)
+		local font = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+		f.text = f:CreateFontString(nil, "OVERLAY")
+		f.text:SetFont(font, 18, "OUTLINE")
+		f.text:SetPoint("CENTER", f, "CENTER", 0, 0)
+		f.hint = f:CreateFontString(nil, "OVERLAY")
+		f.hint:SetFont(font, 11, "OUTLINE")
+		f.hint:SetPoint("TOP", f, "BOTTOM", 0, -2)
+		f.hint:SetTextColor(0.8, 0.8, 0.8)
+		f.hint:SetText(L["Weave cues (drag me)"])
+		f.glow = f:CreateTexture(nil, "BACKGROUND")
+		f.glow:SetTexture(WEAVE_HALO)
+		f.glow:SetBlendMode("ADD")
+		f.arrows = {}
+		for i = 1, 3 do
+			f.arrows[i] = f:CreateTexture(nil, "ARTWORK")
+			f.arrows[i]:SetTexture(WEAVE_ARROW)
+		end
+		f:Hide()
+	end
+	local size = p.weavesize or 18
+	local font = YaHT:GetMedia("font", p.font) or STANDARD_TEXT_FONT
+	if not f.text:SetFont(font, size, "OUTLINE") then f.text:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE") end
+	-- what shows: the arrows, the word, or both (the arrows on the left, the word beside them)
+	local look = p.weavelook or "BOTH"
+	local arrows, words = look ~= "WORDS", look ~= "ARROWS"
+	-- three chevrons, each twice as wide as tall, set close so they read as one arrow in motion
+	local aw, ah = math.floor(size * 1.7), math.floor(size * 0.85)
+	local stepY = math.floor(ah * 0.62)
+	f.aw, f.ah = aw, ah
+	local colH = arrows and (stepY * 2 + ah) or 0
+	local textW = words and size * 5 or 0
+	local w = (arrows and aw or 0) + ((arrows and words) and 6 or 0) + textW
+	local h = math.max(colH, words and (size + 6) or 0)
+	f:SetSize(math.max(w, 10), math.max(h, 10))
+	for i = 1, 3 do
+		local a = f.arrows[i]
+		a:SetShown(arrows)
+		a:SetSize(aw, ah)
+		a:ClearAllPoints()
+		a:SetPoint("CENTER", f, "TOPLEFT", aw / 2, -((h - colH) / 2 + ah / 2 + (i - 1) * stepY))
+	end
+	f.glow:SetShown(arrows)
+	f.glow:ClearAllPoints()
+	f.glow:SetPoint("CENTER", f, "TOPLEFT", aw / 2, -h / 2)
+	f.glow:SetSize(aw * 2.4, math.max(colH, ah) * 2.0)
+	f.text:SetShown(words)
+	f.text:ClearAllPoints()
+	if arrows then f.text:SetPoint("LEFT", f, "LEFT", aw + 6, 0) else f.text:SetPoint("CENTER", f, "CENTER", 0, 0) end
+	-- where: linked to the bar (above, below, left or right of it), or anywhere you drag it
+	local where = p.weavepos or "ABOVE"
+	local main = YaHT.mainFrame
+	local s = p.scale or 1
+	f.free = where == "FREE" or not main
+	f:ClearAllPoints()
+	if f.free then
+		if p.weavepoint then
+			f:SetPoint(p.weavepoint, UIParent, p.weaverelpoint, p.weavex, p.weavey)
+		else
+			f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
+		end
+	elseif where == "BELOW" then
+		f:SetPoint("TOP", main, "BOTTOM", 0, -30 * s)   -- (under the warning line and its words)
+	elseif where == "LEFT" then
+		f:SetPoint("RIGHT", main, "LEFT", -44 * s, 0)   -- (past an icon standing on that side)
+	elseif where == "RIGHT" then
+		f:SetPoint("LEFT", main, "RIGHT", 44 * s, 0)
+	else
+		f:SetPoint("BOTTOM", main, "TOP", 0, 58 * s)    -- (above the row of icons, clear of a large one)
+	end
+	local placing = p.weave and not p.lock
+	f:EnableMouse((placing and f.free) and true or false)
+	f.hint:SetShown((placing and f.free) and true or false)
+	if placing then
+		-- a sample (to drag, when it is placed by hand)
+		f.cue = "IN"
+		WeavePaint(f, "IN")
+		f:Show()
+	elseif not p.weave or not (f.untilT and GetTime() < f.untilT) then
+		f.cue = nil
+		f:Hide()
+	end
+end
+
 function YaHT:OnMeleeSwing(duration)
 	if not frame then return end
 	local now = GetTime()
@@ -722,6 +988,8 @@ function YaHT:OnMeleeSwing(duration)
 	frame.lastSwing = now
 	frame.glintAt = now
 	if self.db.profile.melee then frame:Show() end
+	if self.WeaveSwing then self:WeaveSwing() end
+	if self.MeleeSwung then self:MeleeSwung() end -- (on Forever a melee swing restarts the shot's reload)
 end
 
 local function OnEvent(_, event, ...)

@@ -25,9 +25,9 @@ end
 
 -- The three looks. Each says what is on: Minimal is just the bar, Clean adds the icons, Flashy is
 -- everything with every effect. They never touch size, position, colours or the countdown.
-local LOOK_ICONS = {"raptor", "bestial", "mongoose", "quickshots", "rapidfire", "racial", "aspect", "hawk", "ammo", "feign"}
+local LOOK_ICONS = {"sniper", "trueshot", "raptor", "bestial", "mongoose", "quickshots", "quickstrikes", "rapidfire", "racial", "aspect", "hawk", "ammo", "feign"}
 local LOOK_WARNINGS = {"pet", "meleerange", "melee"}
-local LOOK_POLISH = {"procpolish", "raptoriconpolish", "bestialiconpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish",
+local LOOK_POLISH = {"procpolish", "snipericonpolish", "trueshoticonpolish", "raptoriconpolish", "bestialiconpolish", "mongooseiconpolish", "quickshotsiconpolish", "quickstrikesiconpolish", "rapidfireiconpolish", "racialiconpolish",
 	"aspectpolish", "hawkpolish", "hawkiconpolish"}
 local function Look(t, icons, warnings, polish)
 	for _, key in ipairs(LOOK_ICONS) do t[key] = icons end
@@ -76,9 +76,10 @@ local TAB_KEYS = {
 	effects = {"glow", "glowmode", "glowlook", "glowstyle", "glowkeepbuiltin", "glowpulse", "glowramp",
 		"glowintensity", "glowsize", "glowcolor", "sparkmode", "readypulse", "sparksize", "sparkcolor"},
 	multicast = {"multicast", "multicastpos", "multicastheight", "multicastwidth", "multicastalpha", "multicastback", "multicastx", "multicasty", "multicastcolor"},
-	timing = {"windupauto", "windup", "castholds", "autocorrect", "smooth"},
+	timing = {"windupauto", "windup", "castholds", "autocorrect", "smooth", "meleeresets", "feignresets"},
 	ammo = {"ammo", "ammosize", "ammofadestart", "ammolow", "ammocrit", "ammofullalpha", "ammoflash", "ammosound"},
 	melee = {"melee", "meleemode", "meleeheight", "meleealpha", "meleeglint", "meleeraptor", "meleecolor", "meleeraptorcolor"},
+	weave = {"weave", "weavelook", "weavepos", "weavesize", "weavesmart", "weaveinsound", "weaveoutsound", "weavepoint", "weaverelpoint", "weavex", "weavey"},
 	feign = {"feign", "feignscale", "feigntime", "feignsound", "feigntargetcheck", "feignthreatcheck", "feigncolor",
 		"feignpoint", "feignrelpoint", "feignx", "feigny"},
 	tracker = {"tracker", "trackerpick", "trackersize", "trackerall", "trackerlayer", "trackerpolish", "trackerpoint", "trackerrelpoint", "trackerx", "trackery"},
@@ -88,11 +89,11 @@ local TAB_KEYS = {
 		"hawkpoint", "hawkrelpoint", "hawkx", "hawky", "hawkshape", "hawkglowcolor", "hawkown", "hawkownset",
 		"hawkiconsize", "hawkiconalpha", "hawkiconglow", "hawkiconpulse", "hawkiconsound", "hawkiconpolish"},
 	aspect = {"aspecthit", "aspectpackalert", "aspectcheetahalert", "aspectshoutsize", "aspectshoutpoint", "aspectshoutrelpoint", "aspectshoutx", "aspectshouty", "aspect", "aspectwhen", "aspectpos", "aspectsize", "aspectalpha", "aspectpolish", "aspectshape", "aspectwarnspeed", "aspectspeedalways",
-		"aspectwarnnone", "aspecthint", "aspectsound", "aspectpoint", "aspectrelpoint", "aspectx", "aspecty"},
-	procs = {"raptor", "raptorpos", "raptornumbers", "raptorsoundat", "raptorglowcolor", "raptorpoint", "raptorrelpoint", "raptorx", "raptory", "raptorown", "raptorownset", "raptoriconsize", "raptoriconalpha", "raptoriconglow", "raptoriconpulse", "raptoriconsound", "raptoriconpolish", "raptoriconshape", "bestialsoundat", "mongoosesoundat", "quickshotssoundat", "rapidfiresoundat", "racialsoundat", "mongoosenumbers", "quickshotsnumbers", "rapidfirenumbers", "racialnumbers", "bestial", "bestialpos", "bestialnumbers", "bestialcooldown", "bestialglowcolor", "bestialpoint", "bestialrelpoint", "bestialx", "bestialy", "bestialown", "bestialownset",
+		"aspectwarnnone", "aspectnonebig", "aspecthint", "aspectsound", "aspectpoint", "aspectrelpoint", "aspectx", "aspecty"},
+	procs = {"sniper", "sniperpos", "snipernumbers", "snipersoundat", "sniperglowcolor", "sniperpoint", "sniperrelpoint", "sniperx", "snipery", "sniperown", "sniperownset", "snipericonsize", "snipericonalpha", "snipericonglow", "snipericonpulse", "snipericonsound", "snipericonpolish", "snipericonshape", "trueshot", "trueshotpos", "trueshotnumbers", "trueshotsoundat", "trueshotglowcolor", "trueshotpoint", "trueshotrelpoint", "trueshotx", "trueshoty", "trueshotown", "trueshotownset", "trueshoticonsize", "trueshoticonalpha", "trueshoticonglow", "trueshoticonpulse", "trueshoticonsound", "trueshoticonpolish", "trueshoticonshape", "raptor", "raptorpos", "raptorafter", "mongooseafter", "raptornumbers", "raptorsoundat", "raptorglowcolor", "raptorpoint", "raptorrelpoint", "raptorx", "raptory", "raptorown", "raptorownset", "raptoriconsize", "raptoriconalpha", "raptoriconglow", "raptoriconpulse", "raptoriconsound", "raptoriconpolish", "raptoriconshape", "bestialsoundat", "mongoosesoundat", "quickshotssoundat", "quickstrikessoundat", "rapidfiresoundat", "racialsoundat", "mongoosenumbers", "quickshotsnumbers", "quickstrikesnumbers", "rapidfirenumbers", "racialnumbers", "bestial", "bestialpos", "bestialnumbers", "bestialcooldown", "bestialglowcolor", "bestialpoint", "bestialrelpoint", "bestialx", "bestialy", "bestialown", "bestialownset",
 		"bestialiconsize", "bestialiconalpha", "bestialiconglow", "bestialiconpulse", "bestialiconsound", "bestialiconpolish", "bestialiconshape",
-		"procshape", "mongooseiconshape", "quickshotsiconshape", "rapidfireiconshape", "racialiconshape", "procpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish", "procsize", "procalpha", "procglow", "procpulse", "procsound", "mongoosecooldown", "mongoose", "mongoosepos", "mongooseglowcolor", "mongoosepoint", "mongooserelpoint", "mongoosex", "mongoosey", "quickshots", "quickshotspos", "quickshotsglowcolor", "quickshotspoint", "quickshotsrelpoint", "quickshotsx", "quickshotsy", "rapidfire", "rapidfirepos", "rapidfireglowcolor", "rapidfirepoint", "rapidfirerelpoint", "rapidfirex", "rapidfirey", "racial", "racialpos", "racialglowcolor", "racialpoint", "racialrelpoint", "racialx", "racialy",
-		"mongooseown", "mongooseownset", "mongooseiconsize", "mongooseiconalpha", "mongooseiconglow", "mongooseiconpulse", "mongooseiconsound", "quickshotsown", "quickshotsownset", "quickshotsiconsize", "quickshotsiconalpha", "quickshotsiconglow", "quickshotsiconpulse", "quickshotsiconsound", "rapidfireown", "rapidfireownset", "rapidfireiconsize", "rapidfireiconalpha", "rapidfireiconglow", "rapidfireiconpulse", "rapidfireiconsound", "racialown", "racialownset", "racialiconsize", "racialiconalpha", "racialiconglow", "racialiconpulse", "racialiconsound"},
+		"procshape", "mongooseiconshape", "quickshotsiconshape", "quickstrikesiconshape", "rapidfireiconshape", "racialiconshape", "procpolish", "mongooseiconpolish", "quickshotsiconpolish", "quickstrikesiconpolish", "rapidfireiconpolish", "racialiconpolish", "procsize", "procalpha", "procglow", "procpulse", "procsound", "mongoosecooldown", "mongoose", "mongoosepos", "mongooseglowcolor", "mongoosepoint", "mongooserelpoint", "mongoosex", "mongoosey", "quickshots", "quickstrikes", "quickshotspos", "quickstrikespos", "quickshotsglowcolor", "quickstrikesglowcolor", "quickshotspoint", "quickstrikespoint", "quickshotsrelpoint", "quickstrikesrelpoint", "quickshotsx", "quickstrikesx", "quickshotsy", "quickstrikesy", "rapidfire", "rapidfirepos", "rapidfireglowcolor", "rapidfirepoint", "rapidfirerelpoint", "rapidfirex", "rapidfirey", "racial", "racialpos", "racialglowcolor", "racialpoint", "racialrelpoint", "racialx", "racialy",
+		"mongooseown", "mongooseownset", "mongooseiconsize", "mongooseiconalpha", "mongooseiconglow", "mongooseiconpulse", "mongooseiconsound", "quickshotsown", "quickstrikesown", "quickshotsownset", "quickstrikesownset", "quickshotsiconsize", "quickstrikesiconsize", "quickshotsiconalpha", "quickstrikesiconalpha", "quickshotsiconglow", "quickstrikesiconglow", "quickshotsiconpulse", "quickstrikesiconpulse", "quickshotsiconsound", "quickstrikesiconsound", "rapidfireown", "rapidfireownset", "rapidfireiconsize", "rapidfireiconalpha", "rapidfireiconglow", "rapidfireiconpulse", "rapidfireiconsound", "racialown", "racialownset", "racialiconsize", "racialiconalpha", "racialiconglow", "racialiconpulse", "racialiconsound"},
 	range = {"meleerange", "meleerangewhen", "meleedeadstyle", "meleedeadcolor", "meleedeadheight", "meleedeadalpha", "meleefarcolor", "meleefarsize", "meleefaralpha",
 		"meleewarnspeed", "meleewarnboost", "meleewarnglow", "meleewarnglowsize", "meleewarnglowalpha",
 		"rangeyards", "rangeyardsstyle", "rangeyardswhen", "rangeyardssize", "rangeyardspos", "rangeyardspoint", "rangeyardsrelpoint",
@@ -137,6 +138,165 @@ function YaHT:CreateConfig()
 		end
 	end
 
+	-- MACROS. A few macros every hunter ends up writing, made for you with one click: the macro goes
+	-- into your macro list and onto your cursor, ready to drop on an action bar. Spell names are the
+	-- game's own, so they are right in every language. (A macro cannot be made during a fight.)
+	local MACRO_ICON = 134400 -- the question mark: with #showtooltip the game shows the spell's own picture
+	local function MacroList()
+		local N = YaHT.GetSpellName
+		local function S(id, english) return N(id) or english end
+		local auto, raptor, bite, feign = S(75, "Auto Shot"), S(2973, "Raptor Strike"), S(1495, "Mongoose Bite"), S(5384, "Feign Death")
+		local hawk, cheetah, pack = S(13165, "Aspect of the Hawk"), S(5118, "Aspect of the Cheetah"), S(13159, "Aspect of the Pack")
+		local monkey, beast = S(13163, "Aspect of the Monkey"), S(13161, "Aspect of the Beast")
+		local immo, freeze, scatter = S(13795, "Immolation Trap"), S(1499, "Freezing Trap"), S(19503, "Scatter Shot")
+		local flare, volley = S(1543, "Flare"), S(1510, "Volley")
+		local mend, revive, call, growl = S(136, "Mend Pet"), S(982, "Revive Pet"), S(883, "Call Pet"), S(2649, "Growl")
+		local viper, conc, scare, mark = S(3034, "Viper Sting"), S(5116, "Concussive Shot"), S(1513, "Scare Beast"), S(1130, "Hunter's Mark")
+		local TARGET = "/targetenemy [noexists][dead][help]\n"
+		local PARK = "/petpassive\n/petfollow\n" -- (the pet off whatever it is on, so it breaks nothing)
+		local function focus(spell) return "#showtooltip " .. spell .. "\n/cast [@focus,harm,nodead][] " .. spell end
+		return {
+			-- GENERAL AND PVE
+			{set = "PVE", id = "auto", short = L["Starts it, and never switches it off."], name = "YaHT Auto", title = auto, pic = {spell = 75, file = "Interface\\Icons\\Ability_Whirlwind"},
+				about = L["Starts Auto Shot and picks a target if you have none. Pressing it again never switches it off."],
+				body = "#showtooltip\n" .. TARGET .. "/cast !" .. auto},
+			{set = "PVE", id = "melee", short = L["Raptor Strike, your swing, Mongoose Bite."], name = "YaHT Melee", title = L["Melee weave"], pic = {spell = 2973, file = "Interface\\Icons\\Ability_MeleeDamage"},
+				about = L["For weaving: press it once you are in melee. It queues Raptor Strike, starts your swing and tries Mongoose Bite."],
+				body = "#showtooltip " .. raptor .. "\n/stopcasting\n/cast " .. raptor .. "\n/startattack\n/cast " .. bite},
+			{set = "PVE", id = "feign", short = L["Stops your cast and feigns at once."], name = "YaHT Feign", title = feign, pic = {spell = 5384, file = "Interface\\Icons\\Ability_Rogue_FeignDeath"},
+				about = L["Stops whatever you are casting and feigns at once."],
+				body = "#showtooltip\n/stopcasting\n/cast " .. feign},
+			{set = "PVE", id = "fdtrap", short = L["Feigns in a fight, then lays the trap."], name = "YaHT FD trap", title = L["Feign, then trap"], pic = {spell = 13795, file = "Interface\\Icons\\Spell_Fire_FlameShock"},
+				about = L["One key for a trap in the middle of a fight: in a fight it feigns; once you are out of the fight, the next press lays the trap."],
+				body = "#showtooltip " .. immo .. "\n/stopcasting\n/cast [combat] " .. feign .. "\n/cast [nocombat] " .. immo},
+			{set = "PVE", id = "freeze", short = L["Stops you and your pet, then traps."], name = "YaHT Freeze", title = freeze, pic = {spell = 1499, file = "Interface\\Icons\\Spell_Frost_ChainsOfIce"},
+				about = L["Freezing Trap that nothing of yours breaks: it stops your attack and calls your pet off first. In a fight it feigns, the next press lays the trap."],
+				body = "#showtooltip " .. freeze .. "\n/stopattack\n" .. PARK .. "/cast [combat] " .. feign .. "\n/cast [nocombat] " .. freeze},
+			{set = "PVE", id = "scatter", short = L["Calls your pet off first."], name = "YaHT Scatter", title = scatter, pic = {spell = 19503, file = "Interface\\Icons\\Ability_GolemStormBolt"},
+				about = L["Scatter Shot with your pet called off first, so it does not break it."],
+				body = "#showtooltip " .. scatter .. "\n" .. PARK .. "/cast " .. scatter},
+			{set = "PVE", id = "flare", short = L["At your mouse, no second click."], name = "YaHT Flare", title = flare, pic = {spell = 1543, file = "Interface\\Icons\\Spell_Fire_Flare"},
+				about = L["Lands where your mouse points, at once: no second click to place it."],
+				body = "#showtooltip\n/cast [@cursor] " .. flare},
+			{set = "PVE", id = "volley", short = L["At your mouse, no second click."], name = "YaHT Volley", title = volley, pic = {spell = 1510, file = "Interface\\Icons\\Ability_Marksmanship"},
+				about = L["Lands where your mouse points, at once: no second click to place it."],
+				body = "#showtooltip\n/cast [@cursor] " .. volley},
+			{set = "PVE", id = "hawk", short = L["Drops Cheetah or Pack, puts Hawk on."], name = "YaHT Hawk", title = hawk, pic = {spell = 13165, file = "Interface\\Icons\\Spell_Nature_RavenForm"},
+				about = L["Drops Aspect of the Cheetah or the Pack and puts Aspect of the Hawk on. For the moment a fight starts while you travel."],
+				body = "#showtooltip " .. hawk .. "\n/cancelaura " .. cheetah .. "\n/cancelaura " .. pack .. "\n/cast !" .. hawk},
+			{set = "PVE", id = "aspects", short = L["Hawk, then Monkey, on one key."], name = "YaHT Aspects", title = L["Hawk or Monkey"], pic = {spell = 13163, file = "Interface\\Icons\\Ability_Hunter_AspectOfTheMonkey"},
+				about = L["Press it for Aspect of the Hawk; press it again for Aspect of the Monkey. It drops Aspect of the Cheetah first."],
+				body = "#showtooltip\n/cancelaura " .. cheetah .. "\n/cast " .. hawk .. "\n/cast " .. monkey},
+			-- PETS
+			{set = "PET", id = "petgo", short = L["Sends your pet at your target."], name = "YaHT Pet go", title = L["Pet attack"], pic = {file = "Interface\\Icons\\Ability_GhoulFrenzy"},
+				about = L["Sends your pet at your target, picking a target if you have none."],
+				body = "#showtooltip\n" .. TARGET .. "/petattack"},
+			{set = "PET", id = "petback", short = L["Passive, and back to you."], name = "YaHT Pet back", title = L["Pet back"], pic = {file = "Interface\\Icons\\Ability_Tracking"},
+				about = L["Calls your pet off: passive, and back to you."],
+				body = PARK:sub(1, -2)},
+			{set = "PET", id = "petcare", short = L["Whichever your pet needs."], name = "YaHT Pet care", title = L["Mend, revive or call"], pic = {spell = 136, file = "Interface\\Icons\\Ability_Hunter_MendPet"},
+				about = L["One key for your pet: mends it when it is out, revives it when it is dead, calls it when it is away. Hold Shift to revive a pet that died out of sight."],
+				body = "#showtooltip\n/cast [mod:shift][@pet,dead] " .. revive .. "; [nopet] " .. call .. "; " .. mend},
+			{set = "PET", id = "growl", short = L["Sends your pet in, growling."], name = "YaHT Growl", title = L["Pet attack with Growl"], pic = {spell = 2649, file = "Interface\\Icons\\Ability_Physical_Taunt"},
+				about = L["Sends your pet in and has it Growl. Against shamans, Growl is eaten by a Grounding Totem in place of your shot."],
+				body = "#showtooltip " .. growl .. "\n/petattack\n/cast " .. growl},
+			-- PVP
+			{set = "PVP", id = "setfocus", short = L["Your mouseover becomes your focus."], name = "YaHT Focus", title = L["Set your focus"], pic = {file = "Interface\\Icons\\Ability_Hunter_SniperShot"},
+				about = L["Makes the player under your mouse (or your target) your focus. The focus macros below then work on that player while you keep your target."],
+				body = "/focus [@mouseover,exists][]"},
+			{set = "PVP", id = "focviper", short = L["On your focus; your target stays."], name = "YaHT Foc Viper", title = string.format(L["%s on your focus"], viper), pic = {spell = 3034, file = "Interface\\Icons\\Ability_Hunter_AimedShot"},
+				about = L["Casts it on your focus without changing your target. With no focus it goes to your target."],
+				body = focus(viper)},
+			{set = "PVP", id = "focconc", short = L["On your focus; your target stays."], name = "YaHT Foc Conc", title = string.format(L["%s on your focus"], conc), pic = {spell = 5116, file = "Interface\\Icons\\Spell_Frost_Stun"},
+				about = L["Casts it on your focus without changing your target. With no focus it goes to your target."],
+				body = focus(conc)},
+			{set = "PVP", id = "focscare", short = L["On your focus; your target stays."], name = "YaHT Foc Scare", title = string.format(L["%s on your focus"], scare), pic = {spell = 1513, file = "Interface\\Icons\\Ability_Druid_Cower"},
+				about = L["Casts it on your focus without changing your target. With no focus it goes to your target."],
+				body = focus(scare)},
+			{set = "PVP", id = "focmark", short = L["On your focus; your target stays."], name = "YaHT Foc Mark", title = string.format(L["%s on your focus"], mark), pic = {spell = 1130, file = "Interface\\Icons\\Ability_Hunter_SniperShot"},
+				about = L["Casts it on your focus without changing your target. With no focus it goes to your target."],
+				body = focus(mark)},
+			{set = "PVP", id = "fdpet", short = L["Feigns and pulls your pet back."], name = "YaHT FD pet", title = L["Feign Death, pet back"], pic = {spell = 5384, file = "Interface\\Icons\\Ability_Rogue_FeignDeath"},
+				about = L["Feigns and pulls your pet back with you, so it does not keep you in the fight."],
+				body = "#showtooltip " .. feign .. "\n/stopattack\n" .. PARK .. "/stopcasting\n/cast " .. feign},
+			{set = "PVP", id = "beast", short = L["Beast, then Monkey, on one key."], name = "YaHT Beast", title = L["Beast or Monkey"], pic = {spell = 13161, file = "Interface\\Icons\\Ability_Mount_PinkTiger"},
+				about = L["Press it for Aspect of the Beast; press it again for Aspect of the Monkey."],
+				body = "#showtooltip\n/cast " .. beast .. "\n/cast " .. monkey},
+		}
+	end
+	YaHT.MacroList = MacroList
+	function YaHT:AddMacro(id)
+		local m
+		for _, one in ipairs(MacroList()) do if one.id == id then m = one end end
+		if not m then return false end
+		if InCombatLockdown and InCombatLockdown() then
+			self:Print(L["A macro cannot be made during a fight. Try again after it."])
+			return false
+		end
+		if not CreateMacro then return false end
+		local index = GetMacroIndexByName and GetMacroIndexByName(m.name) or 0
+		if type(index) == "number" and index > 0 then
+			-- (made before: put its text back as it should be)
+			if EditMacro then pcall(EditMacro, index, m.name, MACRO_ICON, m.body) end
+		else
+			local ok, made = pcall(CreateMacro, m.name, MACRO_ICON, m.body, true) -- with this character's macros
+			if not ok or not made then ok, made = pcall(CreateMacro, m.name, MACRO_ICON, m.body, false) end -- (that list is full: the general one)
+			if not ok or not made then
+				self:Print(L["Your macro list is full: delete a macro (/macro) and try again."])
+				return false
+			end
+		end
+		if PickupMacro then pcall(PickupMacro, m.name) end
+		-- its button says so for a few seconds (the line in chat is easy to miss)
+		self.macroAdded = {id = id, untilT = GetTime() + 4}
+		if C_Timer and C_Timer.After then
+			C_Timer.After(4.2, function() if YaHT.menu and YaHT.menu.Render then pcall(YaHT.menu.Render) end end)
+		end
+		self:Print(string.format(L["Macro \"%s\" is in your macro list and on your cursor: drop it on an action bar."], m.name))
+		return true
+	end
+	local function MacrosPage()
+		local function shownSet() return YaHT.optionsMacroSet or "PVE" end
+		local args = {
+			intro = {
+				name = L["Macros hunters use all the time, made for you: press Add and the macro is in your macro list (/macro) and on your cursor, ready to drop on an action bar. Not during a fight."]
+					.. " " .. L["They are the kind hunters share on the Forever Hunter Wiki and in PvP guides, written out with your game's own spell names."],
+				type = "description", order = 1,
+			},
+			-- three short lists instead of one long page
+			macroset = {
+				name = L["Show"],
+				type = "select", order = 2,
+				values = {PVE = L["General and PvE"], PET = L["Pets"], PVP = L["PvP"]},
+				sorting = {"PVE", "PET", "PVP"},
+				get = shownSet,
+				set = function(_, v) YaHT.optionsMacroSet = v end,
+			},
+		}
+		YaHT.newExtra = YaHT.newExtra or {}
+		for i, m in ipairs(MacroList()) do
+			local id = m.id
+			local function hidden() return shownSet() ~= m.set end
+			YaHT.newExtra[id .. "title"] = "1.5.7" -- (the version each macro came in: it carries "New" for that version)
+			args[id .. "title"] = {name = m.title, type = "header", order = i * 10, arg = m.pic, hidden = hidden} -- (arg: the picture beside the title)
+			args[id .. "about"] = {
+				name = m.about .. "\n|cff8a8a8a" .. m.body:gsub("\n", "|r\n|cff8a8a8a") .. "|r",
+				type = "description", order = i * 10 + 1, hidden = hidden,
+			}
+			args[id .. "add"] = {
+				name = function()
+					local a = YaHT.macroAdded
+					if a and a.id == id and GetTime() < a.untilT then return L["On your cursor: drop it on a bar"] end
+					return L["Add to my macros"]
+				end,
+				desc = L["Makes this macro and puts it on your cursor. If you made it before, its text is put back as shown."],
+				type = "execute", order = i * 10 + 2, hidden = hidden,
+				func = function() YaHT:AddMacro(id) end,
+			}
+		end
+		return {name = L["Macros"], type = "group", order = 12, args = args}
+	end
+
 	local function resetButton(tab, order)
 		return {
 			name = L["Reset this page"],
@@ -149,11 +309,101 @@ function YaHT:CreateConfig()
 		}
 	end
 
+	-- MELEE WEAVING: its own page. The cues, and what goes with weaving, in one place; the preview
+	-- box shows the rhythm (menu.lua).
+	local function WeavePage()
+		local function off() return not YaHT.db.profile.weave end
+		-- (the game's own swap of Auto Attack and Auto Shot: a switch for it, there whenever the game has
+		-- the setting; its heading warns while it is on and weaving is)
+		local function noSwap() return not YaHT.AutoSwapOn or YaHT:AutoSwapOn() == nil end
+		local function swapHurts() return not off() and YaHT.AutoSwapOn and YaHT:AutoSwapOn() == true end
+		return {
+			name = L["Melee weaving"], type = "group", order = 10.5,
+			args = {
+				intro = {
+					name = L["Weaving is fitting a melee swing between two shots: walk in when your bow has just fired, swing, walk out, shoot again. The preview shows the rhythm."],
+					type = "description", order = 1,
+				},
+				cuehead = {name = L["Walk in, walk out"], type = "header", order = 10},
+				weave = {
+					name = L["Show Walk in and Walk out"],
+					desc = L["For weaving melee between your shots. Walk in shows when your bow has just fired; Walk out shows when your melee weapon has swung. Each goes away once you have done it. Unlock the bar to drag the words where you want them."],
+					type = "toggle", width = "double", order = 11,
+				},
+				weavesmart = {
+					name = L["Shots come first"],
+					desc = L["No Walk in while Aimed Shot or Arcane Shot is ready, or will be within a second and a half: fire it first."],
+					type = "toggle", order = 12, hidden = off,
+				},
+				weavelook = {
+					name = L["Show as"],
+					desc = L["Arrows: three arrows with a light running through them the way to go, up for in and down for out. Words: Walk in, Walk out."],
+					type = "select", order = 11.2, hidden = off,
+					values = {BOTH = L["Arrows and words"], ARROWS = L["Arrows"], WORDS = L["Words"]},
+					sorting = {"BOTH", "ARROWS", "WORDS"},
+				},
+				weavepos = {
+					name = L["Position"],
+					desc = L["Linked to the bar, so it moves with it, or anywhere: unlock the bar and drag it."],
+					type = "select", order = 11.4, hidden = off,
+					values = {ABOVE = L["Above the bar"], BELOW = L["Below the bar"], LEFT = L["Left of the bar"], RIGHT = L["Right of the bar"], FREE = L["Anywhere (drag it)"]},
+					sorting = {"ABOVE", "BELOW", "LEFT", "RIGHT", "FREE"},
+				},
+				weavesize = {name = L["Size"], type = "range", order = 13, min = 10, max = 40, step = 1, hidden = off},
+				weaveinsound = {name = L["Sound for Walk in"], type = "toggle", order = 14, hidden = off},
+				weaveoutsound = {name = L["Sound for Walk out"], type = "toggle", order = 15, hidden = off},
+				swaphead = {
+					name = function() return swapHurts() and L["The game is swapping your attacks: best off"] or L["The game's own swap"] end,
+					type = "header", order = 16, hidden = noSwap,
+				},
+				autoswap = {
+					name = L["Game swaps Auto Attack and Auto Shot"],
+					desc = L["A game setting (Options, Combat) switches between Auto Attack and Auto Shot for you. With it on, stepping into melee can hold back your swing. Weaving works best with it off."],
+					type = "toggle", width = "double", order = 17, hidden = noSwap,
+					get = function() return YaHT:AutoSwapOn() and true or false end,
+					set = function(_, v) YaHT:AutoSwapSet(v) end,
+				},
+				swapnote = {name = L["The game's default is on. Handy for normal play: keep it on. Off helps only while weaving, where it can hold back your melee swing."], type = "description", order = 17.5, hidden = noSwap},
+				withhead = {name = L["What goes with it"], type = "header", order = 20},
+				melee = {
+					name = L["Melee swing line"],
+					desc = L["A thin line under the bar that fills with your melee swing: you see the swing coming."],
+					type = "toggle", order = 21,
+				},
+				weaveboxes = {
+					name = L["Range boxes"],
+					desc = L["A row of boxes under the bar, one per range band (melee, deadzone, shooting, too far): the one your target is in lights up."],
+					type = "toggle", order = 22,
+					get = function() local p = YaHT.db.profile return (p.rangeyards and p.rangeyardsstyle == "BOXES") and true or false end,
+					set = function(_, v)
+						local p = YaHT.db.profile
+						p.rangeyards = v and true or false
+						if v then p.rangeyardsstyle = "BOXES" end
+						YaHT:ApplySettings()
+					end,
+				},
+				weavemacro = {
+					name = function()
+						local a = YaHT.macroAdded
+						if a and a.id == "melee" and GetTime() < a.untilT then return L["On your cursor: drop it on a bar"] end
+						return L["Add the Melee weave macro"]
+					end,
+					desc = L["One key for your time in melee: it queues Raptor Strike, starts your swing and tries Mongoose Bite. Made in your macro list and put on your cursor."],
+					type = "execute", order = 23,
+					func = function() YaHT:AddMacro("melee") end,
+				},
+				reset = resetButton("weave"),
+			},
+		}
+	end
+
 	local function textOff() return not YaHT.db.profile.showtext end
 	local function glowOff() return not YaHT.db.profile.glow end
 	local function sparkOff() local p = YaHT.db.profile return p.sparkmode == "OFF" and not p.readypulse end
 	local tranq = YaHT.GetSpellName(19801) or "Tranquilizing Shot"
 	local raptor = YaHT.GetSpellName(2973) or "Raptor Strike"
+	local sniper = "Sniper Shot" -- (new in Forever: no number to ask its name by)
+	local trueshot = YaHT.GetSpellName(19506) or "Trueshot Aura"
 	local function meleeOff() return not YaHT.db.profile.melee end
 	local function raptorOff() local p = YaHT.db.profile return not p.melee or not p.meleeraptor end
 	local function rangeOff() return not YaHT.db.profile.meleerange end
@@ -163,6 +413,7 @@ function YaHT:CreateConfig()
 	local function glowWarnOff() local p = YaHT.db.profile return not p.meleerange or p.meleewarnglow == "NONE" end
 	local mongoose = YaHT.GetSpellName(1495) or "Mongoose Bite"
 	local quickshots = YaHT.GetSpellName(6150) or "Quick Shots"
+	local quickstrikes = L["Quick Strikes"]
 	local function aspectOff() return not YaHT.db.profile.aspect end
 	local function feignOff() return not YaHT.db.profile.feign end
 	local function petOff() return not YaHT.db.profile.pet end
@@ -178,7 +429,7 @@ function YaHT:CreateConfig()
 	local rapidfire = YaHT.GetSpellName(3045) or "Rapid Fire"
 	local bestial = YaHT.GetSpellName(19574) or "Bestial Wrath"
 	local hasLCG = function() return LibStub and LibStub("LibCustomGlow-1.0", true) end
-	local function procsOff() local p = YaHT.db.profile return not (p.bestial or p.mongoose or p.quickshots or p.rapidfire or p.racial or p.raptor) end
+	local function procsOff() local p = YaHT.db.profile return not (p.bestial or p.mongoose or p.quickshots or p.quickstrikes or p.rapidfire or p.racial or p.raptor or p.sniper or p.trueshot) end
 	-- the glow and pulse choices, used by the shared look and by an icon's own look
 	local function glowValues()
 		local v = {NONE = L["None"], HALO = L["Soft halo"], RING = L["Bright ring"],
@@ -199,13 +450,13 @@ function YaHT:CreateConfig()
 	local PULSE_SORTING = {"NONE", "BREATHE", "GROW", "HEARTBEAT", "FLASH"}
 	local OWN_LOOK = {"size", "alpha", "glow", "pulse", "sound", "polish", "shape"}
 	-- every "Shape" setting there is (the "Round icons" switch on the Home and Alerts pages sets them all)
-	YaHT.shapeKeys = {"procshape", "raptoriconshape", "bestialiconshape", "mongooseiconshape", "quickshotsiconshape", "rapidfireiconshape", "racialiconshape",
+	YaHT.shapeKeys = {"procshape", "snipericonshape", "trueshoticonshape", "raptoriconshape", "bestialiconshape", "mongooseiconshape", "quickshotsiconshape", "quickstrikesiconshape", "rapidfireiconshape", "racialiconshape",
 		"aspectshape", "hawkshape"}
 	local SHAPE_VALUES = {SQUARE = L["Square"], CIRCLE = L["Circle"]}
 	local SHAPE_SORTING = {"SQUARE", "CIRCLE"}
 	local SHAPE_DESC = L["Square: the icon with a rim and a timer line under it. Circle: the icon cut round inside a ring, and the ring runs down as the timer."]
 	-- every "Polished look" setting there is (the one switch on the Home and Alerts pages sets them all)
-	YaHT.polishKeys = {"trackerpolish", "procpolish", "raptoriconpolish", "bestialiconpolish", "mongooseiconpolish", "quickshotsiconpolish", "rapidfireiconpolish", "racialiconpolish",
+	YaHT.polishKeys = {"trackerpolish", "procpolish", "snipericonpolish", "trueshoticonpolish", "raptoriconpolish", "bestialiconpolish", "mongooseiconpolish", "quickshotsiconpolish", "quickstrikesiconpolish", "rapidfireiconpolish", "racialiconpolish",
 		"aspectpolish", "hawkpolish", "hawkiconpolish"}
 	local SQUARE_POLISH = L["A bevelled frame with fine edges in place of the flat rim, a soft light on the icon and a shadow under it. Off: the standard look, a plain flat rim."]
 
@@ -277,10 +528,14 @@ function YaHT:CreateConfig()
 		showheader = {name = L["Show"], type = "header", order = 10},
 		mongoose = {name = mongoose, type = "toggle", order = 11},
 		quickshots = {name = quickshots, type = "toggle", order = 12},
+		quickstrikes = {name = quickstrikes, type = "toggle", order = 12.5},
 		bestial = {name = bestial, type = "toggle", order = 10.5},
 		rapidfire = {name = rapidfire, type = "toggle", order = 13},
 		racial = {name = L["Racial ability"], type = "toggle", order = 14},
 		raptor = {name = raptor, type = "toggle", order = 11.5},
+		-- (Marksmanship: listed only for a hunter who has them)
+		sniper = {name = sniper, type = "toggle", order = 13.2, hidden = function() return not (YaHT.SniperKnown and YaHT.SniperKnown()) end},
+		trueshot = {name = string.format(L["%s missing"], trueshot), type = "toggle", order = 13.4, hidden = function() return not (YaHT.TrueshotKnown and YaHT.TrueshotKnown()) end},
 		lookheader = {name = L["Look of all proc icons"], type = "header", order = 20},
 		procshape = {name = L["Shape"], desc = SHAPE_DESC, type = "select", order = 20.5, values = SHAPE_VALUES, sorting = SHAPE_SORTING, disabled = procsOff},
 		procsize = {name = L["Icon size"], type = "range", order = 21, min = 16, max = 64, step = 1, disabled = procsOff},
@@ -316,9 +571,19 @@ function YaHT:CreateConfig()
 				order = 5,
 				disabled = function() return not YaHT.db.profile.mongoose end,
 			},
+			mongooseafter = {
+				name = L["Show its cooldown after you use it"],
+				desc = string.format(L["After you use %s, its icon stays: grey, with a clock sweep and a countdown, until its cooldown is over. Then it goes away. Off: the icon goes the moment you use it."], mongoose),
+				type = "toggle",
+				width = "double",
+				order = 5.2,
+				disabled = function() return not YaHT.db.profile.mongoose end,
+			},
 		}),
 		quickshotspage = procPage("quickshots", quickshots,
 			string.format(L["With the Deadly Aspects talent, your Auto Shots can trigger %s: 30%% faster ranged attacks for 12 seconds. Its icon shows while it lasts, and the timer follows the buff."], quickshots), 2),
+		quickstrikespage = procPage("quickstrikes", quickstrikes,
+			string.format(L["With the Deadly Aspects talent and Aspect of the Beast, your melee auto attacks can trigger %s: 30%% faster melee attacks for 12 seconds. Its icon shows while it lasts. In a fight it is told from your main hand swinging faster."], quickstrikes), 2.5),
 		bestialpage = procPage("bestial", bestial,
 			string.format(L["Shows while %s lasts (18 seconds), from the moment you cast it. It has the prime spot: first in the row of icons, so above the bar it stands centered over it."], bestial), 0.5, {
 			bestialnumbers = {
@@ -337,9 +602,22 @@ function YaHT:CreateConfig()
 			},
 		}),
 		raptorpage = procPage("raptor", raptor,
-			string.format(L["%s does not hit right away: it waits for your next melee swing. While it is waiting, its icon shows next to the bar, like the lit-up button on your action bar, and the timer under it runs down to the swing. It goes away when the swing lands or you cancel it."], raptor), 1.5),
+			string.format(L["%s does not hit right away: it waits for your next melee swing. While it is waiting, its icon shows next to the bar, like the lit-up button on your action bar, and the timer under it runs down to the swing. Cancel it and the icon goes away."], raptor), 1.5, {
+			raptorafter = {
+				name = L["Show its cooldown after you use it"],
+				desc = string.format(L["After %s lands, its icon stays: grey, with a clock sweep and a countdown, until you can use it again. Then it goes away. Off: the icon goes the moment the swing lands."], raptor),
+				type = "toggle",
+				width = "double",
+				order = 5,
+				disabled = function() return not YaHT.db.profile.raptor end,
+			},
+		}),
 		rapidfirepage = procPage("rapidfire", rapidfire,
 			string.format(L["Shows while %s lasts (15 seconds), from the moment you cast it."], rapidfire), 3),
+		sniperpage = procPage("sniper", sniper,
+			string.format(L["When you fire %s, its icon shows next to the bar: grey, with a clock sweep and a countdown, for its 15 second cooldown. When it is ready again the icon lights up for a moment, then goes away. Only for a hunter who has it."], sniper), 3.2),
+		trueshotpage = procPage("trueshot", trueshot,
+			string.format(L["A reminder: the %s icon shows next to the bar only while you do NOT have it on, and goes the moment you cast it. In a fight the game hides your buffs, so there it goes by what was seen before the fight and by your own cast. Only for a hunter who has it."], trueshot), 3.4),
 		racialpage = procPage("racial", L["Racial ability"],
 			L["Your race's active (Night Elf Elune's Light, Orc Blood Fury, Troll Berserking, Dwarf Stoneform, Human Perception, Tauren Plainsrunning, Skyborne Skysight) shows while it lasts, from the moment you use it. YaHT recognises it by itself; for a new racial it learns the length the first time you use it out of combat."], 4),
 	}
@@ -374,7 +652,7 @@ function YaHT:CreateConfig()
 			end,
 		}
 	end
-	for _, key in ipairs({"bestial", "mongoose", "raptor", "quickshots", "rapidfire", "racial"}) do
+	for _, key in ipairs({"bestial", "mongoose", "raptor", "quickshots", "quickstrikes", "rapidfire", "sniper", "trueshot", "racial"}) do
 		local args = procsArgs[key .. "page"].args
 		-- its size, among the basics: the shared size until you change it here
 		args[key .. "size"] = {
@@ -452,6 +730,11 @@ function YaHT:CreateConfig()
 		args[key .. "cardmore"] = {name = L["Fine tuning"], type = "header", order = 8.9}
 		Tuck(args, key, {key .. "glowcolor", key .. "own", key .. "iconalpha", key .. "iconglow",
 			key .. "iconpulse", key .. "iconsound", key .. "iconpolish"}, 9)
+	end
+	-- (Sniper Shot's icon is its cooldown and the Trueshot Aura reminder has no time: no "Time" card for them)
+	for _, key in ipairs({"sniper", "trueshot"}) do
+		local args = procsArgs[key .. "page"].args
+		args[key .. "numbers"].hidden, args[key .. "soundat"].hidden, args[key .. "cardtime"].hidden = true, true, true
 	end
 
 	-- Multi-Shot's cast line: a page of its own, laid out like the icons' pages
@@ -1559,6 +1842,14 @@ function YaHT:CreateConfig()
 						order = 12,
 						disabled = aspectOff,
 					},
+					aspectnonebig = {
+						name = L["No aspect: bouncing and bigger"],
+						desc = L["With no aspect on, the badge bounces, half again as large, with No aspect in small letters above it. Off: the badge stays as it is and only turns red or yellow."],
+						type = "toggle",
+						width = "double",
+						order = 12.5,
+						hidden = function() local p = YaHT.db.profile return not p.aspect or not p.aspectwarnnone end,
+					},
 					aspecthint = {
 						name = L["Yellow hint: Hawk in melee, Monkey at range"],
 						desc = L["Uses the range warnings to know where you are, so those need to be switched on."],
@@ -1902,6 +2193,20 @@ function YaHT:CreateConfig()
 						max = 1.0,
 						step = 0.05,
 						disabled = function() return YaHT.db.profile.windupauto end,
+					},
+					meleeresets = {
+						name = L["A melee swing restarts the reload"],
+						desc = L["On Forever your shot's reload starts over when your melee weapon swings. With this on, the bar does the same. Switch it off if your bar is wrong after a melee swing."],
+						type = "toggle",
+						width = "double",
+						order = 3.42,
+					},
+					feignresets = {
+						name = L["Feign Death restarts the reload"],
+						desc = L["On Forever your shot's reload starts over when a Feign Death ends. With this on, the bar does the same. Switch it off if your bar is wrong after a feign."],
+						type = "toggle",
+						width = "double",
+						order = 3.44,
 					},
 					autocorrect = {
 						name = L["Self-correcting timing"],
@@ -2279,6 +2584,8 @@ function YaHT:CreateConfig()
 			ammopage = A.ammo,
 			multicastpage = multicastPage,
 			announcepage = A.announce, -- (a feature like the others, not an advanced setting)
+			macrospage = MacrosPage(),
+			weavepage = WeavePage(),
 			trackerpage = {
 				name = L["Tracking wheel"],
 				type = "group",
@@ -2541,7 +2848,7 @@ function YaHT:CreateConfig()
 		end
 		-- the sound each one made before there was a choice
 		local USUAL = {procsound = "PING", hawkiconsound = "PING", ammosound = "ALARM", feignsound = "WARNING",
-			petsound = "WARNING", aspectsound = "WARNING"}
+			petsound = "WARNING", aspectsound = "WARNING", weaveinsound = "BLADE", weaveoutsound = "BOWPULL"}
 		local function usual(key)
 			return USUAL[key] or (key:find("iconsound$") and "PING") or nil
 		end

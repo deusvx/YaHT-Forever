@@ -21,6 +21,10 @@ wrong aspect, and a pet that is low or dead, and it times your procs and your Su
   Raptor Strike is queued.
 - **Three looks:** Minimal (just the bar), Clean (the bar with its icons) or Flashy (everything).
   Click one to see it in the live preview, then keep it with one more click.
+- **Cast bar style (Bouk's):** the reload runs down in blue and the stand-still part shows in
+  green, with the shot's name and its time on the bar.
+- **Melee weaving cues:** arrows beside the bar say Walk in when your bow fires and Walk out when
+  your weapon swings. Off to start with.
 - **Lone Wolf look:** for hunters who play without a pet. While no pet is out, the bar turns
   moonlight silver and becomes a marksman's scope, with a crosshair that locks on when you have
   to stand still. Pet warnings go quiet. With a pet out, everything is regular.
@@ -28,13 +32,13 @@ wrong aspect, and a pet that is low or dead, and it times your procs and your Su
 **Warnings**
 - **Deadzone and too far:** yellow caution stripes in the deadzone, red arrows when out of range,
   or as text with your own wording, or both.
-- **Distance to your target:** a band of yards ("20-28 yd"), green when you can shoot, as a number
-  or a ruler of the zones.
+- **Distance to your target:** a band of yards ("20-28 yd"), green when you can shoot, as a number,
+  a ruler of the zones, or one box per range band.
 - **Feign Death resist:** a movable icon with RESIST and a warning sound. It reads the game's
   "Resisted" message, and when there is none it notices from the mob's threat list in a little
   over a second.
 - **Aspect badge:** your current aspect next to the bar; red in a fight in Cheetah or Pack, and a
-  reminder when you have no aspect.
+  bigger, bouncing "No aspect" warning when you have none.
 - **Pet alerts:** movable text for PET LOW, PET DEAD, NO PET and PET NOT ATTACKING.
 - **Ammo counter:** hidden while you have plenty, fades in as ammo runs down, then flashes yellow
   and red with a warning sound.
@@ -43,9 +47,11 @@ wrong aspect, and a pet that is low or dead, and it times your procs and your Su
 
 **Proc and cooldown icons**
 - **Bestial Wrath** (its 18 seconds, then its cooldown), **Mongoose Bite** (with its cooldown),
-  **Quick Shots**, **Rapid Fire** and your **racial**.
+  **Quick Shots**, **Quick Strikes**, **Rapid Fire** and your **racial**.
 - **Raptor Strike:** its icon shows while it is queued for your next melee swing, with a timer
-  running down to the swing.
+  running down to the swing, then its cooldown.
+- **Marksmanship:** Sniper Shot's cooldown after you fire it, and a Trueshot Aura reminder that
+  shows only while the aura is not on.
 - **Multi-Shot cast line:** a thin line under the bar that fills while Multi-Shot casts.
 - **Sound at seconds left** and **seconds on the icon** for any timed icon and the hawks.
 - **Pick your sounds:** every sound is a choice, with a button to hear it: the game's own gun
@@ -65,6 +71,8 @@ wrong aspect, and a pet that is low or dead, and it times your procs and your Su
   page), short pages in titled cards with the fine settings under "More options", exact X / Y
   placement with an alignment grid.
 - A minimap button with a quick menu, profiles, and a reset button on every page.
+- **Macros:** 21 hunter macros (PvE, pet, PvP), each made with one click and put on your cursor.
+- **Colors by code:** every color has a box for its code, like #FF00FF.
 - **Tranquilizing Shot announce** to Say, Party, Raid, Raid Warning, Whisper or a channel.
 
 Lightweight: hidden and idle when you're not shooting; well under 1% of a frame when you are.

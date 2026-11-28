@@ -167,7 +167,7 @@ local function list()
 end
 local function at(id) for i, p in ipairs(order) do if p == id then return i end end end
 M.Show("home") list()
-assert(table.concat(order, " ") == "home bar bar/lookpage bar/textpage bar/effectspage bar/lonewolfpage [Warnings] alerts/rangepage alerts/feignpage alerts/petpage alerts/aspectpage alerts/ammopage [Timers and icons] alerts/procspage alerts/hawkpage alerts/multicastpage alerts/meleepage [Tools] alerts/trackerpage alerts/announcepage advanced advanced/timingpage profile",
+assert(table.concat(order, " ") == "home bar bar/lookpage bar/textpage bar/effectspage bar/lonewolfpage [Warnings] alerts/rangepage alerts/feignpage alerts/petpage alerts/aspectpage alerts/ammopage [Timers and icons] alerts/procspage alerts/hawkpage alerts/multicastpage alerts/meleepage [Tools] alerts/trackerpage alerts/weavepage alerts/announcepage alerts/macrospage advanced advanced/timingpage profile",
   "the list: "..table.concat(order, " "))
 assert(not at("alerts") and not at("advanced/announcepage"), "no Alerts row; Tranquilizing Shot announce is with the tools")
 assert(not at("changed") and not at("news"), "your changes and what's new are not rows in the list")
@@ -186,11 +186,11 @@ local where
 for _, r in ipairs(M.rows) do if r.item and r.item.custom == "section" then where = r.item.text end end
 assert(where and where:find("Warnings", 1, true) and where:find("Pet", 1, true) and not where:find("Alerts", 1, true), "search should file Pet under Warnings: "..tostring(where))
 M.Show("home")
--- everything fits in the list, also with the six proc pages open
+-- everything fits in the list, also with the nine proc pages open
 M.Show("alerts/procspage/mongoosepage") list()
 local rows, low = 0, 0
 for _, b in ipairs(f.nav) do if b.shown then rows = rows + 1 low = low + b.rowH end end
-assert(rows == 29 and low + 16 <= 700 - 50 - 10 + 1, "the list doesn't fit: "..rows.." rows, "..low.." high")
+assert(rows == 34 and low + 16 <= 700 - 50 - 10 + 1, "the list doesn't fit: "..rows.." rows, "..low.." high")
 
 -- WHAT I CHANGED: empty to start with, then everything that is off its default, each once
 YaHT.db:ResetProfile() db = YaHT.db.profile

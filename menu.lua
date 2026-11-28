@@ -373,6 +373,12 @@ local function PageItems(page)
 				cards = true
 				items[#items + 1] = {custom = "cards"}
 			end
+		elseif page.id == "alerts/macrospage" and node.key ~= "intro" and node.key ~= "macroset" then
+			-- the macros show as small cards, two side by side (Make.macros), not as rows of text
+			if not cards then
+				cards = true
+				items[#items + 1] = {custom = "macros"}
+			end
 		elseif node.opt.type ~= "group" then
 			items[#items + 1] = OptionItem(Extend(page.path, node))
 		end
@@ -680,6 +686,45 @@ end
 ---------------------------------------------------------------------------
 -- reserve: the width kept free on the right for the row's control
 -- bare: no plate behind it (a button is its own shape)
+-- The small "New" beside what this version brought (see YaHT.newIn in share.lua): only the word,
+-- small and gold, with a soft shine passing over it now and then. (A glowing pill was tried and
+-- was far too much.) On a page in the list on the left, on a card's title, and on a setting.
+local function NewTag(parent)
+	local tag = CreateFrame("Frame", nil, parent)
+	tag:SetSize(26, 12)
+	if tag.SetFrameLevel and parent.GetFrameLevel then tag:SetFrameLevel((parent:GetFrameLevel() or 1) + 3) end
+	local font = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+	tag.text = tag:CreateFontString(nil, "ARTWORK")
+	tag.text:SetFont(font, 10, "")
+	tag.text:SetTextColor(1, 0.82, 0.22)
+	if tag.text.SetShadowColor then tag.text:SetShadowColor(0, 0, 0, 0.9) end
+	if tag.text.SetShadowOffset then tag.text:SetShadowOffset(1, -1) end
+	tag.text:SetPoint("LEFT", tag, "LEFT", 0, 0)
+	tag.text:SetText(L["New"])
+	-- the shine: the same word in pale light over it, fading in and out slowly
+	tag.shine = tag:CreateFontString(nil, "OVERLAY")
+	tag.shine:SetFont(font, 10, "")
+	tag.shine:SetTextColor(1, 0.97, 0.80)
+	tag.shine:SetPoint("LEFT", tag, "LEFT", 0, 0)
+	tag.shine:SetText(L["New"])
+	tag.shine:SetAlpha(0)
+	local w = tag.text.GetStringWidth and tag.text:GetStringWidth() or 0
+	if type(w) == "number" and w > 0 then tag:SetWidth(w + 2) end
+	if tag.shine.CreateAnimationGroup then
+		local ok, group = pcall(tag.shine.CreateAnimationGroup, tag.shine)
+		if ok and group and group.CreateAnimation then
+			local a = group:CreateAnimation("Alpha")
+			if a and a.SetFromAlpha then
+				a:SetFromAlpha(0) a:SetToAlpha(0.85) a:SetDuration(1.4)
+				if a.SetSmoothing then a:SetSmoothing("IN_OUT") end
+				if group.SetLooping then group:SetLooping("BOUNCE") end
+				if group.Play then group:Play() end
+			end
+		end
+	end
+	return tag
+end
+
 local function NewRow(parent, reserve, bare)
 	local row = CreateFrame("Frame", nil, parent)
 	row:SetHeight(ROW_STEP)
@@ -739,6 +784,7 @@ local SWITCH_PICTURES = {
 	pet = {spell = 883, file = "Interface\\Icons\\Ability_Hunter_BeastCall"},
 	hawk = {spell = 1293241, file = "Interface\\Icons\\Spell_Nature_RavenForm"},
 	tracker = {spell = 1494, file = "Interface\\Icons\\Ability_Tracking"},
+	weave = {spell = 2973, file = "Interface\\Icons\\Ability_MeleeDamage"},
 	meleerange = {spell = 1130, file = "Interface\\Icons\\Ability_Hunter_SniperShot"},
 	melee = {spell = 2973, file = "Interface\\Icons\\Ability_MeleeDamage"},
 	ammo = {file = "Interface\\Icons\\INV_Ammo_Arrow_02"},
@@ -746,7 +792,10 @@ local SWITCH_PICTURES = {
 	minimap = {file = "Interface\\Icons\\INV_Weapon_Bow_07"},
 	mongoose = {spell = 1495, file = "Interface\\Icons\\Ability_Hunter_SwiftStrike"},
 	raptor = {spell = 2973, file = "Interface\\Icons\\Ability_MeleeDamage"},
+	sniper = {file = "Interface\\Icons\\Ability_Hunter_SniperShot"},
+	trueshot = {spell = 19506, file = "Interface\\Icons\\Ability_TrueShot"},
 	quickshots = {spell = 6150, file = "Interface\\Icons\\Ability_Warrior_InnerRage"},
+	quickstrikes = {spell = 1299446, file = "Interface\\Icons\\Ability_Mount_PinkTiger"},
 	rapidfire = {spell = 3045, file = "Interface\\Icons\\Ability_Hunter_RunningShot"},
 	bestial = {spell = 19574, file = "Interface\\Icons\\Ability_Druid_FerociousBite"},
 	racial = {spell = 20572, file = "Interface\\Icons\\Racial_Orc_BerserkerStrength"},
@@ -1140,8 +1189,22 @@ Fill.select = function(row, item)
 	return ROW_STEP
 end
 
+-- A colour as its code ("#FF00FF"), and a code read back: "#RRGGBB", "RRGGBB", or the short "#RGB"
+local function HexOf(r, g, b)
+	local function part(v) return math.floor(math.max(0, math.min(1, v or 1)) * 255 + 0.5) end
+	return string.format("#%02X%02X%02X", part(r), part(g), part(b))
+end
+local function ReadHex(text)
+	local s = tostring(text or ""):gsub("%s", ""):gsub("^#", "")
+	if #s == 3 and s:match("^%x%x%x$") then s = s:gsub("%x", "%0%0") end
+	if #s == 8 and s:match("^%x+$") then s = s:sub(1, 6) end -- (a code with opacity on its end: the colour part)
+	if #s ~= 6 or not s:match("^%x+$") then return nil end
+	return tonumber(s:sub(1, 2), 16) / 255, tonumber(s:sub(3, 4), 16) / 255, tonumber(s:sub(5, 6), 16) / 255
+end
+Menu.HexOf, Menu.ReadHex = HexOf, ReadHex
+
 Make.color = function(parent)
-	local row = NewRow(parent, 36)
+	local row = NewRow(parent, 36 + 8 + 74)
 	local b = CreateFrame("Button", nil, row)
 	b:SetSize(36, 18)
 	b:SetPoint("RIGHT", row.plate, "RIGHT", -PAD, 0)
@@ -1151,12 +1214,45 @@ Make.color = function(parent)
 	On(b, "OnClick", function() if row.onClick then row.onClick() end end)
 	Hook(row, b)
 	row.widget = b
+	-- the colour's code beside it: type or paste one and press Enter
+	local e = CreateFrame("EditBox", nil, row)
+	e:SetSize(74, 20)
+	e:SetPoint("RIGHT", b, "LEFT", -8, 0)
+	Plate(e, "BACKGROUND", C.field):SetAllPoints(e)
+	Rim(e, C.soft)
+	e:SetFontObject(GameFontHighlightSmall)
+	e:SetAutoFocus(false)
+	e:SetTextInsets(7, 4, 0, 0)
+	if e.SetMaxLetters then e:SetMaxLetters(9) end
+	local function commit(self)
+		local text = self:GetText() or ""
+		if text == row.shownHex then return end
+		if not (row.onHex and row.onHex(text)) then self:SetText(row.shownHex or "") end -- (not a code: put the old one back)
+	end
+	On(e, "OnEnterPressed", function(self) self:ClearFocus() end)
+	On(e, "OnEscapePressed", function(self)
+		self:SetText(row.shownHex or "")
+		self:ClearFocus()
+	end)
+	On(e, "OnEditFocusLost", commit)
+	Hook(row, e)
+	row.hex = e
+	row.extras = {e}
 	return row
 end
 Fill.color = function(row, item)
-	local r, g, b = Call(item.path, "get")
+	local r, g, b, a = Call(item.path, "get")
 	Paint(row.widget.swatch, {r or 1, g or 1, b or 1, 1})
 	row.onClick = function() PickColor(item.path) end
+	row.shownHex = HexOf(r, g, b)
+	row.hex:SetText(row.shownHex)
+	row.onHex = function(text)
+		local nr, ng, nb = ReadHex(text)
+		if not nr then return false end
+		Call(item.path, "set", nr, ng, nb, a or 1)
+		Menu.Changed()
+		return true
+	end
 	return ROW_STEP
 end
 
@@ -1278,6 +1374,39 @@ end
 Make.header = MakeSection
 Fill.header = function(row, item)
 	row.text:SetText(Value(item.path, "name") or "")
+	-- a picture beside the title, when the section names one (its option's arg: {spell = , file = })
+	local pic = item.opt and type(item.opt.arg) == "table" and item.opt.arg or nil
+	local tex
+	if pic then
+		if pic.spell and C_Spell and C_Spell.GetSpellTexture then
+			local ok, v = pcall(C_Spell.GetSpellTexture, pic.spell)
+			if ok and v and not (issecretvalue and issecretvalue(v)) then tex = v end
+		end
+		tex = tex or pic.file
+	end
+	if tex and not row.pic then
+		row.pic = row:CreateTexture(nil, "ARTWORK")
+		row.pic:SetSize(20, 20)
+		row.pic:SetPoint("LEFT", row, "LEFT", NOTE_X, -1)
+		row.pic:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	end
+	if row.pic then
+		row.pic:SetShown(tex and true or false)
+		if tex then row.pic:SetTexture(tex) end
+	end
+	row.text:ClearAllPoints()
+	row.text:SetPoint("LEFT", row, "LEFT", NOTE_X + (tex and 27 or 0), -1)
+	-- new in this version: the yellow "New" after the card's title
+	local fresh = item.path and YaHT.IsNew and YaHT:IsNew("key", item.path[#item.path].key) or false
+	if fresh and not row.newTag then row.newTag = NewTag(row) end
+	if row.newTag then
+		row.newTag:SetShown(fresh)
+		if fresh then
+			local w = row.text.GetStringWidth and row.text:GetStringWidth() or 0
+			row.newTag:ClearAllPoints()
+			row.newTag:SetPoint("LEFT", row.text, "LEFT", (type(w) == "number" and w or 0) + 9, 0)
+		end
+	end
 	return SECTION_H
 end
 Make.section = MakeSection
@@ -1450,6 +1579,205 @@ local function ReleaseAll()
 	end
 end
 
+---------------------------------------------------------------------------
+-- The Macros page: small cards, two side by side. A card is the macro's picture, its name, a few
+-- words on what it does and an Add button: nothing on it is cut short. The macro itself (what it
+-- does in full, and its text) is read in the column on the right: for the card you point at, and
+-- it stays there when the mouse moves on. (Seen in game: cards with their whole text on them read
+-- like one big box of words; cards with the text only on hover looked as if the text was lost.)
+---------------------------------------------------------------------------
+local TILE_H, TILE_GAP, TILE_HINT = 54, 8, 22 -- (TILE_H: a card's top part; its macro's lines come under it)
+local CODE_LINE, CODE_PAD, CODE_WRAP = 11, 5, 50  -- the macro's own text on the card: line height, padding, letters to a line
+-- how many lines a macro takes on a card (long lines wrap)
+local function CodeLines(body)
+	local n = 0
+	for line in (body .. "\n"):gmatch("(.-)\n") do n = n + math.max(1, math.ceil(#line / CODE_WRAP)) end
+	return n
+end
+local function MacroHelp(m)
+	return m.title, m.about .. "\n\n" .. L["The macro:"] .. "\n|cffb9b29a" .. m.body:gsub("\n", "|r\n|cffb9b29a") .. "|r"
+end
+local function MacroPick(row, m)
+	-- this card is the one read on the right, until another is pointed at
+	Menu.macroSel = m.id
+	Menu.helpTitle, Menu.helpText = MacroHelp(m)
+	SetHelp(Menu.helpTitle, Menu.helpText)
+	for _, t in ipairs(row.tiles) do
+		if t.rim then PaintRim(t.rim, (t.macro and t.macro.id == m.id) and C.gold or C.soft) end
+	end
+end
+local function MacroTile(row)
+	local t = CreateFrame("Frame", nil, row)
+	t.bg = Plate(t, "BACKGROUND", C.plate)
+	t.bg:SetAllPoints(t)
+	t.rim = Rim(t, C.soft)
+	t.pic = t:CreateTexture(nil, "ARTWORK")
+	t.pic:SetSize(34, 34)
+	t.pic:SetPoint("TOPLEFT", t, "TOPLEFT", 10, -10)
+	t.pic:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	t.name = Text(t, "GameFontNormal", C.gold)
+	t.name:SetPoint("TOPLEFT", t, "TOPLEFT", 54, -11)
+	t.name:SetJustifyH("LEFT")
+	t.name:SetWordWrap(false)
+	t.about = Text(t, "GameFontHighlightSmall", C.muted)
+	t.about:SetPoint("TOPLEFT", t, "TOPLEFT", 54, -30)
+	t.about:SetJustifyH("LEFT")
+	t.about:SetWordWrap(false)
+	local b = CreateFrame("Button", nil, t)
+	b:SetSize(58, 22)
+	b:SetPoint("TOPRIGHT", t, "TOPRIGHT", -10, -16)
+	b.bg = Plate(b, "BACKGROUND", C.field)
+	b.bg:SetAllPoints(b)
+	Rim(b, C.line)
+	b.text = Text(b, "GameFontHighlightSmall", C.white)
+	b.text:SetPoint("CENTER", b, "CENTER", 0, 0)
+	t.add = b
+	-- the macro itself, as you would type it: in a darker box under the card's top part
+	t.codeBg = Plate(t, "BORDER", C.field)
+	t.codeBg:SetPoint("TOPLEFT", t, "TOPLEFT", 8, -TILE_H)
+	t.codeBg:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -8, 7)
+	-- (a box you can click into: the text is selected whole, ready for Ctrl+C. Plain text on a card
+	-- cannot be highlighted. Typing in it changes nothing: the macro's text is put straight back.)
+	local e = CreateFrame("EditBox", nil, t)
+	e:SetMultiLine(true)
+	e:SetAutoFocus(false)
+	e:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", 10, "")
+	e:SetTextColor(0.73, 0.70, 0.60)
+	e:SetJustifyH("LEFT")
+	if e.SetSpacing then e:SetSpacing(1) end
+	e:SetPoint("TOPLEFT", t.codeBg, "TOPLEFT", 6, -CODE_PAD)
+	e:SetPoint("RIGHT", t.codeBg, "RIGHT", -6, 0)
+	e:SetHeight(CODE_LINE)
+	if e.EnableMouse then e:EnableMouse(true) end
+	t.code = e
+	local function over() if t.macro then MacroPick(row, t.macro) end end
+	local function whole(self) if self.HighlightText then self:HighlightText() end end
+	On(e, "OnEditFocusGained", function(self) over() whole(self) PaintRim(t.codeRim, C.gold) end)
+	On(e, "OnEditFocusLost", function(self)
+		if self.HighlightText then self:HighlightText(0, 0) end
+		PaintRim(t.codeRim, C.soft)
+	end)
+	On(e, "OnMouseUp", whole) -- (a click selects it all again; a drag selects a part)
+	On(e, "OnTextChanged", function(self, byUser)
+		if byUser and t.macro and self:GetText() ~= t.macro.body then
+			self:SetText(t.macro.body)
+			whole(self)
+		end
+	end)
+	On(e, "OnEscapePressed", function(self) self:ClearFocus() end)
+	On(e, "OnEnterPressed", function(self) self:ClearFocus() end)
+	On(e, "OnEnter", over)
+	-- its edge (gold while you are in it): one rounded outline, fitted to the box
+	t.codeRim = Rim(t, C.soft)
+	if #t.codeRim == 1 and t.codeRim[1].ClearAllPoints then
+		t.codeRim[1]:ClearAllPoints()
+		t.codeRim[1]:SetAllPoints(t.codeBg)
+	else
+		for _, piece in ipairs(t.codeRim) do piece:Hide() end -- (no rounded shapes here: the card's own edge will do)
+	end
+	t:EnableMouse(true)
+	On(t, "OnEnter", over)
+	On(b, "OnEnter", function(self) Paint(self.bg, C.navOn) over() end)
+	On(b, "OnLeave", function(self) Paint(self.bg, C.field) end)
+	On(b, "OnClick", function()
+		if not t.macro then return end
+		Click()
+		Menu.macroSel = t.macro.id
+		YaHT:AddMacro(t.macro.id)
+		Menu.Changed()
+	end)
+	return t
+end
+Make.macros = function(parent)
+	local row = CreateFrame("Frame", nil, parent)
+	row.tiles = {}
+	row.hint = Text(row, "GameFontHighlightSmall", C.muted)
+	row.hint:SetPoint("TOPLEFT", row, "TOPLEFT", 4, -2)
+	return row
+end
+Fill.macros = function(row)
+	local set = YaHT.optionsMacroSet or "PVE"
+	local w = math.floor((VIEW_W - MARK_W - TILE_GAP) / 2)
+	row.hint:SetText(L["Click a macro's text to select it, then Ctrl+C to copy. Add makes the macro and puts it on your cursor."])
+	-- two cards to a row; a row is as tall as the longer of its two macros
+	local shown = {}
+	for _, m in ipairs(YaHT.MacroList and YaHT.MacroList() or {}) do if m.set == set then shown[#shown + 1] = m end end
+	local n, picked, first = 0, nil, nil
+	local y, rowH = TILE_HINT, 0
+	for _, m in ipairs(shown) do
+		do
+			n = n + 1
+			first = first or m
+			if m.id == Menu.macroSel then picked = m end
+			local t = row.tiles[n]
+			if not t then t = MacroTile(row) row.tiles[n] = t end
+			t.macro = m
+			if n % 2 == 1 then
+				-- a new row: its height from this macro and the one beside it
+				y = y + (n > 1 and (rowH + TILE_GAP) or 0)
+				local lines = CodeLines(m.body)
+				local other = shown[n + 1]
+				if other then lines = math.max(lines, CodeLines(other.body)) end
+				rowH = TILE_H + lines * CODE_LINE + CODE_PAD * 2 + 7
+			end
+			t:SetSize(w, rowH)
+			t:ClearAllPoints()
+			t:SetPoint("TOPLEFT", row, "TOPLEFT", ((n - 1) % 2) * (w + TILE_GAP), -y)
+			t.code:ClearFocus()
+			t.code:SetText(m.body)
+			t.code:SetHeight(rowH - TILE_H - CODE_PAD * 2 - 7)
+			-- its picture: the spell's own, else a file named for it
+			local tex
+			if m.pic then
+				if m.pic.spell and C_Spell and C_Spell.GetSpellTexture then
+					local ok, v = pcall(C_Spell.GetSpellTexture, m.pic.spell)
+					if ok and v and not (issecretvalue and issecretvalue(v)) then tex = v end
+				end
+				tex = tex or m.pic.file
+			end
+			t.pic:SetTexture(tex or FALLBACK_ICON)
+			-- the button says what happened for a few seconds
+			local a = YaHT.macroAdded
+			local added = a and a.id == m.id and GetTime() < a.untilT
+			t.add.text:SetText(added and L["On cursor"] or L["Add"])
+			t.add:SetWidth(added and 74 or 58)
+			-- name and its few words: each on one line, in the room between the picture and the button
+			local fresh = YaHT.IsNew and YaHT:IsNew("key", m.id .. "title") or false
+			local room = w - 54 - (added and 74 or 58) - 10 - 8
+			t.name:SetWidth(room - (fresh and 34 or 0))
+			t.name:SetText(m.title)
+			t.about:SetWidth(room)
+			t.about:SetText(m.short or m.about)
+			-- new in this version: after the name (at the end of the name's room when the name is long)
+			if fresh and not t.newTag then t.newTag = NewTag(t) end
+			if t.newTag then
+				t.newTag:SetShown(fresh)
+				if fresh then
+					local nw = t.name.GetStringWidth and t.name:GetStringWidth() or 0
+					nw = math.min(type(nw) == "number" and nw or 0, room - 34)
+					t.newTag:ClearAllPoints()
+					t.newTag:SetPoint("LEFT", t.name, "LEFT", nw + 7, 0)
+				end
+			end
+			t:Show()
+		end
+	end
+	for i = n + 1, #row.tiles do row.tiles[i]:Hide() end
+	row.shownTiles = n
+	-- the card read on the right: the one last pointed at, or the list's first
+	picked = picked or first
+	if picked then
+		Menu.macroSel = picked.id
+		Menu.macroHelp = {MacroHelp(picked)}
+		for _, t in ipairs(row.tiles) do
+			if t.rim then PaintRim(t.rim, (t:IsShown() and t.macro and t.macro.id == picked.id) and C.gold or C.soft) end
+		end
+	else
+		Menu.macroHelp = nil
+	end
+	return y + (n > 0 and rowH or 0) + 6
+end
+
 local function Acquire(kind)
 	pool[kind] = pool[kind] or {}
 	local row = table.remove(pool[kind]) or Make[kind](content)
@@ -1595,6 +1923,17 @@ function Menu.Render()
 				row.tipTitle = type(name) == "string" and name or ""
 				row.tip = type(desc) == "string" and desc or nil
 				if row.label then row.label:SetText(row.tipTitle) end
+				-- new in this version: the yellow "New" after its name
+				local fresh = row.label and YaHT.IsNew and YaHT:IsNew("key", item.path[#item.path].key) or false
+				if fresh and not row.newTag then row.newTag = NewTag(row) end
+				if row.newTag then
+					row.newTag:SetShown(fresh)
+					if fresh then
+						local w = row.label.GetStringWidth and row.label:GetStringWidth() or 0
+						row.newTag:ClearAllPoints()
+						row.newTag:SetPoint("LEFT", row.label, "LEFT", (type(w) == "number" and w or 0) + 8, 0)
+					end
+				end
 				SetOff(row, Flag(item.path, "disabled"))
 				-- changed from its default: a gold dot, and a right-click puts it back
 				local key = item.path[#item.path].key
@@ -1635,6 +1974,10 @@ function Menu.Render()
 	else
 		Menu.helpTitle = page.name
 		Menu.helpText = #intro > 0 and table.concat(intro, "\n\n") or hint
+		-- the Macros page reads the chosen macro there (what it does, and its text)
+		if page.id == "alerts/macrospage" and Menu.macroHelp then
+			Menu.helpTitle, Menu.helpText = Menu.macroHelp[1], Menu.macroHelp[2]
+		end
 	end
 	HideTip()
 	local about = Find({"bar", "about"})
@@ -1816,6 +2159,14 @@ function Menu.DrawNav()
 		b.text:SetTextColor(c[1], c[2], c[3])
 		b.bg:SetShown(b.on)
 		b.mark:SetShown(b.on)
+		-- a page that is new in this version (the mark stays until the next version comes out)
+		local fresh = not b.group and YaHT.IsNew and YaHT:IsNew("page", page.id) or false
+		if fresh and not b.newTag then
+			b.newTag = NewTag(b)
+			b.newTag:SetPoint("RIGHT", b, "RIGHT", -5, 0)
+		end
+		if b.newTag then b.newTag:SetShown(fresh) end
+		b.isNew = fresh
 		b:Show()
 	end
 	for i = n + 1, #frame.nav do frame.nav[i]:Hide() end
@@ -1828,9 +2179,8 @@ end
 -- settings, looping through a shot. Only runs while the window is open.
 ---------------------------------------------------------------------------
 local PREVIEW_ICONS = { -- key, a spell whose icon stands in for it; in the order they line up around the bar
-	{"bestial", 19574}, {"mongoose", 1495}, {"quickshots", 6150}, {"rapidfire", 3045}, {"racial", 20572}, {"aspect", 13165}, {"raptor", 2973},
+	{"bestial", 19574}, {"mongoose", 1495}, {"quickshots", 6150}, {"quickstrikes", 1299446}, {"rapidfire", 3045}, {"racial", 20572}, {"aspect", 13165}, {"raptor", 2973},
 }
-local FALLBACK_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 local HAWK_ICON = "Interface\\Icons\\Spell_Nature_RavenForm"
 local HAWK_SAMPLE = {14, 5} -- the seconds the two sample hawks have left
 local HAWK_GOLD, HAWK_RED = {1.0, 0.80, 0.30}, {1.0, 0.33, 0.28}
@@ -2454,6 +2804,9 @@ LayoutPreview = function(pv, p)
 		ic.on = p[ic.key] and (used[side] ~= nil or side == "FREE") or false
 		-- (Bestial Wrath's prime spot is only kept for a hunter who has it)
 		if ic.key == "bestial" and YaHT.BestialKnown and not YaHT.BestialKnown() then ic.on = false end
+		-- (Quick Strikes: for a hunter who has had it; on its own page it shows either way)
+		if ic.key == "quickstrikes" and YaHT.StrikesKnown and not YaHT.StrikesKnown()
+			and Menu.current ~= "alerts/procspage/quickstrikespage" then ic.on = false end
 		if ic.on then
 			local own = ic.key == "aspect" and p.aspectsize or (p[ic.key .. "own"] and p[ic.key .. "iconsize"]) or p.procsize
 			-- (to the bar's own scale, so the size you set is the size you see next to the bar)
@@ -2819,6 +3172,148 @@ local function BuildWheelDemo(strip)
 	return d
 end
 
+---------------------------------------------------------------------------
+-- On the Melee weaving page the preview box shows the rhythm itself: you stand at range, the bow
+-- fires, "Walk in", you step into melee, the weapon swings, "Walk out", back to range, and again.
+---------------------------------------------------------------------------
+local WEAVE_CYCLE = 5.6
+local function BuildWeaveDemo(strip)
+	local d = CreateFrame("Frame", nil, strip)
+	d:SetAllPoints(strip)
+	if d.SetFrameLevel and strip.GetFrameLevel then d:SetFrameLevel((strip:GetFrameLevel() or 1) + 30) end
+	local bg = Plate(d, "BACKGROUND", C.preview)
+	bg:SetPoint("TOPLEFT", d, "TOPLEFT", 1, -1)
+	bg:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -1, 1)
+	local light = d:CreateTexture(nil, "BACKGROUND", nil, 2)
+	light:SetTexture(STAGE_TEX)
+	light:SetBlendMode("ADD")
+	light:SetVertexColor(1, 0.82, 0.52, 0.14)
+	light:SetSize(PREVIEW_BOX_W * 1.1, PREVIEW_H * 1.3)
+	light:SetPoint("CENTER", d, "CENTER", 0, 6)
+	local caption = Text(d, "GameFontHighlightSmall", C.goldDim)
+	caption:SetPoint("TOPLEFT", d, "TOPLEFT", 10, -7)
+	caption:SetText(L["Live preview"])
+	-- the ground: melee on the left by the enemy, the deadzone, shooting range on the right
+	local W, Y = 220, -8
+	d.W, d.Y = W, Y
+	local function zone(x0, x1, c, a)
+		local z = d:CreateTexture(nil, "BORDER")
+		z:SetTexture(WHITE)
+		z:SetVertexColor(c[1], c[2], c[3], a)
+		z:SetSize((x1 - x0) * W - 1, 6)
+		z:SetPoint("LEFT", d, "CENTER", -W / 2 + x0 * W, Y - 16)
+		return z
+	end
+	zone(0, 0.26, {0.62, 0.66, 0.72}, 0.75)
+	zone(0.26, 0.40, {1, 0.80, 0.16}, 0.55)
+	zone(0.40, 1, {0.40, 0.86, 0.45}, 0.65)
+	local function word(text, x)
+		local t = Text(d, "GameFontHighlightSmall", C.muted)
+		t:SetPoint("TOP", d, "CENTER", -W / 2 + x * W, Y - 22)
+		t:SetText(text)
+	end
+	word(L["Melee"], 0.13)
+	word(L["Shooting"], 0.70)
+	-- the enemy (a red dot at the left end) and you (a gold one that walks)
+	d.enemy = d:CreateTexture(nil, "ARTWORK")
+	d.enemy:SetTexture(DISC_TEX)
+	d.enemy:SetVertexColor(0.90, 0.25, 0.20)
+	d.enemy:SetSize(13, 13)
+	d.enemy:SetPoint("CENTER", d, "CENTER", -W / 2 + 0.03 * W, Y)
+	d.you = d:CreateTexture(nil, "ARTWORK", nil, 2)
+	d.you:SetTexture(DISC_TEX)
+	d.you:SetVertexColor(1, 0.82, 0.30)
+	d.you:SetSize(12, 12)
+	-- the shot (a line from you to the enemy) and the swing (a ring on the enemy)
+	d.shot = d:CreateTexture(nil, "ARTWORK", nil, 1)
+	d.shot:SetTexture(WHITE)
+	d.shot:SetVertexColor(1, 1, 1)
+	d.hit = d:CreateTexture(nil, "OVERLAY")
+	d.hit:SetTexture(RING_TEX)
+	d.hit:SetVertexColor(1, 0.9, 0.62)
+	d.hit:SetPoint("CENTER", d.enemy, "CENTER", 0, 0)
+	-- the cue, as it shows in the game, and the step it belongs to
+	d.cue = d:CreateFontString(nil, "OVERLAY")
+	d.cue:SetFont(STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF", 15, "OUTLINE")
+	d.cue:SetPoint("CENTER", d, "CENTER", 14, Y + 36)
+	d.cueArrows = {}
+	for i = 1, 3 do
+		local a = d:CreateTexture(nil, "OVERLAY")
+		a:SetTexture("Interface\\AddOns\\YaHT\\media\\WeaveArrow")
+		a:SetSize(24, 12)
+		a:SetPoint("CENTER", d.cue, "LEFT", -18, 8 - (i - 1) * 8)
+		a:Hide()
+		d.cueArrows[i] = a
+	end
+	d.step = Text(d, "GameFontHighlightSmall", C.text or C.white)
+	d.step:SetPoint("BOTTOM", d, "BOTTOM", 0, 9)
+	d.step:SetJustifyH("CENTER")
+	d.t = 0
+	local function Ease(x) x = math.max(0, math.min(1, x)) return x * x * (3 - 2 * x) end
+	local RANGE_X, MELEE_X = 0.72, 0.12
+	On(d, "OnUpdate", function(self, elapsed)
+		self.t = (self.t + elapsed) % WEAVE_CYCLE
+		local t = self.t
+		-- 0.6 the bow fires | 0.6-2.0 walk in | 2.6 the swing | 2.6-4.0 walk out | 4.0-5.6 at range again
+		local x
+		if t < 0.8 then x = RANGE_X
+		elseif t < 2.0 then x = RANGE_X + (MELEE_X - RANGE_X) * Ease((t - 0.8) / 1.2)
+		elseif t < 2.8 then x = MELEE_X
+		elseif t < 4.0 then x = MELEE_X + (RANGE_X - MELEE_X) * Ease((t - 2.8) / 1.2)
+		else x = RANGE_X end
+		local px = -self.W / 2 + x * self.W
+		self.you:ClearAllPoints()
+		self.you:SetPoint("CENTER", self, "CENTER", px, self.Y)
+		local firing = (t >= 0.6 and t < 0.78) or (t >= 4.6 and t < 4.78)
+		self.shot:SetShown(firing)
+		if firing then
+			local ex = -self.W / 2 + 0.03 * self.W
+			self.shot:ClearAllPoints()
+			self.shot:SetPoint("LEFT", self, "CENTER", ex + 7, self.Y)
+			self.shot:SetSize(math.max(2, px - ex - 14), 1.5)
+		end
+		local c = (t - 2.6) / 0.3
+		local swinging = c >= 0 and c <= 1
+		self.hit:SetShown(swinging)
+		if swinging then
+			self.hit:SetSize(14 + 18 * c, 14 + 18 * c)
+			self.hit:SetAlpha(1 - c)
+		end
+		local step = t < 0.6 and 0 or t < 2.0 and 1 or t < 2.6 and 2 or t < 4.0 and 3 or 4
+		-- the cue's arrows: a light running up for in, down for out
+		local cueOn = step == 1 or step == 3
+		local phase = (t * 1.6) % 1
+		for i = 1, 3 do
+			local a = self.cueArrows[i]
+			a:SetShown(cueOn)
+			if cueOn then
+				local place = (step == 1) and (3 - i) or (i - 1)
+				local dd = math.abs(((phase * 3 - place + 1.5) % 3) - 1.5)
+				a:SetAlpha(0.28 + 0.72 * math.max(0, 1 - dd / 1.1))
+			end
+		end
+		if step ~= self.shownStep then
+			self.shownStep = step
+			if step == 1 then
+				self.cue:SetText(L["Walk in"]) self.cue:SetTextColor(0.40, 0.90, 0.45)
+				for i = 1, 3 do self.cueArrows[i]:SetVertexColor(0.40, 0.90, 0.45) self.cueArrows[i]:SetTexCoord(0, 1, 0, 1) end
+				self.step:SetText(L["1. Your bow fires: walk in"])
+			elseif step == 2 then
+				self.cue:SetText("")
+				self.step:SetText(L["2. Swing"])
+			elseif step == 3 then
+				self.cue:SetText(L["Walk out"]) self.cue:SetTextColor(1, 0.72, 0.25)
+				for i = 1, 3 do self.cueArrows[i]:SetVertexColor(1, 0.72, 0.25) self.cueArrows[i]:SetTexCoord(0, 1, 1, 0) end
+				self.step:SetText(L["3. Your weapon swings: walk out"])
+			else
+				self.cue:SetText("")
+				self.step:SetText(step == 4 and L["4. Shoot, and again"] or "")
+			end
+		end
+	end)
+	return d
+end
+
 -- The live preview, from the current settings (called after every change)
 function Menu.DrawPreview()
 	local pv = frame and frame.preview
@@ -2831,6 +3326,15 @@ function Menu.DrawPreview()
 		frame.wheelDemo.on = wheelPage
 		frame.wheelDemo:SetShown(wheelPage)
 		Menu.wheelDemo = frame.wheelDemo -- (for tests)
+	end
+	-- the Melee weaving page shows the rhythm
+	local weavePage = Menu.current == "alerts/weavepage" and not Menu.query and not Menu.viewing
+	if weavePage and not frame.weaveDemo and frame.previewBox then frame.weaveDemo = BuildWeaveDemo(frame.previewBox) end
+	if frame.weaveDemo then
+		if weavePage and not frame.weaveDemo.on then frame.weaveDemo.t, frame.weaveDemo.shownStep = 0, nil end
+		frame.weaveDemo.on = weavePage
+		frame.weaveDemo:SetShown(weavePage)
+		Menu.weaveDemo = frame.weaveDemo -- (for tests)
 	end
 	local p = YaHT.db.profile
 	-- a look being viewed: the preview shows your settings with that look's laid over them

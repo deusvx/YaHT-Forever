@@ -160,6 +160,29 @@ C_Spell.GetSpellCooldown = function() return SECRET end run(0.3)
 assert(not m.cdShade.shown and m.proc, "secret cooldown should just be ignored")
 C_Spell.GetSpellCooldown = function() return {startTime=cdStart, duration=cdDur} end
 usable=false run(0.6) cdStart, cdDur = 0, 0
+-- AFTER YOU USE IT its cooldown shows on the icon, and the icon goes when the cooldown is over. A chance
+-- that just runs out has no cooldown begun in it: the icon goes, as before.
+assert(db.mongooseafter == true, "the cooldown after use should start out on")
+usable=true fire("SPELL_UPDATE_USABLE") run(1)
+assert(m.proc and not m.afterUse and not m.cdShade.shown, "a dodge: ready, in colour")
+usable=false cdStart, cdDur = GetTime(), 5 fire("SPELL_UPDATE_USABLE") run(0.05)
+assert(m.proc and m.afterUse and m.cdShade.shown and m.cdText.txt=="5", "used: the icon stays, grey, with its cooldown: "..tostring(m.cdText.txt))
+assert(not m.halo.shown, "no 'press it' glow on a cooldown")
+run(2.5) assert(m.proc, "still there half way")
+-- a new dodge while it counts: a new chance (grey until the cooldown is over, as a dodge on cooldown is)
+usable=true fire("SPELL_UPDATE_USABLE") run(0.05)
+assert(m.proc and not m.afterUse, "a dodge during the cooldown is a new chance")
+usable=false run(0.1) assert(not m.proc, "that chance ran out unused: gone (its cooldown began before it)")
+run(3) cdStart, cdDur = 0, 0
+-- used, and the cooldown runs out: gone
+usable=true fire("SPELL_UPDATE_USABLE") run(0.5) usable=false cdStart, cdDur = GetTime(), 5 run(0.1)
+assert(m.afterUse) run(5.1) assert(not m.proc, "cooldown over: the icon goes")
+cdStart, cdDur = 0, 0 run(0.6)
+-- the setting off: gone the moment you use it
+db.mongooseafter=false
+usable=true fire("SPELL_UPDATE_USABLE") run(0.5) usable=false cdStart, cdDur = GetTime(), 5 run(0.1)
+assert(not m.proc, "switched off: no cooldown after use")
+db.mongooseafter=true cdStart, cdDur = 0, 0 run(0.6)
 db.procglow="HALO" db.procpulse="BREATHE" YaHT:ApplySettings()
 
 -- positions

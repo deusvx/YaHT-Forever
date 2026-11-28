@@ -70,6 +70,14 @@ inCombat = false w.inCombat = false main.shooting = false db.aspectwhen = "COMBA
 assert(b.aspect=="NONE" and (not b.shown or b.alpha < 0.05), "no aspect out of a fight should stay quiet when the badge is for fights only")
 db.aspectwhen = "ALWAYS" fire("UNIT_AURA") run(1.0)
 assert(b.shown and b.level == "HINT" and yellow() and b.halo.shown, "no yellow reminder for having no aspect out of a fight")
+-- no aspect is hard to overlook now: the badge bounces, a third larger, with "No aspect" above it
+assert(b.bouncing and b.noneWarn and b.noneText.shown and b.noneText.txt == "No aspect", "the no-aspect warning should bounce and say so")
+assert(math.abs((b.bigK or 1) - 1.5) < 0.01, "the no-aspect badge should be half again as large, got "..tostring(b.bigK))
+-- ... unless that is switched off: then it is the quiet red / yellow badge as before
+db.aspectnonebig = false fire("UNIT_AURA") run(1.0)
+assert(b.shown and yellow() and not b.bouncing and not b.noneText.shown and (b.bigK or 1) == 1, "switched off, the badge should stay as it was")
+db.aspectnonebig = true fire("UNIT_AURA") run(1.0)
+assert(b.bouncing and b.noneText.shown)
 db.aspectwarnnone = false fire("UNIT_AURA") run(1.2)
 assert(not b.shown or b.alpha < 0.05, "the no-aspect reminder ignores its switch")
 -- ... and while shooting without one, even when the badge is for fights only
@@ -172,6 +180,39 @@ local aa = opts.args.alerts.args.aspectpage.args
 assert(aa.aspect and aa.aspectwarnspeed and aa.aspecthint and aa.reset, "Aspect section incomplete")
 db.aspectsize=40 db.aspecthint=true aa.reset.func()
 assert(db.aspectsize==22 and db.aspecthint==false, "Aspect reset didn't restore defaults")
+
+-- AN ASPECT DROPPED IN A FIGHT. Buffs are hidden there, and dropping one is no cast: YaHT kept showing
+-- the old aspect. The game still says which buffs (by their own numbers) leave you: the aspect's
+-- number is remembered while it can be read, and its leaving means "no aspect".
+db.aspectwarnnone = true db.aspectnonebig = true db.aspectwhen = "COMBAT" db.lock = true YaHT:ApplySettings()
+inCombat = false w.inCombat = false main.shooting = false
+local hawkBuff = {icon = "buff:hawk", auraInstanceID = 77}
+C_UnitAuras.GetAuraDataBySpellName = function(unit, name) if current == SECRET then return SECRET end
+  if name == current then return (name == "Aspect of the Hawk") and hawkBuff or {icon = "buff:"..name, auraInstanceID = 90} end end
+current = "Aspect of the Hawk" fire("PLAYER_REGEN_ENABLED") fire("UNIT_AURA") run(0.3)
+assert(b.aspect == "HAWK", "setup: Hawk out of a fight")
+inCombat = true w.inCombat = true current = SECRET fire("PLAYER_REGEN_DISABLED") run(0.3)
+assert(b.aspect == "HAWK", "in the fight the hidden buff keeps Hawk")
+-- some other buff leaves: nothing
+w.scripts.OnEvent(w, "UNIT_AURA", "player", {removedAuraInstanceIDs = {12}}) run(1.0)
+assert(b.aspect == "HAWK", "another buff leaving is not the aspect")
+-- the aspect's own buff leaves: no aspect, and the warning comes
+w.scripts.OnEvent(w, "UNIT_AURA", "player", {removedAuraInstanceIDs = {5, 77}}) run(1.0)
+assert(b.aspect == "NONE" and b.shown and red(), "dropping the aspect in a fight should be seen")
+assert(b.bouncing and b.noneText.shown, "and the no-aspect warning should bounce")
+-- changing aspect in a fight is not a drop: the cast comes, then the old buff leaves and the new arrives
+w.scripts.OnEvent(w, "UNIT_SPELLCAST_SUCCEEDED", "player", "c1", 13163)
+w.scripts.OnEvent(w, "UNIT_AURA", "player", {removedAuraInstanceIDs = {77}, addedAuras = {{auraInstanceID = 91, spellId = SECRET}}}) run(1.0)
+assert(b.aspect == "MONKEY", "a change of aspect must not read as a drop")
+-- ... and the new one, dropped, is seen as well
+w.scripts.OnEvent(w, "UNIT_AURA", "player", {removedAuraInstanceIDs = {91}}) run(1.0)
+assert(b.aspect == "NONE" and red(), "the aspect cast in the fight, dropped, should be seen too")
+-- a game that hides the numbers changes nothing and breaks nothing
+w.scripts.OnEvent(w, "UNIT_SPELLCAST_SUCCEEDED", "player", "c2", 13165)
+w.scripts.OnEvent(w, "UNIT_AURA", "player", {removedAuraInstanceIDs = {SECRET}, addedAuras = SECRET}) run(0.5)
+w.scripts.OnEvent(w, "UNIT_AURA", "player", SECRET) run(0.5)
+assert(b.aspect == "HAWK" and (YaHT.errorCount or 0) == 0, tostring(YaHT.lastError))
+inCombat = false w.inCombat = false current = "Aspect of the Hawk" fire("PLAYER_REGEN_ENABLED") fire("UNIT_AURA") run(0.5)
 
 -- unlocked: preview
 inCombat=false db.lock=false YaHT:ApplySettings() run(0.3)

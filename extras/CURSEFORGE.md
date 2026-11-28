@@ -22,12 +22,12 @@ A port of Aviana's classic **YaHT** (Yet another Hunter Timer). **Original proje
   far to hit, red arrows pointing you closer when it's out of range. Or have them as text
   ("DEADZONE" / "TOO FAR") with your own wording, or both.
 - **Distance to your target:** a small readout like "20-28 yd", green when you can shoot, as a
-  number or a ruler of the zones. (The game gives addons no exact distance; this is the narrowest
+  number, a ruler of the zones, or one box per range band. (The game gives addons no exact distance; this is the narrowest
   band its range checks allow.)
 - **Feign Death resist:** a movable icon with RESIST and a warning sound. It notices a resist in
   a little over a second even when the game shows no "Resisted" message.
 - **Aspect badge:** your current aspect next to the bar. Red when a fight starts in Cheetah or Pack,
-  and a reminder when you have no aspect at all.
+  and a bigger, bouncing "No aspect" warning when you have none at all.
 - **Pet alerts:** small movable text for PET LOW, PET DEAD, NO PET and PET NOT ATTACKING.
 - **Lone Wolf look:** playing without a pet? While no pet is out, the bar turns moonlight silver and
   becomes a marksman's scope, with a crosshair that locks on when you have to stand still, and the
@@ -42,8 +42,11 @@ A port of Aviana's classic **YaHT** (Yet another Hunter Timer). **Original proje
 - **Bestial Wrath:** its 18 seconds in the prime spot over the bar, then its cooldown counting down.
 - **Mongoose Bite:** pops in after you dodge, with a gold timer for the window and its cooldown.
 - **Raptor Strike:** its icon shows while it is queued for your next melee swing, with a timer
-  running down to the swing.
+  running down to the swing, then its cooldown.
 - **Quick Shots:** with Deadly Aspects talented, shows while the haste lasts.
+- **Quick Strikes:** its melee twin, from Aspect of the Beast.
+- **Sniper Shot and Trueshot Aura:** for Marksmanship. Sniper Shot's cooldown after you fire it, and
+  a reminder that shows only while Trueshot Aura is not on.
 - **Rapid Fire and your racial:** show while they last. Your race's active is recognised automatically.
 - **Summon Hawk:** each hawk that is out, with its 18 seconds running down and the seconds left. It
   turns red under 6 seconds: time to summon again before you spend the shared cooldown on Arcane
@@ -72,6 +75,11 @@ A port of Aviana's classic **YaHT** (Yet another Hunter Timer). **Original proje
   in melee. Turns gold while Raptor Strike is queued.
 - **Three looks:** Minimal (just the bar), Clean (the bar with its icons) or Flashy (everything).
   Click one to see it in the live preview, then keep it with one more click.
+- **Cast bar style (Bouk's):** the reload runs down in blue and the stand-still part shows in green,
+  with the shot's name and its time on the bar.
+- **Melee weaving cues:** arrows beside the bar say Walk in when your bow fires and Walk out when
+  your weapon swings. Off to start with.
+- **Macros:** 21 hunter macros (PvE, pet, PvP), each made with one click and put on your cursor.
 - **Tranquilizing Shot announce** to Say, Party, Raid, Raid Warning, Whisper or a channel.
 
 ## An options window that explains itself
